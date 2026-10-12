@@ -15,7 +15,7 @@
 | Android NDK | 28.2.13676358 |
 | Go，原生构建使用 | 1.25.6 |
 
-在 `local.properties` 写入本机 SDK 路径，或设置 `ANDROID_HOME`。该文件不随项目分发。Gradle 的 daemon JVM 配置为 JDK 25；Java / Kotlin 代码也使用该工具链。
+SDK 安装包名为 `platforms;android-37.0` 与 `build-tools;37.0.0`。在 `local.properties` 写入本机 SDK 路径，或设置 `ANDROID_HOME`。该文件不随项目分发。Gradle 的 daemon JVM 配置为 JDK 25；Java / Kotlin 代码也使用该工具链。
 
 ```sh
 export JAVA_HOME=/absolute/path/to/jdk-25
