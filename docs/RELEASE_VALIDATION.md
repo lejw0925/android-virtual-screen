@@ -32,6 +32,7 @@
 - 增强工作流确认唯一 / 歧义选择器、按键及长按限制、动作后新观察、文字清空、节点等待、图像坐标缩放、UI 稳定、应用过滤、回执恢复及跨会话隔离。
 - 基线曾出现输入已执行但无障碍缓存尚未更新。使用条件等待读取效果，不重放输入。显示重建后的瞬时节点 bounds 也需要等待布局稳定，始终保留坐标范围与实时目标签名检查。
 - 本地原生触摸接管后旧租约失效，手势结束可重新申请远程租约；旧观察继续拒绝。全屏预览不再留下黑色 PiP。
+- Release 已确认画中画权限拒绝时报告 unavailable 并保持手机设置前台；恢复允许权限并重建显示后自动预览恢复。执行中通知实时显示 MCP purpose。
 
 ## 正式签名包
 
@@ -39,7 +40,7 @@
 
 签名 Release 实际通过 Root / Shizuku 显示、截图、输入、Unicode、接管、Root 预览 / 创建取消、普通 App UID 原生执行和 UDP / TCP DNS 共 6 项 instrumentation 检查。普通进程的节点行为另由 MCP 工作流验证，以避免 instrumentation 对无障碍绑定的 ROM 差异。签名 Release 的 frpc TCP / HTTP / HTTPS 检查也通过（1 项测试覆盖三种协议）；最新 Release 的传统与增强 MCP 脚本通过，并确认原 Token 保留、自动 pinned 预览和独立主屏界面。
 
-发行证书与 Actions 配置见 [构建文档](BUILD.md)。GitHub 构建与下载资产的最终复核结果在发布完成后补记。
+发行证书与 Actions 配置见 [构建文档](BUILD.md)。[云端 main 检查](https://github.com/lejw0925/android-virtual-screen/actions/runs/38292476123) 已通过：Linux / JDK 25 执行 JVM、Lint、Debug / unsigned Release、fixture 和 instrumentation 构建，实际 SDK 包名为 `platforms;android-37.0`。签名标签构建与下载资产的最终复核结果在发布完成后补记。
 
 ## 隧道与环境限制
 
