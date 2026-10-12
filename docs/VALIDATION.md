@@ -52,7 +52,7 @@ adb -s IP:PORT forward tcp:18732 tcp:8732
 python3 scripts/verify-mcp.py --token-file /private/path/to/token.txt
 ```
 
-传入 `--manual-marker /private/path/to/marker.json` 可增加手机触摸接管验证。脚本写出测试按钮的虚拟屏坐标；在手机点击一次后创建同名 `.done` 文件。脚本会检查计数以及旧租约、旧观察的拒绝。
+传入 `--manual-marker /private/path/to/marker.json` 可增加手机触摸接管验证。脚本写出测试按钮的虚拟屏坐标；先确认手机显示本应用的全屏预览，按其 viewport 换算为手机触摸坐标，在测试按钮点击一次后创建同名 `.done` 文件。只读 PiP 与设置页不能直接使用这些坐标。脚本会检查计数以及旧租约、旧观察的拒绝。
 
 frpc 测试需要测试主机上的 frps：监听 17000，HTTP 18780，HTTPS 18443，并允许 TCP 18732。为 `screen.example.test` 生成临时证书，将 PEM 证书和私钥放入目标 App 外部私有目录的 `frp-test-cert.pem`、`frp-test-key.pem`。测试在设备内将该验证域名解析到测试主机，不修改公共 DNS。
 

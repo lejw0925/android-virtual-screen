@@ -40,7 +40,7 @@
 
 签名 Release 实际通过 Root / Shizuku 显示、截图、输入、Unicode、接管、Root 预览 / 创建取消、普通 App UID 原生执行和 UDP / TCP DNS 共 6 项 instrumentation 检查。普通进程的节点行为另由 MCP 工作流验证，以避免 instrumentation 对无障碍绑定的 ROM 差异。签名 Release 的 frpc TCP / HTTP / HTTPS 检查也通过（1 项测试覆盖三种协议）；最新 Release 的传统与增强 MCP 脚本通过，并确认原 Token 保留、自动 pinned 预览和独立主屏界面。
 
-发行证书与 Actions 配置见 [构建文档](BUILD.md)。[云端 main 检查](https://github.com/lejw0925/android-virtual-screen/actions/runs/38292476123) 已通过：Linux / JDK 25 执行 JVM、Lint、Debug / unsigned Release、fixture 和 instrumentation 构建，实际 SDK 包名为 `platforms;android-37.0`。签名标签构建与下载资产的最终复核结果在发布完成后补记。
+发行证书与 Actions 配置见 [构建文档](BUILD.md)。[云端 main 检查](https://github.com/lejw0925/android-virtual-screen/actions/runs/38292476123) 已通过：Linux / JDK 25 执行 JVM、Lint、Debug / unsigned Release、fixture 和 instrumentation 构建，实际 SDK 包名为 `platforms;android-37.0`。[v0.0.1 自动签名与发布](https://github.com/lejw0925/android-virtual-screen/actions/runs/38293642656) 已通过，公开提供 APK 和 SHA256SUMS。
 
 ## 隧道与环境限制
 
@@ -49,3 +49,17 @@ frpc 的 TCP / HTTP / HTTPS 在临时 frps 上验证了初始化、错误认证�
 Cloudflare Quick 本轮未取得可用公网连接：手机到 edge 的 TCP 7844 出现连接关闭 / 超时，90 秒设备测试失败；DNS SRV 的 UDP / TCP 查询通过。2026-10-12 的历史网络曾成功，不能替代本轮结果。没有修改用户 VPN 或网络配置；本机、LAN 和 frpc 不依赖 Cloudflare edge。
 
 固定域名 / 官方授权需要实际账号与站点，本轮未登录或创建 DNS。其他 ROM、Android 13–15、普通 shell UID Shizuku、另外两种 ABI 运行及长时间熄屏 / 后台矩阵仍需验证。本项目使用 PolyForm Noncommercial，不能当作无限制商业许可。
+
+## 公开资产验收
+
+从 [0.0.1 Release](https://github.com/lejw0925/android-virtual-screen/releases/tag/v0.0.1) 下载实际 Actions 资产，APK 大小 80,584,945 字节，SHA-256：
+
+```text
+fadb1f3683771fbe4d1b69811f541892cc0d41ba78bdaff2f8980feb93c125bf
+```
+
+下载值与 SHA256SUMS 及 GitHub asset digest 一致；发行证书、非 debuggable Manifest、无 Debug 接收器和六个原生文件哈希再次核验。实际公开 APK 保留数据覆盖安装后，再次通过 6 项核心设备检查、增强工作流、自动 PiP、传统 MCP 和真实全屏触摸接管 / 交还 / 旧观察拒绝，旧 Token 仍有效。
+
+触摸接管检查的一次失败来自验证辅助流程：仅发送启动 Intent 时，当前设置页仍在同一任务顶部，辅助脚本把预览坐标点到了设置页。先确认主屏显示全屏预览，再执行真实触摸，完整验证通过。PiP 本身为只读；返回应用全屏预览或通知接管后操作，不把虚拟屏坐标直接用于手机设置界面。
+
+检查完成后停止 MCP、关闭测试显示，恢复字体 / 旋转和应用语言 / 主题设置，删除临时测试证书。保留公开正式版本供使用。

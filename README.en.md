@@ -22,7 +22,7 @@ Virtual Screen gives an AI agent an independent Android display. Your agent laun
 ## What makes it different
 
 - **Your phone remains usable.** Agent input stays on the display this app created. Failed operations never fall back to the main display. Restarting an app from another display requires confirmation on the phone.
-- **Visible progress and immediate takeover.** Remote display creation opens PiP automatically. The notification shows runtime state and the operation's purpose. Expand the preview and touch it, or use the takeover action to revoke remote control.
+- **Visible progress and immediate takeover.** Remote display creation opens PiP automatically. The notification shows runtime state and the operation's purpose. Open the app's full-screen preview and touch it, or use the takeover action to revoke remote control.
 - **Small, precise tool surface.** Ten MCP tools cover control, displays, apps, observation, input, and waits. Tree-only observations skip image capture; compact nodes, unique selectors, and fresh observation IDs reduce ambiguity.
 - **Receipts for uncertain connections.** Input can return a new observation. Results distinguish accepted input from verified effects. Query a session-owned receipt by the original request ID without repeating the input.
 - **Choice of connections.** Loopback, LAN, frpc, Cloudflare Quick, or named tunnels. Credentials are encrypted; services and tunnels start disabled.
@@ -33,7 +33,7 @@ Virtual Screen gives an AI agent an independent Android display. Your agent laun
 1. Install the signed APK from [Releases](https://github.com/lejw0925/android-virtual-screen/releases/latest). Requires **Android 13+** with Root or Shizuku already installed.
 2. Follow the guide to authorize access. Enable the app's accessibility service for node targeting and Unicode text editing; allow PiP for automatic previews.
 3. Enable MCP and paste the copied configuration into your agent's MCP settings. For a computer on the same Wi-Fi network, enable LAN access and use the phone's address. See [MCP setup](docs/MCP.md) for USB development access.
-4. Have the agent acquire control, create a display, discover and launch an app, then observe and act. Continue using your phone; take over from the expanded preview or notification whenever needed.
+4. Have the agent acquire control, create a display, discover and launch an app, then observe and act. Continue using your phone; take over from the app's full-screen preview or notification whenever needed.
 
 Reopen “Getting started” in Settings. Choose “Manual preview” to try the display locally. Enabling MCP also enables remote control, without a second permission switch.
 
@@ -48,7 +48,7 @@ flowchart LR
     User -->|Take over anytime| Preview
 ```
 
-Each input consumes one observation. Expired leases, stale observations, and ambiguous selectors are rejected. Multi-display app behavior, privilege implementations, and background policies vary by ROM. PiP is a viewer; the expanded preview supports direct touch input.
+Each input consumes one observation. Expired leases, stale observations, and ambiguous selectors are rejected. Multi-display app behavior, privilege implementations, and background policies vary by ROM. PiP is a viewer; the app's full-screen preview supports direct touch input.
 
 ## Validation and development
 
