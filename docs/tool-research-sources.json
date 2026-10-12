@@ -1,0 +1,650 @@
+{
+  "survey_date": "2026-10-13",
+  "method": "Static audit of GitHub default-branch commit snapshots and local source; no comparative execution or performance benchmark.",
+  "projects": [
+    {
+      "repo": "mobile-next/mobile-mcp",
+      "branch": "main",
+      "sha": "0a6a38bbc384f10c64bb1029f26016735bf823a6",
+      "committed_at": "2026-10-12T09:47:14Z",
+      "total": 34,
+      "groups": {
+        "src/server.ts": [
+          "get_more_tools",
+          "mobile_list_available_devices",
+          "mobile_login_to_cloud_provider",
+          "mobile_list_remote_devices",
+          "mobile_allocate_remote_device",
+          "mobile_release_remote_device",
+          "mobile_list_apps",
+          "mobile_get_foreground_app",
+          "mobile_launch_app",
+          "mobile_terminate_app",
+          "mobile_install_app",
+          "mobile_uninstall_app",
+          "mobile_get_screen_size",
+          "mobile_click_on_screen_at_coordinates",
+          "mobile_double_tap_on_screen",
+          "mobile_long_press_on_screen_at_coordinates",
+          "mobile_list_elements_on_screen",
+          "mobile_press_button",
+          "mobile_open_url",
+          "mobile_swipe_on_screen",
+          "mobile_type_keys",
+          "mobile_save_screenshot",
+          "mobile_take_screenshot",
+          "mobile_set_orientation",
+          "mobile_fold_device",
+          "mobile_set_location",
+          "mobile_clipboard",
+          "mobile_get_device_logs",
+          "mobile_get_orientation",
+          "mobile_start_screen_recording",
+          "mobile_stop_screen_recording",
+          "mobile_list_crashes",
+          "mobile_get_crash",
+          "mobile_batch_commands"
+        ]
+      },
+      "count_basis": "source_registrations",
+      "configuration_notes": "34 registrations: 29 device/development tools, 4 cloud tools, and get_more_tools conditional on telemetry being enabled; 33 when disabled.",
+      "source_files": [
+        {
+          "path": "src/android.ts",
+          "url": "https://github.com/mobile-next/mobile-mcp/blob/0a6a38bbc384f10c64bb1029f26016735bf823a6/src/android.ts",
+          "sha256": "1dfaa621001a923022d6aad89e2959a878fdae687c168a89ec03f7108ada1b00"
+        },
+        {
+          "path": "src/coordinate-mapping.ts",
+          "url": "https://github.com/mobile-next/mobile-mcp/blob/0a6a38bbc384f10c64bb1029f26016735bf823a6/src/coordinate-mapping.ts",
+          "sha256": "7dc25cf2da751e988d8957226ca5d97476b617c6ac67ebfa5ec1023d5da402b3"
+        },
+        {
+          "path": "src/format-elements.ts",
+          "url": "https://github.com/mobile-next/mobile-mcp/blob/0a6a38bbc384f10c64bb1029f26016735bf823a6/src/format-elements.ts",
+          "sha256": "953a3d369a608e1f7f8de7964d8a955c92ad02a8fce5197553f6722d3e8536b0"
+        },
+        {
+          "path": "src/server.ts",
+          "url": "https://github.com/mobile-next/mobile-mcp/blob/0a6a38bbc384f10c64bb1029f26016735bf823a6/src/server.ts",
+          "sha256": "544e09729098081ea5574acbba9a6359c278214261f4c9a0472d434ef506e45e"
+        }
+      ]
+    },
+    {
+      "repo": "CursorTouch/Android-MCP",
+      "branch": "master",
+      "sha": "0640a5d97d37e9add37236bad325cb88ea56d512",
+      "committed_at": "2026-10-07T01:20:20Z",
+      "total": 14,
+      "groups": {
+        "src/android_mcp/__main__.py": [
+          "ListDevices",
+          "ConnectDevice",
+          "Device",
+          "Click",
+          "ClickBySelector",
+          "Snapshot",
+          "LongClick",
+          "Swipe",
+          "Type",
+          "Drag",
+          "Press",
+          "Notification",
+          "Wait",
+          "WaitForElement"
+        ]
+      },
+      "count_basis": "source_registrations",
+      "configuration_notes": "14 MCP tool decorators; ListDevices and ConnectDevice overlap with Device actions.",
+      "source_files": [
+        {
+          "path": "src/android_mcp/__main__.py",
+          "url": "https://github.com/CursorTouch/Android-MCP/blob/0640a5d97d37e9add37236bad325cb88ea56d512/src/android_mcp/__main__.py",
+          "sha256": "6ddebc2cf7751fa8dd048f6eef2da3c69b5f8083fcb3eb9dc7b0abea872ba938"
+        },
+        {
+          "path": "src/android_mcp/mobile/service.py",
+          "url": "https://github.com/CursorTouch/Android-MCP/blob/0640a5d97d37e9add37236bad325cb88ea56d512/src/android_mcp/mobile/service.py",
+          "sha256": "44b416112185cb465037af0dac1f4be043c94175306282edf7e3d024b5b572a1"
+        },
+        {
+          "path": "src/android_mcp/mobile/views.py",
+          "url": "https://github.com/CursorTouch/Android-MCP/blob/0640a5d97d37e9add37236bad325cb88ea56d512/src/android_mcp/mobile/views.py",
+          "sha256": "28b5e70503180df9630333ec7b1f5da16f71e0b41ef9f930b28688f1d951b1d5"
+        },
+        {
+          "path": "src/android_mcp/tree/service.py",
+          "url": "https://github.com/CursorTouch/Android-MCP/blob/0640a5d97d37e9add37236bad325cb88ea56d512/src/android_mcp/tree/service.py",
+          "sha256": "286c9d592343e70c4fd50557f662daf746bb9872db0093fd90036bd7fa3d4be4"
+        }
+      ]
+    },
+    {
+      "repo": "danielealbano/android-remote-control-mcp",
+      "branch": "main",
+      "sha": "16f39717ce0969aa81a4ec132ba1cad861ba46cc",
+      "committed_at": "2026-08-26T18:23:07Z",
+      "total": 57,
+      "groups": {
+        "app/src/main/kotlin/com/danielealbano/androidremotecontrolmcp/mcp/tools/AppManagementTools.kt": [
+          "open_app",
+          "list_apps",
+          "close_app"
+        ],
+        "app/src/main/kotlin/com/danielealbano/androidremotecontrolmcp/mcp/tools/CameraTools.kt": [
+          "list_cameras",
+          "list_camera_photo_resolutions",
+          "list_camera_video_resolutions",
+          "take_camera_photo",
+          "save_camera_photo",
+          "save_camera_video"
+        ],
+        "app/src/main/kotlin/com/danielealbano/androidremotecontrolmcp/mcp/tools/LocationTools.kt": [
+          "get_location"
+        ],
+        "app/src/main/kotlin/com/danielealbano/androidremotecontrolmcp/mcp/tools/ScreenIntrospectionTools.kt": [
+          "get_screen_state"
+        ],
+        "app/src/main/kotlin/com/danielealbano/androidremotecontrolmcp/mcp/tools/FileTools.kt": [
+          "list_storage_locations",
+          "list_files",
+          "read_file",
+          "write_file",
+          "append_file",
+          "file_replace",
+          "download_from_url",
+          "delete_file"
+        ],
+        "app/src/main/kotlin/com/danielealbano/androidremotecontrolmcp/mcp/tools/TextInputTools.kt": [
+          "type_append_text",
+          "type_insert_text",
+          "type_replace_text",
+          "type_clear_text",
+          "press_key"
+        ],
+        "app/src/main/kotlin/com/danielealbano/androidremotecontrolmcp/mcp/tools/GestureTools.kt": [
+          "pinch",
+          "custom_gesture"
+        ],
+        "app/src/main/kotlin/com/danielealbano/androidremotecontrolmcp/mcp/tools/SystemActionTools.kt": [
+          "press_back",
+          "press_home",
+          "press_recents",
+          "open_notifications",
+          "open_quick_settings",
+          "dismiss_keyboard"
+        ],
+        "app/src/main/kotlin/com/danielealbano/androidremotecontrolmcp/mcp/tools/NotificationTools.kt": [
+          "notification_list",
+          "notification_open",
+          "notification_dismiss",
+          "notification_snooze",
+          "notification_action",
+          "notification_reply"
+        ],
+        "app/src/main/kotlin/com/danielealbano/androidremotecontrolmcp/mcp/tools/NodeActionTools.kt": [
+          "find_nodes",
+          "click_node",
+          "long_click_node",
+          "tap_node",
+          "scroll_to_node"
+        ],
+        "app/src/main/kotlin/com/danielealbano/androidremotecontrolmcp/mcp/tools/SharingTools.kt": [
+          "get_shared_content",
+          "share_file_via_web"
+        ],
+        "app/src/main/kotlin/com/danielealbano/androidremotecontrolmcp/mcp/tools/IntentTools.kt": [
+          "send_intent",
+          "open_uri"
+        ],
+        "app/src/main/kotlin/com/danielealbano/androidremotecontrolmcp/mcp/tools/TouchActionTools.kt": [
+          "tap",
+          "long_press",
+          "double_tap",
+          "swipe",
+          "scroll"
+        ],
+        "app/src/main/kotlin/com/danielealbano/androidremotecontrolmcp/mcp/tools/UtilityTools.kt": [
+          "get_clipboard",
+          "set_clipboard",
+          "wait_for_node",
+          "wait_for_idle",
+          "get_node_details"
+        ]
+      },
+      "count_basis": "source_registrations",
+      "configuration_notes": "57 handler names across 14 categories; default prefix android_, optionally android_<slug>_; runtime catalogue is filtered by configured and granted permissions.",
+      "source_files": [
+        {
+          "path": "app/src/main/kotlin/com/danielealbano/androidremotecontrolmcp/data/model/ToolPermissionsConfig.kt",
+          "url": "https://github.com/danielealbano/android-remote-control-mcp/blob/16f39717ce0969aa81a4ec132ba1cad861ba46cc/app/src/main/kotlin/com/danielealbano/androidremotecontrolmcp/data/model/ToolPermissionsConfig.kt",
+          "sha256": "98d67b34fb4acbd93894bfee1fe459589baff0c260df626fb7e95a5c400c1386"
+        },
+        {
+          "path": "app/src/main/kotlin/com/danielealbano/androidremotecontrolmcp/mcp/McpServer.kt",
+          "url": "https://github.com/danielealbano/android-remote-control-mcp/blob/16f39717ce0969aa81a4ec132ba1cad861ba46cc/app/src/main/kotlin/com/danielealbano/androidremotecontrolmcp/mcp/McpServer.kt",
+          "sha256": "1eb70bcc1f9d2046e75fe34457ea28f28dc1abed9a4def43edc89a6a6e8206d8"
+        },
+        {
+          "path": "app/src/main/kotlin/com/danielealbano/androidremotecontrolmcp/mcp/tools/AppManagementTools.kt",
+          "url": "https://github.com/danielealbano/android-remote-control-mcp/blob/16f39717ce0969aa81a4ec132ba1cad861ba46cc/app/src/main/kotlin/com/danielealbano/androidremotecontrolmcp/mcp/tools/AppManagementTools.kt",
+          "sha256": "4705b52723db9a9322afaf0c04d411e39c7440bcb294de79e52fec8370229672"
+        },
+        {
+          "path": "app/src/main/kotlin/com/danielealbano/androidremotecontrolmcp/mcp/tools/CameraTools.kt",
+          "url": "https://github.com/danielealbano/android-remote-control-mcp/blob/16f39717ce0969aa81a4ec132ba1cad861ba46cc/app/src/main/kotlin/com/danielealbano/androidremotecontrolmcp/mcp/tools/CameraTools.kt",
+          "sha256": "ed7c42ff01252f653badbebcf1a9f699835f784826750f88c2b9f530063337d6"
+        },
+        {
+          "path": "app/src/main/kotlin/com/danielealbano/androidremotecontrolmcp/mcp/tools/FileTools.kt",
+          "url": "https://github.com/danielealbano/android-remote-control-mcp/blob/16f39717ce0969aa81a4ec132ba1cad861ba46cc/app/src/main/kotlin/com/danielealbano/androidremotecontrolmcp/mcp/tools/FileTools.kt",
+          "sha256": "6dc2682e72b35f4a3f3d893ab9894a036d6d71024ba19cf524c6e70621d05d79"
+        },
+        {
+          "path": "app/src/main/kotlin/com/danielealbano/androidremotecontrolmcp/mcp/tools/GestureTools.kt",
+          "url": "https://github.com/danielealbano/android-remote-control-mcp/blob/16f39717ce0969aa81a4ec132ba1cad861ba46cc/app/src/main/kotlin/com/danielealbano/androidremotecontrolmcp/mcp/tools/GestureTools.kt",
+          "sha256": "c8fba203483b00d4a9e0e673e4a7b753a8340204935a706a807d12ffb61417b5"
+        },
+        {
+          "path": "app/src/main/kotlin/com/danielealbano/androidremotecontrolmcp/mcp/tools/IntentTools.kt",
+          "url": "https://github.com/danielealbano/android-remote-control-mcp/blob/16f39717ce0969aa81a4ec132ba1cad861ba46cc/app/src/main/kotlin/com/danielealbano/androidremotecontrolmcp/mcp/tools/IntentTools.kt",
+          "sha256": "ce5d238de39dc6f58a7be0014177372bfd64b857caf9977e30ea5c4ef928651a"
+        },
+        {
+          "path": "app/src/main/kotlin/com/danielealbano/androidremotecontrolmcp/mcp/tools/LocationTools.kt",
+          "url": "https://github.com/danielealbano/android-remote-control-mcp/blob/16f39717ce0969aa81a4ec132ba1cad861ba46cc/app/src/main/kotlin/com/danielealbano/androidremotecontrolmcp/mcp/tools/LocationTools.kt",
+          "sha256": "1bae3d683691e8ab8179d22c5b6595839279dcdc682f0001a1b504a4c2a3eaf0"
+        },
+        {
+          "path": "app/src/main/kotlin/com/danielealbano/androidremotecontrolmcp/mcp/tools/LoggedToolRegistration.kt",
+          "url": "https://github.com/danielealbano/android-remote-control-mcp/blob/16f39717ce0969aa81a4ec132ba1cad861ba46cc/app/src/main/kotlin/com/danielealbano/androidremotecontrolmcp/mcp/tools/LoggedToolRegistration.kt",
+          "sha256": "2dc2d895ab3f99df8aa5c678532ca8d24a5f3d36a008c0bfd9cbc7b6c6a8b9c2"
+        },
+        {
+          "path": "app/src/main/kotlin/com/danielealbano/androidremotecontrolmcp/mcp/tools/McpToolUtils.kt",
+          "url": "https://github.com/danielealbano/android-remote-control-mcp/blob/16f39717ce0969aa81a4ec132ba1cad861ba46cc/app/src/main/kotlin/com/danielealbano/androidremotecontrolmcp/mcp/tools/McpToolUtils.kt",
+          "sha256": "6b4fd9e00bc602d56c742ad6c9d0f40b46a4444cde11995e82ebae8411e5158f"
+        },
+        {
+          "path": "app/src/main/kotlin/com/danielealbano/androidremotecontrolmcp/mcp/tools/NodeActionTools.kt",
+          "url": "https://github.com/danielealbano/android-remote-control-mcp/blob/16f39717ce0969aa81a4ec132ba1cad861ba46cc/app/src/main/kotlin/com/danielealbano/androidremotecontrolmcp/mcp/tools/NodeActionTools.kt",
+          "sha256": "d1b70a9c01ec80ea923f94ae1ecb70fc6fdf301a3db8d32052f9cba355d471f6"
+        },
+        {
+          "path": "app/src/main/kotlin/com/danielealbano/androidremotecontrolmcp/mcp/tools/NotificationTools.kt",
+          "url": "https://github.com/danielealbano/android-remote-control-mcp/blob/16f39717ce0969aa81a4ec132ba1cad861ba46cc/app/src/main/kotlin/com/danielealbano/androidremotecontrolmcp/mcp/tools/NotificationTools.kt",
+          "sha256": "d59bfcb3697e18179067f84b807994abccc248f9cd9d0c838928e324d8edbab0"
+        },
+        {
+          "path": "app/src/main/kotlin/com/danielealbano/androidremotecontrolmcp/mcp/tools/ReferenceCountedToolCallIndicator.kt",
+          "url": "https://github.com/danielealbano/android-remote-control-mcp/blob/16f39717ce0969aa81a4ec132ba1cad861ba46cc/app/src/main/kotlin/com/danielealbano/androidremotecontrolmcp/mcp/tools/ReferenceCountedToolCallIndicator.kt",
+          "sha256": "d903e5acc34ee6993bb115e1b7ff1a6705699060e80fed0f3202379ba7f8af2a"
+        },
+        {
+          "path": "app/src/main/kotlin/com/danielealbano/androidremotecontrolmcp/mcp/tools/ScreenIntrospectionTools.kt",
+          "url": "https://github.com/danielealbano/android-remote-control-mcp/blob/16f39717ce0969aa81a4ec132ba1cad861ba46cc/app/src/main/kotlin/com/danielealbano/androidremotecontrolmcp/mcp/tools/ScreenIntrospectionTools.kt",
+          "sha256": "b484dc91c5f8dd44f174de5542f642e15a16ae4227e765e91f9e2b80257e7cfb"
+        },
+        {
+          "path": "app/src/main/kotlin/com/danielealbano/androidremotecontrolmcp/mcp/tools/SharingTools.kt",
+          "url": "https://github.com/danielealbano/android-remote-control-mcp/blob/16f39717ce0969aa81a4ec132ba1cad861ba46cc/app/src/main/kotlin/com/danielealbano/androidremotecontrolmcp/mcp/tools/SharingTools.kt",
+          "sha256": "662da54a759185a1cca23ae9098728bd4fb1ad3b60507088c9b64bcd8dc1a5d9"
+        },
+        {
+          "path": "app/src/main/kotlin/com/danielealbano/androidremotecontrolmcp/mcp/tools/SystemActionTools.kt",
+          "url": "https://github.com/danielealbano/android-remote-control-mcp/blob/16f39717ce0969aa81a4ec132ba1cad861ba46cc/app/src/main/kotlin/com/danielealbano/androidremotecontrolmcp/mcp/tools/SystemActionTools.kt",
+          "sha256": "11460635131b815d8c646b1afe9ed7f88d6636ca296271ad59fbdcb43e7e7ab5"
+        },
+        {
+          "path": "app/src/main/kotlin/com/danielealbano/androidremotecontrolmcp/mcp/tools/TextInputTools.kt",
+          "url": "https://github.com/danielealbano/android-remote-control-mcp/blob/16f39717ce0969aa81a4ec132ba1cad861ba46cc/app/src/main/kotlin/com/danielealbano/androidremotecontrolmcp/mcp/tools/TextInputTools.kt",
+          "sha256": "b27a2bb47c3374ef63dfe3f2fb089313ed1b63d044e9fb2381e5c0955e8ab528"
+        },
+        {
+          "path": "app/src/main/kotlin/com/danielealbano/androidremotecontrolmcp/mcp/tools/ToolCallIndicator.kt",
+          "url": "https://github.com/danielealbano/android-remote-control-mcp/blob/16f39717ce0969aa81a4ec132ba1cad861ba46cc/app/src/main/kotlin/com/danielealbano/androidremotecontrolmcp/mcp/tools/ToolCallIndicator.kt",
+          "sha256": "dc63698b881466a5a7d5e8436b442a560a3ef2799663a161c77c5be062d51a1b"
+        },
+        {
+          "path": "app/src/main/kotlin/com/danielealbano/androidremotecontrolmcp/mcp/tools/TouchActionTools.kt",
+          "url": "https://github.com/danielealbano/android-remote-control-mcp/blob/16f39717ce0969aa81a4ec132ba1cad861ba46cc/app/src/main/kotlin/com/danielealbano/androidremotecontrolmcp/mcp/tools/TouchActionTools.kt",
+          "sha256": "d0891141149027a76e4d0acc702b438012ee2d06858cfc71a53a8d7bf91690c2"
+        },
+        {
+          "path": "app/src/main/kotlin/com/danielealbano/androidremotecontrolmcp/mcp/tools/TreeFingerprint.kt",
+          "url": "https://github.com/danielealbano/android-remote-control-mcp/blob/16f39717ce0969aa81a4ec132ba1cad861ba46cc/app/src/main/kotlin/com/danielealbano/androidremotecontrolmcp/mcp/tools/TreeFingerprint.kt",
+          "sha256": "077bd2d13cacca031fdaa1e0a0eb058cb2b4843d9885c5ef0698cc36c1a28615"
+        },
+        {
+          "path": "app/src/main/kotlin/com/danielealbano/androidremotecontrolmcp/mcp/tools/UtilityTools.kt",
+          "url": "https://github.com/danielealbano/android-remote-control-mcp/blob/16f39717ce0969aa81a4ec132ba1cad861ba46cc/app/src/main/kotlin/com/danielealbano/androidremotecontrolmcp/mcp/tools/UtilityTools.kt",
+          "sha256": "b948198c8b4a5f37711d571970a9f81aa0ce5bf76f9b6972555214c4f42383d7"
+        },
+        {
+          "path": "app/src/main/kotlin/com/danielealbano/androidremotecontrolmcp/services/accessibility/ScreenStateSnapshotCacheImpl.kt",
+          "url": "https://github.com/danielealbano/android-remote-control-mcp/blob/16f39717ce0969aa81a4ec132ba1cad861ba46cc/app/src/main/kotlin/com/danielealbano/androidremotecontrolmcp/services/accessibility/ScreenStateSnapshotCacheImpl.kt",
+          "sha256": "c62cb8ab573299550e430fe429fb3ac22cf00b42ee3fe50bb8b5b6837a703745"
+        },
+        {
+          "path": "app/src/main/kotlin/com/danielealbano/androidremotecontrolmcp/services/mcp/McpServerService.kt",
+          "url": "https://github.com/danielealbano/android-remote-control-mcp/blob/16f39717ce0969aa81a4ec132ba1cad861ba46cc/app/src/main/kotlin/com/danielealbano/androidremotecontrolmcp/services/mcp/McpServerService.kt",
+          "sha256": "b3f4b1370b904bb2b4ea9c043bafd9c07916702dfaae20bb816ab64aa07b3d7e"
+        },
+        {
+          "path": "app/src/test/kotlin/com/danielealbano/androidremotecontrolmcp/mcp/tools/CameraToolsTest.kt",
+          "url": "https://github.com/danielealbano/android-remote-control-mcp/blob/16f39717ce0969aa81a4ec132ba1cad861ba46cc/app/src/test/kotlin/com/danielealbano/androidremotecontrolmcp/mcp/tools/CameraToolsTest.kt",
+          "sha256": "45a56b567df1f31d72e4e6f4a20e917b0532d8148f67a4bbd2b2781bed4a0215"
+        },
+        {
+          "path": "app/src/test/kotlin/com/danielealbano/androidremotecontrolmcp/mcp/tools/GestureToolsTest.kt",
+          "url": "https://github.com/danielealbano/android-remote-control-mcp/blob/16f39717ce0969aa81a4ec132ba1cad861ba46cc/app/src/test/kotlin/com/danielealbano/androidremotecontrolmcp/mcp/tools/GestureToolsTest.kt",
+          "sha256": "73066bc2f4c0d8adb3bb491aea08134e89a97793cca11598e7a6d7fd2dd0c7e7"
+        },
+        {
+          "path": "app/src/test/kotlin/com/danielealbano/androidremotecontrolmcp/mcp/tools/GetNodeDetailsToolTest.kt",
+          "url": "https://github.com/danielealbano/android-remote-control-mcp/blob/16f39717ce0969aa81a4ec132ba1cad861ba46cc/app/src/test/kotlin/com/danielealbano/androidremotecontrolmcp/mcp/tools/GetNodeDetailsToolTest.kt",
+          "sha256": "abce6787fef057afd3ba9736b65d5086ed31587894585876f6434e97c95cfea4"
+        },
+        {
+          "path": "app/src/test/kotlin/com/danielealbano/androidremotecontrolmcp/mcp/tools/IntentToolsTest.kt",
+          "url": "https://github.com/danielealbano/android-remote-control-mcp/blob/16f39717ce0969aa81a4ec132ba1cad861ba46cc/app/src/test/kotlin/com/danielealbano/androidremotecontrolmcp/mcp/tools/IntentToolsTest.kt",
+          "sha256": "08d07de9e3a9a34051d3ea0cc5d0696fbe0f8dc99475b6d0a66222ca4f92869c"
+        },
+        {
+          "path": "app/src/test/kotlin/com/danielealbano/androidremotecontrolmcp/mcp/tools/LocationToolsTest.kt",
+          "url": "https://github.com/danielealbano/android-remote-control-mcp/blob/16f39717ce0969aa81a4ec132ba1cad861ba46cc/app/src/test/kotlin/com/danielealbano/androidremotecontrolmcp/mcp/tools/LocationToolsTest.kt",
+          "sha256": "0c6430dd5e9b8b0313b3d4b86335b8d9710e78246bbdeb2481735280358b240d"
+        },
+        {
+          "path": "app/src/test/kotlin/com/danielealbano/androidremotecontrolmcp/mcp/tools/LoggedToolHandlerTest.kt",
+          "url": "https://github.com/danielealbano/android-remote-control-mcp/blob/16f39717ce0969aa81a4ec132ba1cad861ba46cc/app/src/test/kotlin/com/danielealbano/androidremotecontrolmcp/mcp/tools/LoggedToolHandlerTest.kt",
+          "sha256": "554708fa01821810c0e1444672b4e4b0a99393d4eff40ad857795e960df08bba"
+        },
+        {
+          "path": "app/src/test/kotlin/com/danielealbano/androidremotecontrolmcp/mcp/tools/McpToolUtilsTest.kt",
+          "url": "https://github.com/danielealbano/android-remote-control-mcp/blob/16f39717ce0969aa81a4ec132ba1cad861ba46cc/app/src/test/kotlin/com/danielealbano/androidremotecontrolmcp/mcp/tools/McpToolUtilsTest.kt",
+          "sha256": "1417730ec4d32ac08aad654014e65cefcc3991b31a85989abdda4a47d07a8981"
+        },
+        {
+          "path": "app/src/test/kotlin/com/danielealbano/androidremotecontrolmcp/mcp/tools/NodeActionToolsTest.kt",
+          "url": "https://github.com/danielealbano/android-remote-control-mcp/blob/16f39717ce0969aa81a4ec132ba1cad861ba46cc/app/src/test/kotlin/com/danielealbano/androidremotecontrolmcp/mcp/tools/NodeActionToolsTest.kt",
+          "sha256": "1784998bcd7f747970bb88a9ec9bfe748458641f834eb3a8b849a74474ed9333"
+        },
+        {
+          "path": "app/src/test/kotlin/com/danielealbano/androidremotecontrolmcp/mcp/tools/NotificationToolsTest.kt",
+          "url": "https://github.com/danielealbano/android-remote-control-mcp/blob/16f39717ce0969aa81a4ec132ba1cad861ba46cc/app/src/test/kotlin/com/danielealbano/androidremotecontrolmcp/mcp/tools/NotificationToolsTest.kt",
+          "sha256": "f8f060983fa4713f44ed8fdec86f80c49266b1f53a5aae7fba0084e6ed9cb616"
+        },
+        {
+          "path": "app/src/test/kotlin/com/danielealbano/androidremotecontrolmcp/mcp/tools/ScreenIntrospectionToolsTest.kt",
+          "url": "https://github.com/danielealbano/android-remote-control-mcp/blob/16f39717ce0969aa81a4ec132ba1cad861ba46cc/app/src/test/kotlin/com/danielealbano/androidremotecontrolmcp/mcp/tools/ScreenIntrospectionToolsTest.kt",
+          "sha256": "9aec80d2cd038ece98fd9d13397e620f7c41e2c0adb4c06c69999d16fc9bd26e"
+        },
+        {
+          "path": "app/src/test/kotlin/com/danielealbano/androidremotecontrolmcp/mcp/tools/SystemActionToolsTest.kt",
+          "url": "https://github.com/danielealbano/android-remote-control-mcp/blob/16f39717ce0969aa81a4ec132ba1cad861ba46cc/app/src/test/kotlin/com/danielealbano/androidremotecontrolmcp/mcp/tools/SystemActionToolsTest.kt",
+          "sha256": "c2fa6d1d51359a1182820775ac998d811ac0cc3067d4bf8368624787ebed34fc"
+        },
+        {
+          "path": "app/src/test/kotlin/com/danielealbano/androidremotecontrolmcp/mcp/tools/TextInputToolsTest.kt",
+          "url": "https://github.com/danielealbano/android-remote-control-mcp/blob/16f39717ce0969aa81a4ec132ba1cad861ba46cc/app/src/test/kotlin/com/danielealbano/androidremotecontrolmcp/mcp/tools/TextInputToolsTest.kt",
+          "sha256": "c6d85ceb7f591d5cc36924acbda8b69c00f19cf1745d4648e3103353d5c1a2be"
+        },
+        {
+          "path": "app/src/test/kotlin/com/danielealbano/androidremotecontrolmcp/mcp/tools/TouchActionToolsTest.kt",
+          "url": "https://github.com/danielealbano/android-remote-control-mcp/blob/16f39717ce0969aa81a4ec132ba1cad861ba46cc/app/src/test/kotlin/com/danielealbano/androidremotecontrolmcp/mcp/tools/TouchActionToolsTest.kt",
+          "sha256": "c4d81f354c050679cc896ad483fbdd8f4568c66ab3b39a3cc86bbd79e8ce001f"
+        },
+        {
+          "path": "app/src/test/kotlin/com/danielealbano/androidremotecontrolmcp/mcp/tools/TreeFingerprintTest.kt",
+          "url": "https://github.com/danielealbano/android-remote-control-mcp/blob/16f39717ce0969aa81a4ec132ba1cad861ba46cc/app/src/test/kotlin/com/danielealbano/androidremotecontrolmcp/mcp/tools/TreeFingerprintTest.kt",
+          "sha256": "0ce7f8ce468e2c727e2f343d732d5e7c27f145b35e266013ec27e41a8e5d1e5f"
+        },
+        {
+          "path": "app/src/test/kotlin/com/danielealbano/androidremotecontrolmcp/mcp/tools/UntrustedWarningTestHelper.kt",
+          "url": "https://github.com/danielealbano/android-remote-control-mcp/blob/16f39717ce0969aa81a4ec132ba1cad861ba46cc/app/src/test/kotlin/com/danielealbano/androidremotecontrolmcp/mcp/tools/UntrustedWarningTestHelper.kt",
+          "sha256": "8c72ce70dca3deac1b112fdc67516a440dea2081afa030a963e2eaa04050c8cd"
+        },
+        {
+          "path": "app/src/test/kotlin/com/danielealbano/androidremotecontrolmcp/mcp/tools/UtilityToolsTest.kt",
+          "url": "https://github.com/danielealbano/android-remote-control-mcp/blob/16f39717ce0969aa81a4ec132ba1cad861ba46cc/app/src/test/kotlin/com/danielealbano/androidremotecontrolmcp/mcp/tools/UtilityToolsTest.kt",
+          "sha256": "88ea57495b2a5b6cec6d09fcafdca4ebf603eb57325bf218d8ed2da1bb1921cf"
+        }
+      ]
+    },
+    {
+      "repo": "nidhoggfgg/PhoneUse",
+      "branch": "main",
+      "sha": "fa51691077e5f094dc2e09dcd9471f2f3e81a2bb",
+      "committed_at": "2026-10-06T16:42:35Z",
+      "total": 21,
+      "groups": {
+        "app/src/main/java/ai/nidhoggfgg/phoneuse/core/ToolCatalog.kt": [
+          "get_capabilities",
+          "get_status",
+          "cancel",
+          "acquire_device",
+          "release_device",
+          "observe",
+          "list_apps",
+          "wait_for_change",
+          "tap",
+          "long_press",
+          "swipe",
+          "scroll",
+          "input_text",
+          "back",
+          "home",
+          "recents",
+          "launch_app"
+        ],
+        "tools/phoneuse_client.py": [
+          "phoneuse_connect",
+          "phoneuse_list_devices",
+          "phoneuse_call",
+          "phoneuse_batch"
+        ]
+      },
+      "count_basis": "source_registrations",
+      "configuration_notes": "17 on-device tools plus 4 stdio bridge tools; the bridge discovers and deduplicates phone catalogues after pairing, so the initial offline catalogue has only 4 tools.",
+      "source_files": [
+        {
+          "path": "app/src/main/java/ai/nidhoggfgg/phoneuse/core/DeviceController.kt",
+          "url": "https://github.com/nidhoggfgg/PhoneUse/blob/fa51691077e5f094dc2e09dcd9471f2f3e81a2bb/app/src/main/java/ai/nidhoggfgg/phoneuse/core/DeviceController.kt",
+          "sha256": "d275f3da00178891fa25ca621c516bf7d84b7c3dac91b72384d40e309a08e9fe"
+        },
+        {
+          "path": "app/src/main/java/ai/nidhoggfgg/phoneuse/core/ToolCatalog.kt",
+          "url": "https://github.com/nidhoggfgg/PhoneUse/blob/fa51691077e5f094dc2e09dcd9471f2f3e81a2bb/app/src/main/java/ai/nidhoggfgg/phoneuse/core/ToolCatalog.kt",
+          "sha256": "511909d4e95ab115f68da14c776f553a290466aedf76c803d6f62df382e09c96"
+        },
+        {
+          "path": "integrations/mcp/configure.py",
+          "url": "https://github.com/nidhoggfgg/PhoneUse/blob/fa51691077e5f094dc2e09dcd9471f2f3e81a2bb/integrations/mcp/configure.py",
+          "sha256": "aca3af2dc06514150b0f97cb0c1e47151504c600f255a048e534ec98270a5b1a"
+        },
+        {
+          "path": "tools/phoneuse_client.py",
+          "url": "https://github.com/nidhoggfgg/PhoneUse/blob/fa51691077e5f094dc2e09dcd9471f2f3e81a2bb/tools/phoneuse_client.py",
+          "sha256": "e45c8af8d95db1801c851f75b958155eb209c8fa5d4d163de85012f809608540"
+        }
+      ]
+    },
+    {
+      "repo": "hanxi/droidrun-agent",
+      "branch": "main",
+      "sha": "04cacf51b0d82f687e553801a1513ae8c6d25b15",
+      "committed_at": "2026-03-17T16:23:11Z",
+      "total": 20,
+      "groups": {
+        "src/droidrun_agent/mcp_server.py": [
+          "portal_ping",
+          "portal_tap",
+          "portal_swipe",
+          "portal_screenshot",
+          "portal_get_state",
+          "portal_get_state_full",
+          "portal_get_a11y_tree",
+          "portal_get_a11y_tree_full",
+          "portal_get_phone_state",
+          "portal_get_version",
+          "portal_get_packages",
+          "portal_global_action",
+          "portal_start_app",
+          "portal_stop_app",
+          "portal_input_text",
+          "portal_clear_input",
+          "portal_press_key",
+          "portal_set_overlay_offset",
+          "portal_get_time",
+          "portal_install"
+        ]
+      },
+      "count_basis": "source_registrations",
+      "configuration_notes": "20 tools always returned by list_tools; 4 HTTP-only and 2 WebSocket-only tools can be advertised in unsupported configurations.",
+      "source_files": [
+        {
+          "path": "src/droidrun_agent/mcp_server.py",
+          "url": "https://github.com/hanxi/droidrun-agent/blob/04cacf51b0d82f687e553801a1513ae8c6d25b15/src/droidrun_agent/mcp_server.py",
+          "sha256": "9bf8235af78d22088d7b71882d7dde2048d5928c5b11f14c48f784a6f57286f4"
+        },
+        {
+          "path": "tests/test_mcp_server.py",
+          "url": "https://github.com/hanxi/droidrun-agent/blob/04cacf51b0d82f687e553801a1513ae8c6d25b15/tests/test_mcp_server.py",
+          "sha256": "fe1063bfcb23b74abed616466e3af4a362edb67dfb2e28470b313dc61b376e47"
+        }
+      ]
+    },
+    {
+      "repo": "Mangi-11/Eta",
+      "branch": "main",
+      "sha": "9de3a3f70aba497bd8fd677cb5b876f45115b428",
+      "committed_at": "2026-10-07T06:35:24Z",
+      "total": 21,
+      "groups": {
+        "app/src/main/kotlin/io/github/mangi/eta/agent/model/AgentContextAppToolCatalog.kt": [
+          "get_current_context",
+          "search_apps",
+          "launch_app",
+          "open_uri",
+          "observe_screen"
+        ],
+        "app/src/main/kotlin/io/github/mangi/eta/agent/model/AgentGestureToolCatalog.kt": [
+          "tap",
+          "tap_area",
+          "tap_element",
+          "long_press",
+          "long_press_element",
+          "swipe",
+          "scroll",
+          "scroll_element"
+        ],
+        "app/src/main/kotlin/io/github/mangi/eta/agent/model/AgentTextSystemToolCatalog.kt": [
+          "type_text",
+          "set_clipboard",
+          "get_clipboard",
+          "press_key",
+          "wait",
+          "wait_for_text",
+          "wait_for_package",
+          "open_system_panel"
+        ]
+      },
+      "count_basis": "relevant_internal_subset",
+      "configuration_notes": "21 related tools from three internal LLM catalogues, not a complete catalogue and not an exported MCP server.",
+      "source_files": [
+        {
+          "path": "app/src/main/kotlin/io/github/mangi/eta/agent/device/DeviceToolContract.kt",
+          "url": "https://github.com/Mangi-11/Eta/blob/9de3a3f70aba497bd8fd677cb5b876f45115b428/app/src/main/kotlin/io/github/mangi/eta/agent/device/DeviceToolContract.kt",
+          "sha256": "5a6d1923bc60be361acd40675f0621008d89836b2a0227dd7715263b280d8591"
+        },
+        {
+          "path": "app/src/main/kotlin/io/github/mangi/eta/agent/model/AgentContextAppToolCatalog.kt",
+          "url": "https://github.com/Mangi-11/Eta/blob/9de3a3f70aba497bd8fd677cb5b876f45115b428/app/src/main/kotlin/io/github/mangi/eta/agent/model/AgentContextAppToolCatalog.kt",
+          "sha256": "9847462e49e0864a407cdb9f6b3f980031a63abe8c2c5ca64b3e7bf19202d09c"
+        },
+        {
+          "path": "app/src/main/kotlin/io/github/mangi/eta/agent/model/AgentDeviceToolCatalog.kt",
+          "url": "https://github.com/Mangi-11/Eta/blob/9de3a3f70aba497bd8fd677cb5b876f45115b428/app/src/main/kotlin/io/github/mangi/eta/agent/model/AgentDeviceToolCatalog.kt",
+          "sha256": "3ec16ebd7facde34845eb3f951c8be44c238c914dfdad2a821737769634bddbd"
+        },
+        {
+          "path": "app/src/main/kotlin/io/github/mangi/eta/agent/model/AgentGestureToolCatalog.kt",
+          "url": "https://github.com/Mangi-11/Eta/blob/9de3a3f70aba497bd8fd677cb5b876f45115b428/app/src/main/kotlin/io/github/mangi/eta/agent/model/AgentGestureToolCatalog.kt",
+          "sha256": "b7251b18a3ba3f7b9a89f5de7cbf5c8b576428d3108453e8b3cad72ba09eb631"
+        },
+        {
+          "path": "app/src/main/kotlin/io/github/mangi/eta/agent/model/AgentTextSystemToolCatalog.kt",
+          "url": "https://github.com/Mangi-11/Eta/blob/9de3a3f70aba497bd8fd677cb5b876f45115b428/app/src/main/kotlin/io/github/mangi/eta/agent/model/AgentTextSystemToolCatalog.kt",
+          "sha256": "f631cbfb9b3dd2d2426b88a519e504bbd31b0f30923a45cbf962add04dcbd467"
+        },
+        {
+          "path": "app/src/main/kotlin/io/github/mangi/eta/agent/model/AgentToolCatalog.kt",
+          "url": "https://github.com/Mangi-11/Eta/blob/9de3a3f70aba497bd8fd677cb5b876f45115b428/app/src/main/kotlin/io/github/mangi/eta/agent/model/AgentToolCatalog.kt",
+          "sha256": "736fea4b9313b1ac5687df082a266e4cb01275c40b3d6bec14424bbfd3115eff"
+        },
+        {
+          "path": "app/src/main/kotlin/io/github/mangi/eta/agent/model/AgentToolSchema.kt",
+          "url": "https://github.com/Mangi-11/Eta/blob/9de3a3f70aba497bd8fd677cb5b876f45115b428/app/src/main/kotlin/io/github/mangi/eta/agent/model/AgentToolSchema.kt",
+          "sha256": "eb1c66811f5c423825f94d8f5047e1f42814797f9d90b693694678139eecb754"
+        },
+        {
+          "path": "app/src/main/kotlin/io/github/mangi/eta/agent/tool/AgentAfterActionSummary.kt",
+          "url": "https://github.com/Mangi-11/Eta/blob/9de3a3f70aba497bd8fd677cb5b876f45115b428/app/src/main/kotlin/io/github/mangi/eta/agent/tool/AgentAfterActionSummary.kt",
+          "sha256": "b4950e4a64a7eb580f12834ba257acd10e0811622ff1e63047ecdc2923ab132a"
+        },
+        {
+          "path": "app/src/main/kotlin/io/github/mangi/eta/agent/tool/ObservationReferencePolicy.kt",
+          "url": "https://github.com/Mangi-11/Eta/blob/9de3a3f70aba497bd8fd677cb5b876f45115b428/app/src/main/kotlin/io/github/mangi/eta/agent/tool/ObservationReferencePolicy.kt",
+          "sha256": "719ba1ccca63e3f9e4e8c355834a2d78fe4df8abc0ec511737829e387570f271"
+        }
+      ]
+    }
+  ],
+  "local_baseline": {
+    "tool_names": [
+      "control",
+      "service_status",
+      "screen",
+      "applications",
+      "observe",
+      "pointer",
+      "input_text",
+      "node_action",
+      "press_key",
+      "wait"
+    ],
+    "total": 10,
+    "files": [
+      {
+        "path": "app/src/main/kotlin/io/github/lejw0925/virtualscreen/mcp/McpToolRegistry.kt",
+        "sha256": "5045caf96db87b6a56e94cac8b89c658a9630ca632d4e5bf64515251acb6beb6"
+      },
+      {
+        "path": "app/src/main/kotlin/io/github/lejw0925/virtualscreen/mcp/McpServerController.kt",
+        "sha256": "de547abd4d2a139e1a533f972a2d18ebd9f9e2e041a815f8cc2f63c418938b5d"
+      },
+      {
+        "path": "app/src/main/kotlin/io/github/lejw0925/virtualscreen/core/VirtualScreenSessionManager.kt",
+        "sha256": "b950c49744a8d28395d3a3b74f117170fe7d533c381466f1ce499b16f47f532b"
+      },
+      {
+        "path": "app/src/main/kotlin/io/github/lejw0925/virtualscreen/core/ScreenAccessibilityService.kt",
+        "sha256": "f6326b66741a7a30e417ee1fad24efad243f6ab408750308316ffa5d20ab9523"
+      },
+      {
+        "path": "app/src/main/kotlin/io/github/lejw0925/virtualscreen/backend/VirtualScreenBackend.kt",
+        "sha256": "99df8755de3f7dd0689ad72e42e34ee02f259b3d413993dd0bfb7125536c1d1e"
+      },
+      {
+        "path": "app/src/main/kotlin/io/github/lejw0925/virtualscreen/backend/PrivilegedDisplayEngine.kt",
+        "sha256": "64baf907af4dcb7b1baedd23188ce8a1298a5fbded0ad5788fe8a33d3cec40ab"
+      },
+      {
+        "path": "app/src/main/kotlin/io/github/lejw0925/virtualscreen/backend/RootInputInjector.kt",
+        "sha256": "6fe1aecae931973f3599a05d81047329e87f88a66adcbd3ee2e0e9f5d4e3cabd"
+      }
+    ]
+  }
+}

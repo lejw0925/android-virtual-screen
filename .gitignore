@@ -1,0 +1,15 @@
+.gradle/
+.kotlin/
+**/build/
+.native-src/
+.native-cache/
+local.properties
+*.jks
+*.keystore
+*.log
+.DS_Store
+__pycache__/
+*.pyc
+dist/
+*.idsig
+*.lineage

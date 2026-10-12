@@ -1,0 +1,85 @@
+package io.github.lejw0925.virtualscreen
+
+import android.app.Application
+import android.content.Context
+import io.github.lejw0925.virtualscreen.backend.*
+import io.github.lejw0925.virtualscreen.core.*
+import kotlinx.coroutines.*
+import org.junit.Assert.*
+import org.junit.Test
+import org.junit.runner.RunWith
+import org.robolectric.RobolectricTestRunner
+import org.robolectric.RuntimeEnvironment
+import org.robolectric.annotation.Config
+
+internal class FakeBackend(override val kind: BackendKind): VirtualScreenBackend {
+    var closed=0; var inputs=0; var cancelled=0
+    var frames=0; var inspections=0
+    var observationFailure: String?=null
+    var testNodes: List<NodeInfo> = emptyList()
+    var truncated=false
+    var createGate: CompletableDeferred<Unit>?=null
+    val entered=CompletableDeferred<Unit>()
+    override suspend fun probe()=BackendCapabilities(displayCreation=CapabilityStatus.AVAILABLE)
+    override suspend fun create(config: VirtualScreenConfig): Result<VirtualScreenHandle> {
+        entered.complete(Unit); createGate?.await(); return Result.success(VirtualScreenHandle("handle",7,config))
+    }
+    override suspend fun close(handle: VirtualScreenHandle)=BackendResult.success().also { closed++ }
+    override suspend fun launch(handle: VirtualScreenHandle,component: String,uri: String?,restartApproved: Boolean)=BackendResult.success()
+    override suspend fun observe(handle: VirtualScreenHandle): Result<ScreenObservation> {
+        frames++
+        return observationFailure?.let { Result.failure(IllegalStateException(it)) } ?: Result.success(ScreenObservation("backend-id",handle.id,0,720,1600,0))
+    }
+    override suspend fun inspect(handle: VirtualScreenHandle)=Result.success(ScreenObservation("backend-id",handle.id,0,720,1600,0)).also { inspections++ }
+    override suspend fun nodes(handle: VirtualScreenHandle,observationId: String)=Result.success(NodeSnapshot(observationId,handle.displayId,"fixture",testNodes,truncated))
+    override suspend fun operate(handle: VirtualScreenHandle,operation: BackendOperation)=BackendResult.success().also { inputs++ }
+    override fun cancelActive() { cancelled++ }
+}
+@RunWith(RobolectricTestRunner::class) @Config(sdk=[34],application=Application::class)
+class SessionManagerTest {
+    private val context: Context get()=RuntimeEnvironment.getApplication()
+    @Test fun inputConsumesObservationAndTakeoverFencesOldOwner()=runBlocking {
+        val root=FakeBackend(BackendKind.ROOT); val manager=VirtualScreenSessionManager(context,root,FakeBackend(BackendKind.SHIZUKU))
+        val lease=(manager.acquireLease("remote") as LeaseDecision.Granted).lease
+        assertTrue(manager.create(lease.owner,lease.token).ok)
+        val observation=manager.observe(lease.owner,lease.token).getOrThrow().values["observation_id"] as String
+        assertTrue(manager.operate(lease.owner,lease.token,observation,BackendOperation.Tap(10,10)).ok)
+        assertEquals("STALE_OBSERVATION",runCatching { manager.operate(lease.owner,lease.token,observation,BackendOperation.Tap(10,10)) }.exceptionOrNull()?.message)
+        assertEquals(1,root.inputs)
+        manager.phoneTakeover()
+        assertEquals("LEASE_REQUIRED",manager.observe(lease.owner,lease.token).exceptionOrNull()?.message)
+    }
+    @Test fun takeoverDuringCreateReleasesOrphanDisplay()=runBlocking {
+        val root=FakeBackend(BackendKind.ROOT).apply { createGate=CompletableDeferred() }
+        val manager=VirtualScreenSessionManager(context,root,FakeBackend(BackendKind.SHIZUKU))
+        val lease=(manager.acquireLease("remote") as LeaseDecision.Granted).lease
+        val task=async { manager.create(lease.owner,lease.token) }
+        root.entered.await(); manager.phoneTakeover(); root.createGate!!.complete(Unit)
+        assertFalse(task.await().ok); assertEquals(1,root.closed); assertNull(manager.state.value.displayId)
+    }
+    @Test fun backendSwitchReleasesActiveDisplayBeforeChanging()=runBlocking {
+        val root=FakeBackend(BackendKind.ROOT); val manager=VirtualScreenSessionManager(context,root,FakeBackend(BackendKind.SHIZUKU))
+        val lease=(manager.acquireLease("remote") as LeaseDecision.Granted).lease
+        manager.create(lease.owner,lease.token)
+        manager.selectBackend(BackendKind.SHIZUKU)
+        assertEquals(1,root.closed); assertEquals(BackendKind.SHIZUKU,manager.state.value.backend); assertNull(manager.state.value.displayId)
+    }
+    @Test fun onlyOwnerCanCancelAndExpiredLeaseCannotReuseObservation()=runBlocking {
+        var clock=0L
+        val root=FakeBackend(BackendKind.ROOT)
+        val manager=VirtualScreenSessionManager(context,root,FakeBackend(BackendKind.SHIZUKU),ControlLeaseManager(100) { clock })
+        val lease=(manager.acquireLease("remote") as LeaseDecision.Granted).lease
+        manager.create(lease.owner,lease.token)
+        val observed=manager.observe(lease.owner,lease.token).getOrThrow().values["observation_id"] as String
+        val before=root.cancelled
+        manager.cancelActive("other-client")
+        assertEquals(before,root.cancelled)
+        assertEquals(observed,manager.state.value.observationId)
+        manager.cancelActive("remote")
+        assertNull(manager.state.value.observationId)
+        clock=101
+        val successor=(manager.acquireLease("successor") as LeaseDecision.Granted).lease
+        assertEquals("STALE_OBSERVATION",runCatching { manager.operate(successor.owner,successor.token,observed,BackendOperation.Tap(10,10)) }.exceptionOrNull()?.message)
+        assertEquals(0,root.inputs)
+    }
+}

@@ -1,0 +1,16 @@
+<resources>
+    <string name="app_name">虛擬屏</string>
+    <string name="accessibility_description">觀察與操作本 App 的虛擬螢幕節點。僅在需要虛擬螢幕自動化時啟用。</string>
+    <string name="notification_channel">虛擬螢幕</string>
+    <string name="notification_running">虛擬螢幕服務已啟用</string>
+    <string name="notification_takeover">人工接管</string>
+    <string name="notification_stop">停止</string>
+    <string name="notification_ready">等待 Agent</string>
+    <string name="notification_working">Agent 正在操作</string>
+    <string name="notification_agent">Agent 已連線</string>
+    <string name="notification_local">本機預覽</string>
+    <string name="notification_error">請檢查權限</string>
+    <string name="notification_isolated">獨立執行，不打擾主螢幕 · 可隨時接管</string>
+    <string name="notification_waiting">等待建立獨立螢幕</string>
+    <string name="notification_preview_unavailable">子母畫面不可用 · 點按通知查看虛擬螢幕</string>
+</resources>

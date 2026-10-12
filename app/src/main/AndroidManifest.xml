@@ -1,0 +1,42 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    <uses-permission android:name="android.permission.INTERNET" />
+    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_SPECIAL_USE" />
+
+    <queries><package android:name="moe.shizuku.privileged.api" /><package android:name="af.shizuku.plus.api" /><intent><action android:name="android.intent.action.MAIN" /><category android:name="android.intent.category.LAUNCHER" /></intent></queries>
+    <application
+        android:name=".VirtualScreenApplication"
+        android:allowBackup="false"
+        android:label="@string/app_name"
+        android:supportsRtl="true" android:localeConfig="@xml/locales_config" android:dataExtractionRules="@xml/data_extraction_rules" android:icon="@drawable/ic_launcher"
+        android:theme="@style/Theme.VirtualScreen">
+        <activity
+            android:name=".ui.MainActivity"
+            android:exported="true"
+            android:screenOrientation="unspecified" android:supportsPictureInPicture="true" android:resizeableActivity="true" android:configChanges="orientation|screenSize|smallestScreenSize|screenLayout">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity>
+        <provider android:name=".backend.RootBridgeProvider" android:authorities="${applicationId}.display-bridge" android:exported="false" />
+        <provider android:name="rikka.shizuku.ShizukuProvider" android:authorities="${applicationId}.shizuku" android:multiprocess="false" android:exported="true" android:permission="android.permission.INTERACT_ACROSS_USERS_FULL" />
+        <service android:name=".core.ScreenAccessibilityService" android:exported="true" android:permission="android.permission.BIND_ACCESSIBILITY_SERVICE" android:label="@string/app_name">
+            <intent-filter><action android:name="android.accessibilityservice.AccessibilityService" /></intent-filter>
+            <meta-data android:name="android.accessibilityservice" android:resource="@xml/accessibility_service" />
+        </service>
+        <activity android:name=".ui.SettingsActivity" android:exported="false" />
+        <activity android:name=".ui.ViewerActivity" android:exported="true" android:permission="android.permission.DUMP" android:launchMode="singleTask" android:taskAffinity="${applicationId}.preview" android:excludeFromRecents="true" android:supportsPictureInPicture="true" android:resizeableActivity="true" android:configChanges="orientation|screenSize|smallestScreenSize|screenLayout" />
+        <service
+            android:name=".VirtualScreenForegroundService"
+            android:exported="false"
+            android:foregroundServiceType="specialUse">
+            <property
+                android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE"
+                android:value="Virtual display and local MCP server" />
+        </service>
+    </application>
+</manifest>

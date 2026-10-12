@@ -1,0 +1,187 @@
+{
+  "both_full": {
+    "samples": [
+      {
+        "ms": 305.07,
+        "bytes": 145360,
+        "nodes": 88
+      },
+      {
+        "ms": 383.11,
+        "bytes": 145360,
+        "nodes": 88
+      },
+      {
+        "ms": 230.35,
+        "bytes": 145360,
+        "nodes": 88
+      },
+      {
+        "ms": 135.98,
+        "bytes": 145360,
+        "nodes": 88
+      },
+      {
+        "ms": 203.64,
+        "bytes": 145360,
+        "nodes": 88
+      },
+      {
+        "ms": 274.22,
+        "bytes": 145360,
+        "nodes": 88
+      },
+      {
+        "ms": 185.75,
+        "bytes": 145360,
+        "nodes": 88
+      },
+      {
+        "ms": 66.93,
+        "bytes": 145362,
+        "nodes": 88
+      },
+      {
+        "ms": 207.5,
+        "bytes": 145362,
+        "nodes": 88
+      },
+      {
+        "ms": 118.44,
+        "bytes": 145362,
+        "nodes": 88
+      }
+    ],
+    "median_ms": 205.57,
+    "mean_bytes": 145360.6
+  },
+  "both_compact": {
+    "samples": [
+      {
+        "ms": 89.18,
+        "bytes": 83429,
+        "nodes": 17
+      },
+      {
+        "ms": 209.26,
+        "bytes": 83429,
+        "nodes": 17
+      },
+      {
+        "ms": 104.17,
+        "bytes": 83429,
+        "nodes": 17
+      },
+      {
+        "ms": 82.7,
+        "bytes": 83429,
+        "nodes": 17
+      },
+      {
+        "ms": 98.51,
+        "bytes": 83429,
+        "nodes": 17
+      },
+      {
+        "ms": 244.2,
+        "bytes": 83429,
+        "nodes": 17
+      },
+      {
+        "ms": 83.6,
+        "bytes": 83429,
+        "nodes": 17
+      },
+      {
+        "ms": 130.79,
+        "bytes": 83429,
+        "nodes": 17
+      },
+      {
+        "ms": 87.56,
+        "bytes": 83429,
+        "nodes": 17
+      },
+      {
+        "ms": 213.36,
+        "bytes": 83429,
+        "nodes": 17
+      }
+    ],
+    "median_ms": 101.34,
+    "mean_bytes": 83429
+  },
+  "tree_compact": {
+    "samples": [
+      {
+        "ms": 61.4,
+        "bytes": 16397,
+        "nodes": 17
+      },
+      {
+        "ms": 38.32,
+        "bytes": 16397,
+        "nodes": 17
+      },
+      {
+        "ms": 38.66,
+        "bytes": 16397,
+        "nodes": 17
+      },
+      {
+        "ms": 43.63,
+        "bytes": 16397,
+        "nodes": 17
+      },
+      {
+        "ms": 46.49,
+        "bytes": 16397,
+        "nodes": 17
+      },
+      {
+        "ms": 85.16,
+        "bytes": 16397,
+        "nodes": 17
+      },
+      {
+        "ms": 47.41,
+        "bytes": 16397,
+        "nodes": 17
+      },
+      {
+        "ms": 43.85,
+        "bytes": 16397,
+        "nodes": 17
+      },
+      {
+        "ms": 45.66,
+        "bytes": 16397,
+        "nodes": 17
+      },
+      {
+        "ms": 51.75,
+        "bytes": 16397,
+        "nodes": 17
+      }
+    ],
+    "median_ms": 46.075,
+    "mean_bytes": 16397
+  },
+  "workflow": {
+    "unique_selector": true,
+    "ambiguous_rejected": true,
+    "unsupported_key_rejected": true,
+    "short_long_press_rejected": true,
+    "after_observation": true,
+    "stale_rejected": true,
+    "unicode": true,
+    "clear_text": true,
+    "node_waits": true,
+    "image_mapping": true,
+    "ui_stable": true,
+    "application_filter": true,
+    "counter_increment": 1,
+    "receipt_recovery": true,
+    "receipt_isolation": true
+  }
+}

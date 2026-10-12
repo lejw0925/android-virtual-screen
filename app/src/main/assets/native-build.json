@@ -1,0 +1,60 @@
+{
+  "ndk": "28.2.13676358",
+  "api": 33,
+  "go": "go version go1.25.6 darwin/arm64",
+  "patches": [
+    {
+      "file": "scripts/patch-native.py",
+      "purpose": "Honor cloudflared login --origincert and use the Android system DNS bridge for Go SRV/TXT/A/AAAA",
+      "sha256": "335e9d451f2116f7bf1071cb4f7bc20b8f6b14044eb788a07441f37f8dc4c316"
+    }
+  ],
+  "sources": [
+    {
+      "name": "frpc",
+      "version": "0.65.0",
+      "url": "https://github.com/fatedier/frp/tree/v0.65.0",
+      "archiveSha256": "bbec0d1855e66c96e3a79ff97b8c74d9b1b45ec560aa7132550254d48321f7de",
+      "license": "Apache-2.0"
+    },
+    {
+      "name": "cloudflared",
+      "version": "2025.8.1",
+      "url": "https://github.com/cloudflare/cloudflared/tree/2025.8.1",
+      "archiveSha256": "803d3e162dc91da6b3b4f7961f57c113fa818d45517758511f72d254d68a46ba",
+      "license": "Apache-2.0"
+    }
+  ],
+  "binaries": [
+    {
+      "path": "jniLibs/arm64-v8a/libcloudflared.so",
+      "size": 29344720,
+      "sha256": "f99e474e0e728bbbb05ae09221f40dff38d1d1edb502ee09af9e9ade137546c4"
+    },
+    {
+      "path": "jniLibs/arm64-v8a/libfrpc.so",
+      "size": 16375408,
+      "sha256": "b6fe564f3b6c5851b314a9f0a7806cf9ada13cbe1cfc2af5acb5a80f0936527f"
+    },
+    {
+      "path": "jniLibs/armeabi-v7a/libcloudflared.so",
+      "size": 27268008,
+      "sha256": "6f799c30f9532b94c094ec43627a301f300ef44793d15e3a57259c7489013752"
+    },
+    {
+      "path": "jniLibs/armeabi-v7a/libfrpc.so",
+      "size": 15904368,
+      "sha256": "6216e66ead7d12e55d3e6fd76d44137047ab2e19e04480bcd3d09e17f72e5783"
+    },
+    {
+      "path": "jniLibs/x86_64/libcloudflared.so",
+      "size": 31173608,
+      "sha256": "a8cf032d0432992f185664b38ec9089a52ce419429abd6ad17422680c2243257"
+    },
+    {
+      "path": "jniLibs/x86_64/libfrpc.so",
+      "size": 18326376,
+      "sha256": "f20699e2fc68e9b83db6940248e0a3aa7b8e81b105d4febd5f53be5098ffb45b"
+    }
+  ]
+}

@@ -1,0 +1,16 @@
+<resources>
+    <string name="app_name">Virtual Screen</string>
+    <string name="accessibility_description">Observe and control nodes on your virtual screen. Enable only when using virtual screen automation.</string>
+    <string name="notification_channel">Virtual screen</string>
+    <string name="notification_running">Virtual screen service is active</string>
+    <string name="notification_takeover">Take over</string>
+    <string name="notification_stop">Stop</string>
+    <string name="notification_ready">Ready for your agent</string>
+    <string name="notification_working">Agent is working</string>
+    <string name="notification_agent">Agent connected</string>
+    <string name="notification_local">Local preview</string>
+    <string name="notification_error">Check permissions</string>
+    <string name="notification_isolated">Your phone stays yours · Tap to take over</string>
+    <string name="notification_waiting">Waiting for an isolated display</string>
+    <string name="notification_preview_unavailable">PiP is unavailable · Tap this notification to view the display</string>
+</resources>
