@@ -13,18 +13,16 @@ import androidx.activity.enableEdgeToEdge
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.*
 import androidx.compose.animation.core.tween
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.input.nestedscroll.nestedScroll
-import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
-import androidx.core.view.WindowCompat
 import io.github.lejw0925.virtualscreen.BuildConfig
 import io.github.lejw0925.virtualscreen.R
 import io.github.lejw0925.virtualscreen.VirtualScreenApplication
@@ -41,12 +39,9 @@ import top.yukonga.miuix.kmp.theme.MiuixTheme
 class SettingsActivity : ComponentActivity() {
     private val notifications=registerForActivityResult(ActivityResultContracts.RequestPermission()) {}
     override fun onCreate(savedInstanceState: Bundle?) {
-        super.onCreate(savedInstanceState); enableEdgeToEdge()
-        if(android.os.Build.VERSION.SDK_INT>=34) {
-            overrideActivityTransition(OVERRIDE_TRANSITION_OPEN,R.anim.avs_slide_in_right,R.anim.avs_slide_out_left)
-            overrideActivityTransition(OVERRIDE_TRANSITION_CLOSE,R.anim.avs_slide_in_left,R.anim.avs_slide_out_right)
-        }
         val app=application as VirtualScreenApplication
+        prepareWindowTheme(app)
+        super.onCreate(savedInstanceState); enableEdgeToEdge()
         setContent { VirtualScreenTheme(app) { SettingsContent(app,intent.getStringExtra("page") ?: "HOME",{ notifications.launch(Manifest.permission.POST_NOTIFICATIONS) },{ finish() }) } }
     }
     override fun finish() {
@@ -60,9 +55,8 @@ class SettingsActivity : ComponentActivity() {
 private enum class SettingsPage { HOME,BACKEND,DISPLAY,MCP,TUNNEL,APPEARANCE,BACKGROUND,ABOUT,LICENSES,GUIDE }
 @Composable private fun SettingsContent(app: VirtualScreenApplication,initial: String,notifications: () -> Unit,onExit: () -> Unit) {
     val l=LocalLanguage.current
-    val host=LocalView.current
-    val lightBars=MiuixTheme.colorScheme.surface.luminance()>.5f
-    SideEffect { (host.context as? ComponentActivity)?.let { WindowCompat.getInsetsController(it.window,host).isAppearanceLightStatusBars=lightBars } }
+    val background=MiuixTheme.colorScheme.surface
+    WindowAppearance(background)
     var stack by rememberSaveable { mutableStateOf(listOf(SettingsPage.HOME).let { pages ->
         val destination=runCatching { SettingsPage.valueOf(initial) }.getOrDefault(SettingsPage.HOME)
         if(destination==SettingsPage.HOME) pages else pages+destination
@@ -74,7 +68,7 @@ private enum class SettingsPage { HOME,BACKEND,DISPLAY,MCP,TUNNEL,APPEARANCE,BAC
     fun go(page: SettingsPage) { forward=true; stack=stack+page }
     fun back() { if(stack.size>1) { forward=false; stack=stack.dropLast(1) } else onExit() }
     BackHandler { back() }
-    AnimatedContent(targetState=stack.last(),transitionSpec={
+    AnimatedContent(targetState=stack.last(),modifier=Modifier.fillMaxSize().background(background),transitionSpec={
         val direction=if(forward) 1 else -1
         (slideInHorizontally(tween(260)) { it*direction/4 }+fadeIn(tween(220))) togetherWith
             (slideOutHorizontally(tween(240)) { -it*direction/6 }+fadeOut(tween(180)))
@@ -90,7 +84,7 @@ private enum class SettingsPage { HOME,BACKEND,DISPLAY,MCP,TUNNEL,APPEARANCE,BAC
                     SettingsPage.BACKEND -> BackendPreferences(app,task)
                     SettingsPage.DISPLAY -> DisplayPreferences(app,task)
                     SettingsPage.MCP -> McpPreferences(app,task,notifications)
-                    SettingsPage.TUNNEL -> TunnelSettings(app,task,notifications)
+                    SettingsPage.TUNNEL -> TunnelSettings(app,task,notifications,busy)
                     SettingsPage.APPEARANCE -> AppearancePreferences(app)
                     SettingsPage.BACKGROUND -> BackgroundPreferences(app,task)
                     SettingsPage.ABOUT -> AboutPreferences(app) { go(SettingsPage.LICENSES) }
@@ -113,7 +107,7 @@ private fun pageTitle(l: UiLanguage,page: SettingsPage)=when(page) {
     SettingsPage.LICENSES -> l.text("开源许可与构建来源","Licenses and build sources","開源授權與建置來源")
     SettingsPage.GUIDE -> l.text("使用指南","Getting started","使用指南")
 }
-@Composable private fun Section(label: String,content: @Composable () -> Unit) {
+@Composable internal fun Section(label: String,content: @Composable () -> Unit) {
     Column(verticalArrangement=Arrangement.spacedBy(8.dp)) {
         Text(label,modifier=Modifier.padding(horizontal=14.dp),style=MiuixTheme.textStyles.footnote1,color=MiuixTheme.colorScheme.onSurfaceVariantSummary)
         Card(Modifier.fillMaxWidth()) { content() }
@@ -140,8 +134,7 @@ private fun pageTitle(l: UiLanguage,page: SettingsPage)=when(page) {
     val l=LocalLanguage.current; val state by app.sessions.state.collectAsState()
     Section(l.text("授权","Authorization","授權")) {
         WindowDropdownPreference(items=listOf("Root","Shizuku"),selectedIndex=state.backend.ordinal,title=l.text("权限后端","Backend","權限後端"),onSelectedIndexChange={ index -> task { val backend=BackendKind.entries[index]; app.sessions.selectBackend(backend); app.settings.update { it.copy(backend=backend) } } })
-        ArrowPreference(title=l.text("授权并检测","Authorize and probe","授權並檢測"),summary=l.text("由权限管理器确认访问","Confirm access in your privilege manager","由權限管理員確認存取"),onClick={ foreground(app); task { app.sessions.requestAuthorization() } })
-        ArrowPreference(title=l.text("无障碍服务","Accessibility service","無障礙服務"),summary=l.text("用于虚拟屏节点和文字编辑","Virtual-display nodes and text editing","用於虛擬螢幕節點和文字編輯"),onClick={ app.startActivity(Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)) })
+        ArrowPreference(title=l.text("授权并检测","Authorize and probe","授權並檢測"),summary=l.text("授权后自动启用虚拟屏节点服务","Authorization automatically enables virtual-display nodes","授權後自動啟用虛擬螢幕節點服務"),onClick={ task { app.sessions.requestAuthorization() } })
         ArrowPreference(title=l.text("画中画预览","Picture-in-picture preview","子母畫面預覽"),summary=l.text("允许 Agent 创建屏幕后自动展示进度","Allow automatic previews when your agent starts a display","允許 Agent 建立螢幕後自動顯示進度"),onClick={
             val intent=Intent("android.settings.PICTURE_IN_PICTURE_SETTINGS",android.net.Uri.parse("package:${app.packageName}")).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
             if(intent.resolveActivity(app.packageManager)!=null) app.startActivity(intent) else app.startActivity(Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS,android.net.Uri.parse("package:${app.packageName}")).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
@@ -171,7 +164,7 @@ private fun capabilityLabel(l: UiLanguage,c: CapabilityStatus)=when(c) {
     val l=LocalLanguage.current; val settings by app.settings.flow.collectAsState(); val state by app.sessions.state.collectAsState()
     var edit by remember { mutableStateOf(false) }; var restart by remember { mutableStateOf(false) }
     Section(l.text("显示","Display","顯示")) {
-        SwitchPreference(checked=settings.fitViewer,onCheckedChange={ value -> app.settings.update { it.copy(fitViewer=value) } },title=l.text("贴合手机显示区域","Fit the phone viewport","貼合手機顯示區域"),summary=l.text("保留状态栏，自动匹配高度","Preserve the status bar and match the height","保留狀態列，自動符合高度"))
+        SwitchPreference(checked=settings.fitViewer,onCheckedChange={ value -> app.settings.update { it.copy(fitViewer=value,matchHostDensity=value) } },title=l.text("贴合手机显示区域","Fit the phone viewport","貼合手機顯示區域"),summary=l.text("按手机分辨率和 DPI 保持实际显示密度","Match the phone resolution and DPI for consistent app density","按手機解析度和 DPI 保持實際顯示密度"))
         ArrowPreference(title=l.text("分辨率与 DPI","Resolution and DPI","解析度與 DPI"),summary=app.settings.configForViewer().let { "${it.width} × ${it.height} · ${it.density} dpi" },onClick={ edit=true })
         WindowDropdownPreference(items=listOf("0°","90°","180°","270°"),selectedIndex=settings.config.rotation,title=l.text("初始旋转","Initial rotation","初始旋轉"),onSelectedIndexChange={ index -> app.settings.update { it.copy(config=it.config.copy(rotation=index)) } })
         SwitchPreference(checked=settings.restoreApp,onCheckedChange={ value -> app.settings.update { it.copy(restoreApp=value) } },title=l.text("恢复上次应用","Restore last app","恢復上次應用程式"))
@@ -181,23 +174,30 @@ private fun capabilityLabel(l: UiLanguage,c: CapabilityStatus)=when(c) {
     }
     Hint(l.text("显示参数在下次启动或重建屏幕时生效。","Display settings apply at the next start or recreation.","顯示參數在下次啟動或重建螢幕時生效。"))
     if(edit) Dialog(onDismissRequest={ edit=false }) { Card { Column(Modifier.padding(22.dp),verticalArrangement=Arrangement.spacedBy(12.dp)) {
-        var width by remember { mutableStateOf(settings.config.width.toString()) }; var height by remember { mutableStateOf(settings.config.height.toString()) }; var dpi by remember { mutableStateOf(settings.config.density.toString()) }
+        val effective=app.settings.configForViewer()
+        var width by remember { mutableStateOf(effective.width.toString()) }; var height by remember { mutableStateOf(effective.height.toString()) }; var dpi by remember { mutableStateOf(effective.density.toString()) }
         Text(l.text("显示参数","Display settings","顯示參數"),style=MiuixTheme.textStyles.title3)
         Field(l.text("宽度","Width","寬度"),width) { width=it }; if(!settings.fitViewer) Field(l.text("高度","Height","高度"),height) { height=it }; Field("DPI",dpi) { dpi=it }
-        Button(onClick={ task { val c=settings.config.copy(width=width.toInt(),height=height.toInt(),density=dpi.toInt()); app.settings.update { it.copy(config=c) }; withContext(Dispatchers.Main) { edit=false } } }) { Text(l.text("保存","Save","儲存")) }
+        Button(onClick={ task { val c=settings.config.copy(width=width.toInt(),height=height.toInt(),density=dpi.toInt()); app.settings.update { it.copy(config=c,matchHostDensity=false) }; withContext(Dispatchers.Main) { edit=false } } }) { Text(l.text("保存","Save","儲存")) }
     } } }
     if(restart) Confirm(l.text("重建虚拟屏","Recreate virtual screen","重建虛擬螢幕"),l.text("将结束当前显示会话并使远程观察失效。","This ends the current display session and invalidates remote observations.","將結束目前顯示工作階段並使遠端觀察失效。"),onDismiss={ restart=false }) { restart=false; task {
         phoneControl(app) { lease ->
             val result=app.sessions.configure(lease.owner,lease.token,app.settings.configForViewer()); check(result.ok) { result.code ?: "CREATE_FAILED" }
-            if(settings.restoreApp && settings.lastComponent.isNotBlank()) app.sessions.launch(lease.owner,lease.token,settings.lastComponent)
+            if(settings.restoreApp && settings.lastComponent.isNotBlank()) {
+                val launched=app.sessions.launch(lease.owner,lease.token,settings.lastComponent)
+                check(launched.ok) { launched.code ?: "LAUNCH_FAILED" }
+            }
         }
     } }
 }
 @Composable private fun McpPreferences(app: VirtualScreenApplication,task: (suspend () -> Unit) -> Unit,notifications: () -> Unit) {
     val l=LocalLanguage.current; val server by app.mcp.flow.collectAsState(); val settings by app.settings.flow.collectAsState(); val tunnel by app.tunnels.flow.collectAsState()
+    val toggleMcp=rememberMcpToggle(app,notifications)
+    val alwaysAllow by app.mcp.approvals.alwaysAllow.collectAsState()
     var rotate by remember { mutableStateOf(false) }
     Section(l.text("服务","Server","服務")) {
-        SwitchPreference(checked=server.running,onCheckedChange={ enable -> if(enable) { notifications(); foreground(app) }; task { if(enable) app.mcp.start(settings.lan).getOrThrow() else { app.tunnels.stop(); app.mcp.stop() } } },title=l.text("MCP 服务","MCP server","MCP 服務"),summary=if(server.running) l.text("已就绪 · ${server.sessionCount} 个客户端","Ready · ${server.sessionCount} clients","已就緒 · ${server.sessionCount} 個用戶端") else l.text("开启后允许 Agent 连接","Enable to connect your agent","開啟後允許 Agent 連線"))
+        SwitchPreference(checked=server.running,onCheckedChange=toggleMcp,title=l.text("MCP 服务","MCP server","MCP 服務"),summary=if(server.running) l.text("已就绪 · ${server.sessionCount} 个客户端","Ready · ${server.sessionCount} clients","已就緒 · ${server.sessionCount} 個用戶端") else l.text("开启后允许 Agent 连接","Enable to connect your agent","開啟後允許 Agent 連線"))
+        if(alwaysAllow) ArrowPreference(title=l.text("撤销始终允许接管","Revoke always-allow control","撤銷始終允許接管"),summary=l.text("当前 Token 的 Agent 申请接管手机占用时自动批准","Agents using the current token can request phone-held control automatically","目前 Token 的 Agent 申請接管手機佔用時自動批准"),onClick={ app.mcp.approvals.setAlwaysAllow(false) })
         SwitchPreference(checked=settings.lan,onCheckedChange={ value -> task { app.settings.update { it.copy(lan=value) }; if(server.running) { app.tunnels.stop(); app.mcp.stop(); app.mcp.start(value).getOrThrow() } } },title=l.text("局域网访问","LAN access","區域網路存取"),summary=l.text("所有连接都需要 Bearer Token","Every connection requires a bearer token","所有連線都需要 Bearer Token"))
     }
     Section(l.text("客户端配置","Client configuration","用戶端設定")) {

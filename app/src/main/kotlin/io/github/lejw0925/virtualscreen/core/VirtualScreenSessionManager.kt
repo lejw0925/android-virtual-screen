@@ -33,7 +33,6 @@ data class SessionState(
     val frameRotation: Int = 0,
     val errorCode: String? = null,
     val detail: String? = null,
-    val pendingRestart: String? = null,
     val previewStatus: PreviewStatus = PreviewStatus.HIDDEN,
 )
 
@@ -44,15 +43,18 @@ class VirtualScreenSessionManager(
     shizuku: VirtualScreenBackend = ShizukuBackend(context.applicationContext),
     private val leases: ControlLeaseManager = ControlLeaseManager(),
     private val configuredDisplay: (() -> VirtualScreenConfig)? = null,
+    val restartApprovals: AppRestartApprovalManager = AppRestartApprovalManager(),
 ) {
     companion object { const val PHONE_CLIENT = "phone" }
     private val mutex = Mutex()
+    private val launchMutex = Mutex()
     private val stateLock = Any()
     private val epoch = AtomicLong()
     private val backends = mapOf(BackendKind.ROOT to root, BackendKind.SHIZUKU to shizuku)
     private val mutableState = MutableStateFlow(SessionState())
     val state: StateFlow<SessionState> = mutableState.asStateFlow()
     @Volatile private var handle: VirtualScreenHandle? = null
+    private var phoneGestureToken: String? = null
     private var latest: ScreenObservation? = null
     private var latestNodes: NodeSnapshot? = null
     private fun update(block: (SessionState) -> SessionState) = synchronized(stateLock) { mutableState.value = block(mutableState.value) }
@@ -60,8 +62,9 @@ class VirtualScreenSessionManager(
     val defaultDisplayConfig get() = configuredDisplay?.invoke() ?: state.value.config
     val systemLanguage get() = io.github.lejw0925.virtualscreen.ui.systemLanguage(context)
     private fun backend() = backends.getValue(state.value.backend)
-    private fun fence() {
+    @Synchronized private fun fence() {
         epoch.incrementAndGet()
+        restartApprovals.cancelAll()
         synchronized(stateLock) { latest = null; latestNodes = null }
         update { it.copy(observationId = null, observationGeneration = epoch.get()) }
         backend().cancelActive()
@@ -90,15 +93,34 @@ class VirtualScreenSessionManager(
             is RootBackend -> check(selected.requestPermission()) { "ROOT_PERMISSION_DENIED" }
             is ShizukuBackend -> selected.requestPermission()
         }
-        return refreshCapabilities()
+        return ensureAccessibility()
     }
-    fun leaseStatus(): Lease? {
+    suspend fun ensureAccessibility(): BackendCapabilities = mutex.withLock {
+        var caps = backend().probe()
+        if (caps.displayCreation != CapabilityStatus.REQUIRES_AUTHORIZATION) {
+            when (val selected = backend()) {
+                is RootBackend -> selected.enableAccessibility()
+                is ShizukuBackend -> selected.enableAccessibility()
+            }
+            // System binding is asynchronous; allow it to settle without blocking the UI.
+            if (backend() is CommandBackend) {
+                repeat(30) {
+                    if (ScreenAccessibilityService.current != null) return@repeat
+                    kotlinx.coroutines.delay(100)
+                }
+            }
+            caps = backend().probe()
+        }
+        update { it.copy(capabilities = caps, detail = caps.details) }
+        caps
+    }
+    @Synchronized fun leaseStatus(): Lease? {
         val current = leases.snapshot()
         if (current?.generation != state.value.lease?.generation) fence()
         update { it.copy(lease = current) }
         return current
     }
-    fun acquireLease(clientId: String): LeaseDecision {
+    @Synchronized fun acquireLease(clientId: String): LeaseDecision {
         val result = leases.acquire(clientId)
         if (result is LeaseDecision.Granted) {
             if (state.value.lease?.generation != result.lease.generation) fence()
@@ -106,24 +128,38 @@ class VirtualScreenSessionManager(
         }
         return result
     }
-    fun renewLease(clientId: String, token: String): LeaseDecision = leases.renew(clientId, token).also { if (it is LeaseDecision.Granted) update { s -> s.copy(lease = it.lease) } }
-    fun releaseLease(clientId: String, token: String): LeaseDecision = leases.release(clientId, token).also {
+    @Synchronized fun renewLease(clientId: String, token: String): LeaseDecision = leases.renew(clientId, token).also { if (it is LeaseDecision.Granted) update { s -> s.copy(lease = it.lease) } }
+    @Synchronized fun releaseLease(clientId: String, token: String): LeaseDecision = leases.release(clientId, token).also {
         if (it is LeaseDecision.Granted) { fence(); update { s -> s.copy(lease = null) } }
     }
-    fun finishPhoneControl(token: String) {
+    @Synchronized fun beginPhoneGesture(): Lease = phoneTakeover().also { phoneGestureToken = it.token }
+    @Synchronized fun finishPhoneControl(token: String) {
+        if (phoneGestureToken == token) phoneGestureToken = null
         leases.snapshot()?.takeIf { it.owner==PHONE_CLIENT && it.token==token }?.let { releaseLease(it.owner,it.token) }
     }
     fun allowRemoteControl() {
         leases.snapshot()?.takeIf { it.owner==PHONE_CLIENT }?.let { finishPhoneControl(it.token) }
     }
-    fun disconnectClient(clientId: String) { leases.snapshot()?.takeIf { it.owner == clientId }?.let { releaseLease(clientId, it.token) } }
-    fun phoneTakeover(): Lease {
+    fun disconnectClient(clientId: String) {
+        restartApprovals.forgetClient(clientId)
+        leases.snapshot()?.takeIf { it.owner == clientId }?.let { releaseLease(clientId, it.token) }
+    }
+    @Synchronized fun phoneTakeover(): Lease {
+        phoneGestureToken = null
         val lease = leases.takeover(PHONE_CLIENT)
         fence(); update { it.copy(lease = lease) }
         return lease
     }
+    /** Approval is valid only for the controller shown in that notification. */
+    @Synchronized fun approveControl(clientId: String, expectedGeneration: Long): LeaseDecision {
+        val held = leases.snapshot()
+        if (held?.generation != expectedGeneration) return LeaseDecision.Rejected("CONTROL_CHANGED", held?.owner)
+        if (phoneGestureToken == held.token) return LeaseDecision.Rejected("PHONE_GESTURE_ACTIVE", held.owner)
+        val lease = leases.takeover(clientId)
+        fence(); update { it.copy(lease = lease) }
+        return LeaseDecision.Granted(lease)
+    }
     fun cancelActive(owner: String? = null) { if(owner == null || leases.snapshot()?.owner == owner) fence() }
-    fun dismissRestart() { update { it.copy(pendingRestart = null) } }
     private fun requireLease(owner: String, token: String) {
         check(leases.check(owner, token)) { "LEASE_REQUIRED" }
         val renewed = leases.renew(owner, token)
@@ -172,19 +208,56 @@ class VirtualScreenSessionManager(
         try { if (current != null) backend().close(current) }
         finally {
             handle = null; synchronized(stateLock) { latest = null; latestNodes = null }; epoch.incrementAndGet()
-            update { it.copy(status = SessionStatus.STOPPED, sessionId = null, displayId = null, observationId = null, frame = null, observationGeneration = epoch.get(),previewStatus=PreviewStatus.HIDDEN,pendingRestart=null) }
+            restartApprovals.cancelAll()
+            update { it.copy(status = SessionStatus.STOPPED, sessionId = null, displayId = null, observationId = null, frame = null, observationGeneration = epoch.get(),previewStatus=PreviewStatus.HIDDEN) }
         }
     }
-    suspend fun launch(owner: String, token: String, component: String, uri: String? = null, restartApproved: Boolean = false): OperationEnvelope = mutex.withLock {
+    suspend fun launch(owner: String, token: String, component: String, uri: String? = null, purpose: String = "", clientName: String = ""): OperationEnvelope {
         requireLease(owner, token)
-        // Remote callers cannot approve stopping an app on another display.
-        check(!restartApproved || owner == PHONE_CLIENT) { "PHONE_CONFIRMATION_REQUIRED" }
-        val expected = epoch.get()
-        val result = backend().launch(requireHandle(), component, uri, restartApproved)
-        verify(owner, token, expected)
-        update { it.copy(pendingRestart = component.takeIf { result.code == "APP_RESTART_CONFIRMATION_REQUIRED" }) }
-        invalidateObservation()
-        result.toEnvelope(state.value.sessionId)
+        if (!launchMutex.tryLock()) return OperationEnvelope.failure("APP_LAUNCH_BUSY", state.value.sessionId)
+        var ticket: AppRestartApprovalManager.Ticket? = null
+        try {
+            var expected = 0L
+            var target: VirtualScreenHandle? = null
+            val initial = mutex.withLock {
+                requireLease(owner, token)
+                expected = epoch.get()
+                target = requireHandle()
+                val result = backend().launch(target, component, uri)
+                verify(owner, token, expected)
+                invalidateObservation()
+                if (result.code == "APP_RESTART_CONFIRMATION_REQUIRED") {
+                    val appName = runCatching {
+                        val activity = context.packageManager.getActivityInfo(ComponentName.unflattenFromString(component)!!, 0)
+                        activity.loadLabel(context.packageManager).toString()
+                    }.getOrDefault(component.substringBefore('/'))
+                    // Synchronize registration with phone takeover/lease changes.
+                    synchronized(this@VirtualScreenSessionManager) {
+                        verify(owner, token, expected)
+                        ticket = restartApprovals.request(owner,
+                            clientName.ifBlank { context.getString(io.github.lejw0925.virtualscreen.R.string.app_name) }, appName,
+                            purpose.ifBlank { context.getString(io.github.lejw0925.virtualscreen.R.string.app_restart_purpose, appName) })
+                    }
+                }
+                result.toEnvelope(state.value.sessionId)
+            }
+            val pending = ticket ?: return initial
+            // Release the backend mutex while the notification is awaiting a decision.
+            val decision = restartApprovals.await(pending)
+            if (decision != "APPROVED") return OperationEnvelope.failure(decision, state.value.sessionId, "requires_observation" to true)
+            return mutex.withLock {
+                verify(owner, token, expected)
+                check(handle == target) { "STALE_VIRTUAL_SCREEN" }
+                requireLease(owner, token)
+                val result = backend().launch(requireHandle(), component, uri, restartApproved = true)
+                verify(owner, token, expected)
+                invalidateObservation()
+                result.toEnvelope(state.value.sessionId)
+            }
+        } finally {
+            ticket?.let(restartApprovals::cancel)
+            launchMutex.unlock()
+        }
     }
     suspend fun observe(owner: String, token: String, captureFrame: Boolean = true): Result<OperationEnvelope> = safeResult {
         mutex.withLock {

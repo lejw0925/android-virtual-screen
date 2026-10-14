@@ -1,0 +1,4 @@
+<resources>
+    <color name="avs_window_background">@color/avs_window_background_dark</color>
+    <bool name="avs_light_system_bars">false</bool>
+</resources>

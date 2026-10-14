@@ -38,13 +38,14 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.geometry.Offset
-import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.layout.positionInWindow
@@ -86,6 +87,7 @@ open class MainActivity : ComponentActivity() {
     private val notifications=registerForActivityResult(ActivityResultContracts.RequestPermission()) {}
     private var pip by mutableStateOf(false)
     override fun onCreate(savedInstanceState: Bundle?) {
+        prepareWindowTheme(app)
         super.onCreate(savedInstanceState); enableEdgeToEdge()
         if(BuildConfig.DEBUG && intent.getBooleanExtra("device_test",false)) window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
         window.attributes=window.attributes.apply { preferredRefreshRate=120f }
@@ -95,6 +97,7 @@ open class MainActivity : ComponentActivity() {
         setContent { VirtualScreenTheme(app) {
             val guideDone by app.settings.guideCompleted.collectAsState()
             if(!guideDone && this !is ViewerActivity && !pip) Box(Modifier.fillMaxSize().background(MiuixTheme.colorScheme.background).statusBarsPadding()) {
+                WindowAppearance(MiuixTheme.colorScheme.background)
                 SetupGuide(app,{ notifications.launch(Manifest.permission.POST_NOTIFICATIONS) }) {}
             } else ViewerScreen(app,pip,{ notifications.launch(Manifest.permission.POST_NOTIFICATIONS) },{ enterPreviewPictureInPicture() },{ openSettings() },{ openSettings("MCP") })
         } }
@@ -106,6 +109,7 @@ open class MainActivity : ComponentActivity() {
     }
     override fun onResume() {
         super.onResume()
+        if(app.mcpWanted && !app.mcp.state().running) { foreground(app); app.restoreMcp() }
         if(this !is ViewerActivity && app.sessions.state.value.displayId!=null) ViewerActivity.dismissPreview()
         WindowCompat.getInsetsController(window,window.decorView).apply { show(WindowInsetsCompat.Type.statusBars()); hide(WindowInsetsCompat.Type.navigationBars()) }
         setPictureInPictureParams(pipParams())
@@ -146,7 +150,7 @@ internal fun phoneLease(app: VirtualScreenApplication): Lease {
 internal suspend fun <T> phoneControl(app: VirtualScreenApplication,block: suspend (Lease) -> T): T {
     val lease=app.sessions.phoneTakeover()
     try { return block(lease) }
-    finally { if(app.mcp.state().running) app.sessions.finishPhoneControl(lease.token) }
+    finally { app.sessions.finishPhoneControl(lease.token) }
 }
 internal suspend fun phoneInput(app: VirtualScreenApplication,operation: BackendOperation) {
     val lease=phoneLease(app)
@@ -154,12 +158,14 @@ internal suspend fun phoneInput(app: VirtualScreenApplication,operation: Backend
         val observation=app.sessions.observe(lease.owner,lease.token).getOrThrow()
         val result=app.sessions.operate(lease.owner,lease.token,observation.values.getValue("observation_id") as String,operation)
         check(result.ok) { result.code ?: "INPUT_FAILED" }
-    } finally { if(app.mcp.state().running) app.sessions.finishPhoneControl(lease.token) }
+    } finally { app.sessions.finishPhoneControl(lease.token) }
 }
 
 @Composable private fun ViewerScreen(app: VirtualScreenApplication,pip: Boolean,notifications: () -> Unit,onPip: () -> Unit,onSettings: () -> Unit,onConnect: () -> Unit) {
     val l=LocalLanguage.current; val state by app.sessions.state.collectAsState(); val settings by app.settings.flow.collectAsState()
     val tool by app.mcp.activity.collectAsState(); val server by app.mcp.flow.collectAsState(); val scope=rememberCoroutineScope(); val lifecycle=LocalLifecycleOwner.current
+    val mcpChanging by app.mcpChanging.collectAsState()
+    val toggleMcp=rememberMcpToggle(app,notifications)
     var view by remember { mutableStateOf<LiveDisplayView?>(null) }; var live by remember { mutableStateOf(false) }
     var expanded by rememberSaveable { mutableStateOf(false) }; var chooseApp by remember { mutableStateOf(false) }; var keyboard by remember { mutableStateOf(false) }
     var viewerSize by remember { mutableStateOf(IntSize.Zero) }
@@ -189,15 +195,14 @@ internal suspend fun phoneInput(app: VirtualScreenApplication,operation: Backend
     BackHandler(state.displayId!=null || expanded || keyboard) {
         when { keyboard -> keyboard=false; expanded -> expanded=false; else -> localInput(BackendOperation.Back) }
     }
-    val host=LocalView.current
     val imeVisible=WindowInsets.ime.getBottom(LocalDensity.current)>0
-    val lightBars=state.displayId==null && MiuixTheme.colorScheme.background.luminance()>.5f
-    SideEffect { (host.context as? ComponentActivity)?.let { activity -> WindowCompat.getInsetsController(activity.window,host).isAppearanceLightStatusBars=lightBars } }
-    Box(Modifier.fillMaxSize().background(if(state.displayId!=null) Color.Black else MiuixTheme.colorScheme.background).windowInsetsPadding(if(pip) WindowInsets(0,0,0,0) else WindowInsets.statusBars.union(WindowInsets.displayCutout)).onSizeChanged { if(!pip && !imeVisible) { viewerSize=it; app.settings.setViewerSize(it.width,it.height) } }) {
+    val background=if(state.displayId!=null) Color.Black else MiuixTheme.colorScheme.background
+    WindowAppearance(background)
+    Box(Modifier.fillMaxSize().background(background).windowInsetsPadding(if(pip) WindowInsets(0,0,0,0) else WindowInsets.statusBars.union(WindowInsets.displayCutout)).onSizeChanged { if(!pip && !imeVisible) { viewerSize=it; app.settings.setViewerSize(it.width,it.height) } }) {
         if(state.displayId!=null) AndroidView(factory={ context -> LiveDisplayView(context).also { view=it } },modifier=Modifier.fillMaxSize(),update={ renderer ->
             renderer.onLiveChanged={ live=it }
-            renderer.onManualDown={ if(pip) null else app.sessions.phoneTakeover().token }
-            renderer.onManualComplete={ token -> scope.launch(Dispatchers.IO) { if(app.mcp.state().running) app.sessions.finishPhoneControl(token) } }
+            renderer.onManualDown={ if(pip) null else app.sessions.beginPhoneGesture().token }
+            renderer.onManualComplete={ token -> app.sessions.finishPhoneControl(token) }
             renderer.onCompatibilityInput={ op -> task { phoneInput(app,op) } }
             renderer.onError={ code -> if(code != "DISPLAY_MIRROR_UNAVAILABLE") error=code }
             val frame=state.frame
@@ -205,19 +210,20 @@ internal suspend fun phoneInput(app: VirtualScreenApplication,operation: Backend
         }) else {
             val accent=MiuixTheme.colorScheme.primary
             Column(Modifier.align(Alignment.Center).fillMaxWidth().verticalScroll(rememberScrollState()).padding(horizontal=36.dp,vertical=24.dp),horizontalAlignment=Alignment.CenterHorizontally,verticalArrangement=Arrangement.spacedBy(18.dp)) {
-                ScreenMark(Modifier.size(if(androidx.compose.ui.platform.LocalConfiguration.current.screenHeightDp<500) 80.dp else 148.dp))
-                Text(l.text("虚拟屏","Virtual Screen","虛擬屏"),style=MiuixTheme.textStyles.title2,fontWeight=FontWeight.SemiBold)
-                Text(l.text("Agent 的独立屏幕，你的手机照常使用。","A separate screen for your agent. Your phone stays yours.","Agent 的獨立螢幕，你的手機照常使用。"),style=MiuixTheme.textStyles.body2,color=MiuixTheme.colorScheme.onSurfaceVariantSummary,textAlign=TextAlign.Center)
-                Text(if(server.running) l.text("连接已就绪 · 等待 Agent 创建屏幕","Connection ready · Waiting for your agent","連線已就緒 · 等待 Agent 建立螢幕") else l.text("创建屏幕后自动画中画，随时接管","Automatic PiP when a display starts. Take over anytime.","建立螢幕後自動子母畫面，隨時接管"),style=MiuixTheme.textStyles.footnote1,color=accent,textAlign=TextAlign.Center)
-                Button(onClick=onConnect,modifier=Modifier.fillMaxWidth(),colors=ButtonDefaults.buttonColorsPrimary()) { Text(if(server.running) l.text("连接设置","Connection settings","連線設定") else l.text("连接 Agent","Connect an agent","連線 Agent")) }
-                Button(onClick={ notifications(); foreground(app); task {
-                    phoneControl(app) { lease ->
-                        val result=app.sessions.create(lease.owner,lease.token,app.settings.configForViewer(viewerSize.width,viewerSize.height))
-                        check(result.ok) { result.code ?: "CREATE_FAILED" }
-                        if(settings.restoreApp && settings.lastComponent.isNotBlank()) app.sessions.launch(lease.owner,lease.token,settings.lastComponent)
+                ScreenMark(Modifier.size(if(androidx.compose.ui.platform.LocalConfiguration.current.screenHeightDp<500) 80.dp else 148.dp),enabled=server.running)
+                Row(verticalAlignment=Alignment.CenterVertically,horizontalArrangement=Arrangement.spacedBy(20.dp)) {
+                    Text(l.text("MCP 服务","MCP server","MCP 服務"),style=MiuixTheme.textStyles.body1,fontWeight=FontWeight.Medium)
+                    Box(Modifier.size(width=104.dp,height=56.dp),contentAlignment=Alignment.Center) {
+                        Switch(checked=server.running || (mcpChanging && app.mcpWanted),onCheckedChange=toggleMcp,enabled=!mcpChanging,
+                            modifier=Modifier.graphicsLayer { scaleX=1.6f; scaleY=1.6f }.semantics {
+                                contentDescription=l.text("MCP 服务开关","MCP server switch","MCP 服務開關")
+                            })
                     }
-                } },enabled=!busy) { Text(l.text("手动预览","Manual preview","手動預覽")) }
+                }
+                Text(l.text("Agent 的独立屏幕，你的手机照常使用。","A separate screen for your agent. Your phone stays yours.","Agent 的獨立螢幕，你的手機照常使用。"),style=MiuixTheme.textStyles.body2,color=MiuixTheme.colorScheme.onSurfaceVariantSummary,textAlign=TextAlign.Center)
+                Button(onClick=onConnect,modifier=Modifier.fillMaxWidth(),colors=ButtonDefaults.buttonColorsPrimary()) { Text(if(server.running) l.text("连接设置","Connection settings","連線設定") else l.text("接入 Agent","Connect an agent","接入 Agent")) }
                 Action(l.text("权限与设置","Permissions and settings","權限與設定"),onClick=onSettings)
+                server.lastError?.let { Text(localizedError(l,it),style=MiuixTheme.textStyles.footnote1,color=MiuixTheme.colorScheme.error) }
                 state.errorCode?.let { Text(localizedError(l,it),style=MiuixTheme.textStyles.footnote1,color=MiuixTheme.colorScheme.error) }
             }
         }
@@ -231,7 +237,7 @@ internal suspend fun phoneInput(app: VirtualScreenApplication,operation: Backend
     if(chooseApp) AppPicker(applications,onDismiss={ chooseApp=false }) { item -> chooseApp=false; task {
         phoneControl(app) { lease ->
             val result=app.sessions.launch(lease.owner,lease.token,item.component)
-            if(result.code != "APP_RESTART_CONFIRMATION_REQUIRED") { check(result.ok) { result.code ?: "LAUNCH_FAILED" }; app.settings.update { it.copy(lastComponent=item.component) } }
+            check(result.ok) { result.code ?: "LAUNCH_FAILED" }; app.settings.update { it.copy(lastComponent=item.component) }
         }
     } }
     if(keyboard) Dialog(onDismissRequest={ keyboard=false }) { Card { Column(Modifier.padding(22.dp).imePadding(),verticalArrangement=Arrangement.spacedBy(12.dp)) {
@@ -241,12 +247,6 @@ internal suspend fun phoneInput(app: VirtualScreenApplication,operation: Backend
         top.yukonga.miuix.kmp.preference.SwitchPreference(checked=replace,onCheckedChange={ replace=it },title=l.text("替换全部","Replace all","取代全部"))
         Button(onClick={ localInput(BackendOperation.Text(draft,replace)); keyboard=false },enabled=draft.isNotEmpty() || replace) { Text(l.text("发送到虚拟屏","Send to virtual screen","傳送到虛擬螢幕")) }
     } } }
-    state.pendingRestart?.let { component -> Dialog(onDismissRequest={ app.sessions.dismissRestart() }) { Card { Column(Modifier.padding(22.dp),verticalArrangement=Arrangement.spacedBy(12.dp)) {
-        Text(l.text("应用需要重启","Restart required","應用程式需要重新啟動"),style=MiuixTheme.textStyles.title3)
-        Text(l.text("该应用正在其他屏幕运行。重启将结束当前任务并在虚拟屏打开。","This app is running on another display. Restarting ends that task and opens it here.","此應用程式正在其他螢幕執行。重新啟動將結束目前工作並在虛擬螢幕開啟。"))
-        Button(onClick={ app.sessions.dismissRestart(); task { phoneControl(app) { lease -> val result=app.sessions.launch(lease.owner,lease.token,component,restartApproved=true); check(result.ok) { result.code ?: "LAUNCH_FAILED" }; app.settings.update { it.copy(lastComponent=component) } } } }) { Text(l.text("接管并重启","Take over and restart","接管並重新啟動")) }
-        Action(l.text("取消","Cancel","取消")) { app.sessions.dismissRestart() }
-    } } } }
 }
 
 @Composable private fun AppPicker(apps: List<DiscoveredApplication>,onDismiss: () -> Unit,onChoose: (DiscoveredApplication) -> Unit) {
@@ -269,7 +269,7 @@ internal suspend fun phoneInput(app: VirtualScreenApplication,operation: Backend
     var right by remember { mutableStateOf(prefs.getBoolean("right",true)) }; var fraction by remember { mutableFloatStateOf(prefs.getFloat("anchor_y",.22f)) }
     var hidden by remember { mutableStateOf(false) }; var drag by remember { mutableStateOf<Offset?>(null) }; var measured by remember { mutableStateOf(IntSize.Zero) }
     val running=phase=="running"
-    val accent=when { phase=="failed" -> MiuixTheme.colorScheme.error; running -> MiuixTheme.colorScheme.primary; else -> MiuixTheme.colorScheme.onSurfaceVariantSummary }
+    val accent=when { phase=="failed" -> MiuixTheme.colorScheme.error; running || mcpRunning -> MiuixTheme.colorScheme.primary; else -> MiuixTheme.colorScheme.onSurfaceVariantSummary }
     val status=when { running -> l.text("正在执行","Working","正在執行"); state.lease?.owner != null && state.lease.owner != VirtualScreenSessionManager.PHONE_CLIENT -> l.text("远程控制中","Remote control active","遠端控制中"); mcpRunning -> l.text("MCP 已就绪","MCP ready","MCP 已就緒"); else -> l.text("本地控制","Local control","本機控制") }
     LaunchedEffect(expanded,drag,hidden) { if(!expanded && drag==null && !hidden) { delay(4000); hidden=true } }
     DisposableEffect(host) { onDispose { host.systemGestureExclusionRects=emptyList() } }
@@ -289,15 +289,17 @@ internal suspend fun phoneInput(app: VirtualScreenApplication,operation: Backend
             val p=layout.positionInWindow(); host.systemGestureExclusionRects=listOf(android.graphics.Rect(p.x.roundToInt(),p.y.roundToInt(),(p.x+layout.size.width).roundToInt(),(p.y+layout.size.height).roundToInt()))
         }) {
             if(hidden) Card(Modifier.then(dragModifier),cornerRadius=18.dp) {
-                IconButton(onClick={ hidden=false },modifier=Modifier.size(44.dp)) { Icon(MiuixIcons.MoreCircle,l.text("打开悬浮控制","Open floating controls","開啟懸浮控制"),Modifier.size(22.dp)) }
-            } else Card(Modifier.padding(horizontal=8.dp).shadow(8.dp,RoundedCornerShape(24.dp)),cornerRadius=24.dp) { Column(Modifier.padding(16.dp)) {
+                IconButton(onClick={ hidden=false },modifier=Modifier.size(44.dp).semantics { contentDescription=status }) {
+                    StatusIndicator(running,accent,Modifier.size(22.dp))
+                }
+            } else Card(Modifier.padding(horizontal=8.dp).shadow(8.dp,RoundedCornerShape(20.dp)),cornerRadius=20.dp) { Column(Modifier.padding(horizontal=12.dp,vertical=6.dp)) {
                 Row(Modifier.fillMaxWidth().then(dragModifier),verticalAlignment=Alignment.CenterVertically) {
                     StatusIndicator(running,accent,Modifier.size(16.dp))
-                    Spacer(Modifier.width(10.dp))
-                    Text(status,modifier=Modifier.weight(1f),style=MiuixTheme.textStyles.body2,maxLines=1,overflow=TextOverflow.Ellipsis)
-                    IconButton(onClick={ onExpanded(!expanded) },modifier=Modifier.size(48.dp)) { Icon(MiuixIcons.ChevronForward,if(expanded) l.text("折叠操作","Collapse actions","摺疊操作") else l.text("展开操作","Expand actions","展開操作"),Modifier.size(20.dp).graphicsLayer { rotationZ=if(expanded) -90f else 90f }) }
+                    Spacer(Modifier.width(8.dp))
+                    Text(if(!expanded && running && !purpose.isNullOrBlank()) purpose else status,modifier=Modifier.weight(1f),style=MiuixTheme.textStyles.body2,maxLines=if(expanded) 1 else 2,overflow=TextOverflow.Ellipsis)
+                    IconButton(onClick={ onExpanded(!expanded) },modifier=Modifier.size(36.dp)) { Icon(MiuixIcons.ChevronForward,if(expanded) l.text("折叠操作","Collapse actions","摺疊操作") else l.text("展开操作","Expand actions","展開操作"),Modifier.size(18.dp).graphicsLayer { rotationZ=if(expanded) -90f else 90f }) }
                 }
-                purpose?.takeIf { it.isNotBlank() && phase=="running" }?.let { Text(it,modifier=Modifier.padding(top=10.dp),style=MiuixTheme.textStyles.body2,maxLines=3,overflow=TextOverflow.Ellipsis) }
+                purpose?.takeIf { expanded && it.isNotBlank() && phase=="running" }?.let { Text(it,modifier=Modifier.padding(top=4.dp),style=MiuixTheme.textStyles.body2,maxLines=3,overflow=TextOverflow.Ellipsis) }
                 AnimatedVisibility(expanded,
                     enter=expandVertically(tween(160),expandFrom=Alignment.Top)+fadeIn(tween(100)),
                     exit=shrinkVertically(tween(140),shrinkTowards=Alignment.Top)+fadeOut(tween(90))) {

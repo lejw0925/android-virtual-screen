@@ -13,4 +13,16 @@
     <string name="notification_isolated">Your phone stays yours · Tap to take over</string>
     <string name="notification_waiting">Waiting for an isolated display</string>
     <string name="notification_preview_unavailable">PiP is unavailable · Tap this notification to view the display</string>
+    <string name="control_approval_channel">Control approvals</string>
+    <string name="control_approval_title">%1$s requests control</string>
+    <string name="control_approval_detail">%1$s\nAllow once, or always allow agents using the current token to request phone-held control.</string>
+    <string name="control_allow_once">Allow once</string>
+    <string name="control_allow_always">Always allow</string>
+    <string name="control_deny">Deny</string>
+    <string name="clipboard_copied">Copied to clipboard</string>
+    <string name="app_restart_channel">App restart approvals</string>
+    <string name="app_restart_title">%1$s requests to restart %2$s</string>
+    <string name="app_restart_detail">%1$s\nThis app is running on another screen. Allowing ends its current task and opens it on the virtual screen. Expires in two minutes.</string>
+    <string name="app_restart_allow">Allow restart</string>
+    <string name="app_restart_purpose">Open %1$s on the virtual screen</string>
 </resources>

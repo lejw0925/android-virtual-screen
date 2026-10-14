@@ -19,7 +19,10 @@ fun systemLanguage(context: android.content.Context): UiLanguage = uiLanguage(ru
 
 fun localizedError(l: UiLanguage,code: String): String = when(code) {
     "PURPOSE_REQUIRED" -> l.text("请使用手机系统语言填写操作目的。","Provide the operation purpose in the phone’s system language.","請使用手機系統語言填寫操作目的。")
-    "CONTROL_BUSY", "TAKEOVER_REQUIRED" -> l.text("已有其他控制方。请在手机端接管或等待其释放。","Another controller holds the lease. Take over on the phone or wait for release.","已有其他控制方。請在手機端接管或等待其釋放。")
+    "CONTROL_BUSY", "TAKEOVER_REQUIRED" -> l.text("控制权被占用。可使用 request_control 申请手机端审批，或等待释放。","Control is occupied. Use request_control for phone approval, or wait for release.","控制權被佔用。可使用 request_control 申請手機端審批，或等待釋放。")
+    "CONTROL_REQUEST_DENIED", "CONTROL_REQUEST_CANCELLED" -> l.text("接管申请已拒绝或取消。","The control request was denied or cancelled.","接管申請已拒絕或取消。")
+    "CONTROL_REQUEST_EXPIRED", "CONTROL_REQUEST_STALE", "CONTROL_REQUEST_NOT_FOUND" -> l.text("接管申请已过期或控制方已改变，请重新申请。","The request expired or its controller changed. Submit a new request.","接管申請已過期或控制方已改變，請重新申請。")
+    "ACCESSIBILITY_AUTHORIZATION_FAILED" -> l.text("节点服务未能自动启用，请重新授权 Root 或 Shizuku。","The node service could not be enabled. Reauthorize Root or Shizuku.","節點服務未能自動啟用，請重新授權 Root 或 Shizuku。")
     "LEASE_REQUIRED" -> l.text("请重新申请控制权；当前租约已失效。","Acquire control again; the current lease is invalid.","請重新申請控制權；目前租約已失效。")
     "STALE_OBSERVATION", "CONTROL_CHANGED", "STALE_VIRTUAL_SCREEN" -> l.text("屏幕或控制权已改变。请重新观察后再操作。","The screen or controller changed. Observe again before acting.","螢幕或控制權已改變。請重新觀察後再操作。")
     "NO_VIRTUAL_SCREEN", "DISPLAY_GONE" -> l.text("虚拟屏未运行，请先启动。","The virtual screen is not running. Start it first.","虛擬螢幕未執行，請先啟動。")
@@ -29,6 +32,10 @@ fun localizedError(l: UiLanguage,code: String): String = when(code) {
     "AMBIGUOUS_NODE", "INVALID_NODE_TARGET" -> l.text("目标不唯一，请重新观察并选择一个明确的节点。","The target is ambiguous. Observe again and select one specific node.","目標不唯一，請重新觀察並選擇一個明確的節點。")
     "NODE_NOT_FOUND", "NODE_TREE_TRUNCATED" -> l.text("当前观察无法确认目标，请重新观察或使用截图定位。","This observation cannot confirm the target. Observe again or locate it in a screenshot.","目前觀察無法確認目標，請重新觀察或使用截圖定位。")
     "APP_RESTART_CONFIRMATION_REQUIRED" -> l.text("应用正在其他屏幕运行，请在手机端确认重启。","The app is running on another display. Confirm restart on the phone.","應用程式正在其他螢幕執行，請在手機端確認重新啟動。")
+    "APP_RESTART_DENIED", "APP_RESTART_CANCELLED" -> l.text("应用重启申请已拒绝或取消。","The app restart request was denied or cancelled.","應用程式重新啟動申請已拒絕或取消。")
+    "APP_RESTART_TIMEOUT" -> l.text("两分钟内未确认，应用重启申请已超时。","The app restart request timed out after two minutes without confirmation.","兩分鐘內未確認，應用程式重新啟動申請已逾時。")
+    "APP_LAUNCH_BUSY" -> l.text("另一个应用启动请求正在处理，请等待其结束。","Another app launch is in progress. Wait for it to finish.","另一個應用程式啟動請求正在處理，請等待其結束。")
+    "NOTIFICATION_PERMISSION_REQUIRED" -> l.text("无法显示重启审批通知，请允许应用通知后重试。","Restart approval notifications are disabled. Enable app notifications and retry.","無法顯示重新啟動審批通知，請允許應用程式通知後重試。")
     "SCREEN_OFF_UNAVAILABLE" -> l.text("当前设备不允许此时操作，请点亮并解锁手机。","The device cannot operate in this state. Wake and unlock the phone.","目前裝置不允許此時操作，請點亮並解鎖手機。")
     "WAIT_TIMEOUT" -> l.text("等待超时，已返回当前观察。","Wait timed out; the current observation is returned.","等待逾時，已傳回目前觀察。")
     "UI_INPUT_TIMEOUT", "INPUT_DISPATCH_UNCONFIRMED" -> l.text("操作结果未确认，请重新观察；不要直接重放。","The effect is unconfirmed. Observe again before deciding to repeat.","操作結果未確認，請重新觀察；不要直接重播。")

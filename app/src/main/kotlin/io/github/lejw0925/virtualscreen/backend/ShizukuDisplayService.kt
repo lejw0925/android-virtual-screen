@@ -13,12 +13,21 @@ class ShizukuDisplayService : Binder() {
     override fun onTransact(code: Int, data: Parcel, reply: Parcel?, flags: Int): Boolean {
         if (code == INTERFACE_TRANSACTION) { reply?.writeString(DESCRIPTOR); return true }
         if (code == 16777115) { engine.close(); kotlin.system.exitProcess(0) }
-        if (code !in CREATE..LiveDisplayChannel.SETTLE) return super.onTransact(code, data, reply, flags)
+        if (code !in CREATE..AUTHORIZE_ACCESSIBILITY) return super.onTransact(code, data, reply, flags)
         data.enforceInterface(DESCRIPTOR)
         val caller = getCallingUid()
         synchronized(this) { if (ownerUid == -1) ownerUid = caller }
         check(caller == ownerUid) { "DISPLAY_OWNER_MISMATCH" }
         try {
+            if (code == AUTHORIZE_ACCESSIBILITY) {
+                data.enforceNoDataAvail()
+                val identity = clearCallingIdentity()
+                try {
+                    AccessibilityAuthorization.enable(ownerUid/100000)
+                    reply?.writeNoException()
+                } finally { restoreCallingIdentity(identity) }
+                return true
+            }
             if(code >= LiveDisplayChannel.ATTACH) {
                 val identity=clearCallingIdentity()
                 try { engine.live(code,data,reply) } finally { restoreCallingIdentity(identity) }
@@ -44,5 +53,6 @@ class ShizukuDisplayService : Binder() {
         const val CREATE = IBinder.FIRST_CALL_TRANSACTION
         const val EXECUTE = CREATE + 1
         const val CANCEL = CREATE + 2
+        const val AUTHORIZE_ACCESSIBILITY = LiveDisplayChannel.SETTLE + 1
     }
 }

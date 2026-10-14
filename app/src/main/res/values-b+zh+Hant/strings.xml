@@ -13,4 +13,16 @@
     <string name="notification_isolated">獨立執行，不打擾主螢幕 · 可隨時接管</string>
     <string name="notification_waiting">等待建立獨立螢幕</string>
     <string name="notification_preview_unavailable">子母畫面不可用 · 點按通知查看虛擬螢幕</string>
+    <string name="control_approval_channel">控制權審批</string>
+    <string name="control_approval_title">%1$s 申請接管虛擬螢幕</string>
+    <string name="control_approval_detail">%1$s\n可允許一次，或始終允許持有目前 Token 的 Agent 申請接管手機佔用。</string>
+    <string name="control_allow_once">允許一次</string>
+    <string name="control_allow_always">始終允許</string>
+    <string name="control_deny">拒絕</string>
+    <string name="clipboard_copied">已複製到剪貼簿</string>
+    <string name="app_restart_channel">應用程式重新啟動審批</string>
+    <string name="app_restart_title">%1$s 請求重新啟動 %2$s</string>
+    <string name="app_restart_detail">%1$s\n此應用程式正在其他螢幕執行。允許後將結束目前工作，並在虛擬螢幕開啟。兩分鐘內有效。</string>
+    <string name="app_restart_allow">允許重新啟動</string>
+    <string name="app_restart_purpose">在虛擬螢幕開啟 %1$s</string>
 </resources>

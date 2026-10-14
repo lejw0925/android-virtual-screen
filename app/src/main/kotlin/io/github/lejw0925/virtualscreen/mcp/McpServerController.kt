@@ -23,25 +23,41 @@ import org.json.JSONObject
 data class McpClientInfo(val id: String,val name: String,val initialized: Boolean)
 data class McpServerState(val running: Boolean = false,val host: String = "127.0.0.1",val port: Int = 8732,val token: String = "",val sessionCount: Int = 0,
     val clients: List<McpClientInfo> = emptyList(),val lastError: String? = null)
-private class ClientSession(val id: String,val name: String,val version: String) {
+private class ClientSession(val id: String,val name: String,val version: String,var lastActivityMillis: Long) {
     @Volatile var initialized = false
+    var activeCalls = 0
     val seen = ConcurrentHashMap.newKeySet<String>()
     val requests = ConcurrentHashMap<String,Job>()
 }
 
 /** Streamable HTTP, JSON response mode (GET/SSE is deliberately unsupported). */
-class McpServerController(context: Context,private val sessions: VirtualScreenSessionManager) {
-    companion object { const val DEFAULT_PORT = 8732; val VERSIONS = listOf("2025-11-25","2025-06-18","2025-03-26") }
+class McpServerController(context: Context,private val sessions: VirtualScreenSessionManager,
+    private val nowMillis: () -> Long = { System.nanoTime() / 1_000_000 }) {
+    companion object {
+        const val DEFAULT_PORT = 8732
+        val VERSIONS = listOf("2025-11-25","2025-06-18","2025-03-26")
+        private const val MAX_CLIENTS = 32
+        private const val HANDSHAKE_IDLE_MILLIS = 60_000L
+        private const val SESSION_IDLE_MILLIS = 300_000L
+        private const val CLEANUP_INTERVAL_MILLIS = 15_000L
+    }
     private val tokenStore = BearerTokenStore(context)
-    private val registry = McpToolRegistry(sessions)
+    private val approvalPrefs = context.getSharedPreferences("control_approvals",Context.MODE_PRIVATE)
+    private fun tokenFingerprint() = MessageDigest.getInstance("SHA-256").digest(tokenStore.token().toByteArray()).joinToString("") { "%02x".format(it) }
+    val approvals = ControlApprovalManager(sessions,approvalPrefs.getString("token",null)==tokenFingerprint(),saveAlwaysAllow = { allowed ->
+        approvalPrefs.edit().putString("token",if(allowed) tokenFingerprint() else null).apply()
+    })
+    private val registry = McpToolRegistry(sessions,approvals,{ owner -> clients[owner]?.name ?: "MCP client" })
     val activity get() = registry.activity
     private val mutableState = MutableStateFlow(McpServerState(token = tokenStore.token()))
     val flow = mutableState.asStateFlow()
     fun state() = flow.value
+    fun reportStartupError(code: String) { mutableState.value = state().copy(running=false,lastError=code) }
     private var server: EmbeddedServer<CIOApplicationEngine,CIOApplicationEngine.Configuration>? = null
     private var engineJob: Job? = null
     private val engineEpoch = java.util.concurrent.atomic.AtomicLong()
     private val clients = ConcurrentHashMap<String,ClientSession>()
+    private val clientLock = Any()
     private var allowedOrigins: Set<String> = emptySet()
     @Synchronized fun start(lan: Boolean = false,port: Int = DEFAULT_PORT,origins: Set<String> = emptySet()): Result<McpServerState> {
         if (server != null && state().running) return Result.success(state())
@@ -66,8 +82,10 @@ class McpServerController(context: Context,private val sessions: VirtualScreenSe
                         delete {
                             if (!authorize(call)) return@delete
                             val client = getClient(call) ?: return@delete
-                            disconnectSession(client.id)
-                            call.respond(HttpStatusCode.NoContent)
+                            try {
+                                disconnectSession(client.id)
+                                call.respond(HttpStatusCode.NoContent)
+                            } finally { finishCall(client) }
                         }
                     }
                 } }
@@ -77,6 +95,12 @@ class McpServerController(context: Context,private val sessions: VirtualScreenSe
             engine.start(wait = false)
             runBlocking { withTimeout(5000) { engine.engine.resolvedConnectors() } }
             mutableState.value = McpServerState(true,host,port,tokenStore.token())
+            CoroutineScope(parent + Dispatchers.IO).launch {
+                while(isActive) {
+                    delay(CLEANUP_INTERVAL_MILLIS)
+                    recycleIdleSessions()
+                }
+            }
             sessions.allowRemoteControl()
             state()
         }.onFailure { failure ->
@@ -87,21 +111,48 @@ class McpServerController(context: Context,private val sessions: VirtualScreenSe
     }
     @Synchronized fun stop() {
         engineEpoch.incrementAndGet()
-        clients.keys.toList().forEach(::disconnectSession)
+        synchronized(clientLock) {
+            mutableState.update { it.copy(running=false) }
+            clients.keys.toList().forEach(::disconnectSession)
+        }
         server?.stop(100,1500); server = null
         engineJob?.cancel(); engineJob = null
         mutableState.value = state().copy(running = false,sessionCount = 0,clients = emptyList())
+        approvals.clear()
     }
     @Synchronized fun rotateToken(): String {
         clients.keys.toList().forEach(::disconnectSession)
+        approvals.setAlwaysAllow(false)
         return tokenStore.rotate().also { mutableState.value = state().copy(token = it) }
     }
-    fun disconnectSession(id: String) {
+    fun disconnectSession(id: String) = synchronized(clientLock) {
         clients.remove(id)?.let { client -> client.requests.values.forEach { it.cancel() }; sessions.disconnectClient(client.id) }
         registry.forgetClient(id)
         updateClients()
     }
-    private fun updateClients() { mutableState.value = state().copy(sessionCount = clients.size,clients = clients.values.map { McpClientInfo(it.id,it.name,it.initialized) }) }
+    private fun updateClients() { mutableState.update { it.copy(sessionCount = clients.size,clients = clients.values.map { client -> McpClientInfo(client.id,client.name,client.initialized) }) } }
+    /** Admission, expiration and request tracking share a lock so cleanup cannot race a live request. */
+    internal fun recycleIdleSessions() = synchronized(clientLock) {
+        val now = nowMillis()
+        val controller = sessions.leaseStatus()?.owner
+        clients.values.filter { client ->
+            val timeout = if(client.initialized) SESSION_IDLE_MILLIS else HANDSHAKE_IDLE_MILLIS
+            client.activeCalls == 0 && client.id != controller && now - client.lastActivityMillis >= timeout
+        }.forEach { disconnectSession(it.id) }
+    }
+    private fun createClient(name: String,version: String): ClientSession? = synchronized(clientLock) {
+        recycleIdleSessions()
+        if(!state().running || clients.size >= MAX_CLIENTS) return@synchronized null
+        ClientSession(UUID.randomUUID().toString(),name,version,nowMillis()).also {
+            it.activeCalls = 1
+            clients[it.id] = it
+            updateClients()
+        }
+    }
+    private fun finishCall(client: ClientSession) = synchronized(clientLock) {
+        client.activeCalls--
+        client.lastActivityMillis = nowMillis()
+    }
     private suspend fun authorize(call: ApplicationCall): Boolean {
         val origin = call.request.headers[HttpHeaders.Origin]
         if (origin != null && origin !in allowedOrigins) { call.respond(HttpStatusCode.Forbidden); return false }
@@ -116,10 +167,21 @@ class McpServerController(context: Context,private val sessions: VirtualScreenSe
     private suspend fun getClient(call: ApplicationCall): ClientSession? {
         val id = call.request.headers["Mcp-Session-Id"]
         if (id.isNullOrBlank()) { call.respond(HttpStatusCode.BadRequest); return null }
-        val client = clients[id]
-        if (client == null) { call.respond(HttpStatusCode.NotFound); return null }
         val version = call.request.headers["MCP-Protocol-Version"] ?: "2025-03-26"
-        if (version != client.version) { call.respond(HttpStatusCode.BadRequest); return null }
+        val (client,status) = synchronized(clientLock) {
+            recycleIdleSessions()
+            val client = clients[id]
+            when {
+                client == null -> null to HttpStatusCode.NotFound
+                version != client.version -> null to HttpStatusCode.BadRequest
+                else -> {
+                    client.activeCalls++
+                    client.lastActivityMillis = nowMillis()
+                    client to HttpStatusCode.OK
+                }
+            }
+        }
+        if(client == null) call.respond(status)
         return client
     }
     private suspend fun handlePost(call: ApplicationCall) {
@@ -142,23 +204,31 @@ class McpServerController(context: Context,private val sessions: VirtualScreenSe
         }
         if (method == "initialize") {
             if (id == null || call.request.headers["Mcp-Session-Id"] != null) { call.respond(HttpStatusCode.BadRequest); return }
-            if (clients.size >= 32) { call.respond(HttpStatusCode.ServiceUnavailable); return }
             val params = request.optJSONObject("params") ?: JSONObject()
             val requested = params.optString("protocolVersion")
             val version = requested.takeIf { it in VERSIONS } ?: VERSIONS.first()
             val name = params.optJSONObject("clientInfo")?.optString("name")?.take(100).orEmpty().ifBlank { "MCP client" }
-            val client = ClientSession(UUID.randomUUID().toString(),name,version)
-            clients[client.id] = client; updateClients()
-            call.response.header("Mcp-Session-Id",client.id)
-            call.respondText(success(id,JSONObject().put("protocolVersion",version).put("capabilities",JSONObject().put("tools",JSONObject().put("listChanged",false)))
-                .put("serverInfo",JSONObject().put("name","android-virtual-screen").put("version",BuildConfig.VERSION_NAME))
-                .put("instructions",sessions.systemLanguage.text("先申请控制权，身份绑定当前 MCP 会话。每次调用必须使用手机系统语言填写 purpose 操作目的。每次输入后重新观察。跨屏重启需手机确认。","Acquire control before device operations. Identity is bound to Mcp-Session-Id. Every call must supply purpose in the phone’s system language. Observe again after every input. Cross-display app restart requires phone confirmation.","先申請控制權，身分綁定目前 MCP 工作階段。每次呼叫必須使用手機系統語言填寫 purpose 操作目的。每次輸入後重新觀察。跨螢幕重新啟動需手機確認。"))).toString(),ContentType.Application.Json)
+            val client = createClient(name,version)
+            if(client == null) {
+                call.response.header(HttpHeaders.RetryAfter,"15")
+                call.respond(HttpStatusCode.ServiceUnavailable); return
+            }
+            try {
+                call.response.header("Mcp-Session-Id",client.id)
+                call.respondText(success(id,JSONObject().put("protocolVersion",version).put("capabilities",JSONObject().put("tools",JSONObject().put("listChanged",false)))
+                    .put("serverInfo",JSONObject().put("name","android-virtual-screen").put("version",BuildConfig.VERSION_NAME))
+                    .put("instructions",sessions.systemLanguage.text("先申请控制权，身份绑定当前 MCP 会话。每次调用必须使用手机系统语言填写 purpose 操作目的。每次输入后重新观察。跨屏重启需手机确认。","Acquire control before device operations. Identity is bound to Mcp-Session-Id. Every call must supply purpose in the phone’s system language. Observe again after every input. Cross-display app restart requires phone confirmation.","先申請控制權，身分綁定目前 MCP 工作階段。每次呼叫必須使用手機系統語言填寫 purpose 操作目的。每次輸入後重新觀察。跨螢幕重新啟動需手機確認。"))).toString(),ContentType.Application.Json)
+            } finally { finishCall(client) }
             return
         }
         val client = getClient(call) ?: return
+        try { handleClientPost(call,request,id,method,client) }
+        finally { finishCall(client) }
+    }
+    private suspend fun handleClientPost(call: ApplicationCall,request: JSONObject,id: Any?,method: String,client: ClientSession) {
         if (id == null) {
             when(method) {
-                "notifications/initialized" -> { client.initialized = true; updateClients() }
+                "notifications/initialized" -> synchronized(clientLock) { client.initialized = true; updateClients() }
                 "notifications/cancelled" -> request.optJSONObject("params")?.opt("requestId")?.let { client.requests[it.toString()]?.cancel() }
                 else -> { call.respond(HttpStatusCode.BadRequest); return }
             }
@@ -172,7 +242,10 @@ class McpServerController(context: Context,private val sessions: VirtualScreenSe
         val job = currentCoroutineContext().job
         client.requests[key] = job
         try {
-            val result = withTimeout(60000) {
+            val params = request.optJSONObject("params")
+            val awaitingRestart = method == "tools/call" && params?.optString("name") == "applications" && params.optJSONObject("arguments")?.optString("action") == "launch"
+            // Phone approval may wait two minutes, followed by the bounded backend launch.
+            val result = withTimeout(if (awaitingRestart) 150_000L else 60_000L) {
                 when(method) {
                     "ping" -> JSONObject()
                     "tools/list" -> JSONObject().put("tools",JSONArray(registry.tools.map { JSONObject().put("name",it.name).put("description",it.description).put("inputSchema",it.schema).put("annotations",JSONObject().put("readOnlyHint",it.readOnly).put("idempotentHint",false).put("openWorldHint",false)) }))
@@ -191,7 +264,7 @@ class McpServerController(context: Context,private val sessions: VirtualScreenSe
         finally { client.requests.remove(key,job) }
     }
     fun clientConfiguration(url: String = "http://127.0.0.1:${state().port}/mcp") = JSONObject().put("mcpServers",JSONObject().put("android-virtual-screen",JSONObject()
-        .put("type","http").put("url",url).put("headers",JSONObject().put("Authorization","Bearer ${state().token}")))).toString(2)
+        .put("type","http").put("url",url).put("headers",JSONObject().put("Authorization","Bearer ${state().token}")))).toString(2).replace("\\/","/")
     private fun success(id: Any?,result: JSONObject) = JSONObject().put("jsonrpc","2.0").put("id",id ?: JSONObject.NULL).put("result",result)
     private fun error(id: Any?,code: Int,message: String) = JSONObject().put("jsonrpc","2.0").put("id",id ?: JSONObject.NULL).put("error",JSONObject().put("code",code).put("message",message))
 }

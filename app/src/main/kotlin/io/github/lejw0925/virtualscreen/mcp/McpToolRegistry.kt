@@ -21,11 +21,14 @@ import kotlin.coroutines.coroutineContext
 data class McpTool(val name: String,val description: String,val schema: JSONObject,val readOnly: Boolean = false)
 data class ToolActivity(val id: String,val owner: String,val tool: String,val purpose: String,val phase: String,val code: String? = null)
 
-class McpToolRegistry(private val sessions: VirtualScreenSessionManager,private val language: () -> UiLanguage = { sessions.systemLanguage }) {
+class McpToolRegistry(private val sessions: VirtualScreenSessionManager,
+    private val approvals: ControlApprovalManager = ControlApprovalManager(sessions),
+    private val clientName: (String) -> String = { "MCP client" },
+    private val language: () -> UiLanguage = { sessions.systemLanguage }) {
     private val current=MutableStateFlow<ToolActivity?>(null)
     val activity=current.asStateFlow()
     private val receipts=RequestReceipts()
-    fun forgetClient(owner: String) { receipts.forget(owner) }
+    fun forgetClient(owner: String) { receipts.forget(owner); approvals.forgetClient(owner) }
     private val lease=mapOf("lease_token" to string())
     private val observed=lease+("observation_id" to string())
     private val after=mapOf("observe_after" to choice("none","tree","screenshot","both"),"max_image_width" to integer(320,2048))
@@ -41,10 +44,13 @@ class McpToolRegistry(private val sessions: VirtualScreenSessionManager,private 
         return listOf(
             tool(l,"control",t("申请、续租或释放五分钟独占控制权。身份绑定当前 MCP 会话。","Acquire, renew or release five-minute exclusive control bound to this MCP session.","申請、續租或釋放五分鐘獨佔控制權。身分綁定目前 MCP 工作階段。"),
                 lease+("action" to choice("acquire","renew","release")),setOf("action"),branches=mapOf("acquire" to emptySet(),"renew" to lease.keys,"release" to lease.keys)),
+            tool(l,"request_control",t("控制权被手机或其他 Agent 占用时，发送通知申请接管。用户可允许一次或始终允许；立即返回 pending，不阻塞服务。用 action=status 和 approval_id 每秒查询，获批后使用新 lease_token 并重新观察。始终允许仅自动接管手机占用，不能绕过其他 Agent 的审批。","Request occupied control through a phone notification. The user can allow once or always. Returns pending immediately; poll action=status with approval_id once per second. Approval returns a new lease_token; observe again. Always allow applies only to phone occupancy; competing agents still require approval.","控制權被手機或其他 Agent 佔用時，傳送通知申請接管。使用者可允許一次或始終允許；立即傳回 pending。用 action=status 和 approval_id 每秒查詢，獲批後使用新 lease_token 並重新觀察。始終允許僅自動接管手機佔用，其他 Agent 仍需審批。"),
+                mapOf("action" to choice("request","status","cancel"),"approval_id" to string(128)),setOf("action"),
+                branches=mapOf("status" to setOf("approval_id"),"cancel" to setOf("approval_id"))),
             tool(l,"service_status",t("查看状态、能力与控制方，无需租约。request_id 查询当前 MCP 会话最近 32 个请求的回执，使用原 JSON-RPC id 的字符串；查询不会重发输入。","Read status, capabilities and controller without a lease. request_id queries this MCP session's last 32 receipts using the original JSON-RPC id as a string; querying never repeats input.","查看狀態、能力與控制方，無需租約。request_id 查詢目前 MCP 工作階段最近 32 個請求的回執，使用原 JSON-RPC id 的字串；查詢不會重播輸入。"),mapOf("request_id" to string(128)),readOnly=true),
-            tool(l,"screen",t("创建、重新配置或关闭唯一虚拟屏。重新配置会使旧观察失效。权限在手机端授予。","Create, reconfigure or close the isolated display. Reconfiguration invalidates observations. Authorize permissions on the phone.","建立、重新設定或關閉唯一虛擬螢幕。重新設定會使舊觀察失效。權限在手機端授予。"),
+            tool(l,"screen",t("创建、重新配置或关闭唯一虚拟屏。默认匹配手机可用分辨率和 DPI；只指定分辨率时按比例计算 DPI，保持实际应用密度。显式 density 覆盖自动计算。重新配置会使旧观察失效。权限在手机端授予。","Create, reconfigure or close the isolated display. Defaults match the phone viewport and DPI. Resolution-only overrides scale DPI to preserve app density; explicit density overrides this. Reconfiguration invalidates observations. Authorize permissions on the phone.","建立、重新設定或關閉唯一虛擬螢幕。預設符合手機可用解析度和 DPI；只指定解析度時按比例計算 DPI，保持實際應用程式密度。顯式 density 覆寫自動計算。重新設定會使舊觀察失效。權限在手機端授予。"),
                 lease+display+("action" to choice("create","configure","close")),lease.keys+"action"),
-            tool(l,"applications",t("列出应用或在虚拟屏启动应用。跨屏冲突需手机确认重启。","List launcher activities or launch one on the virtual display. Cross-display conflicts require phone confirmation.","列出應用程式或在虛擬螢幕啟動應用程式。跨螢幕衝突需手機確認重新啟動。"),
+            tool(l,"applications",t("列出应用或在虚拟屏启动应用。跨屏冲突时等待手机系统通知确认重启，最长两分钟；允许后继续启动，客户端超时应至少150秒。","List launcher activities or launch one on the virtual display. Cross-display conflicts await phone notification approval for up to two minutes, then continue launching if approved. Set the client timeout to at least 150 seconds.","列出應用程式或在虛擬螢幕啟動應用程式。跨螢幕衝突時等待手機系統通知確認重新啟動，最長兩分鐘；允許後繼續啟動，用戶端逾時應至少150秒。"),
                 lease+mapOf("action" to choice("list","launch"),"component" to string(),"uri" to string(),"query" to string(),"package" to string()),lease.keys+"action",
                 branches=mapOf("list" to emptySet(),"launch" to setOf("component"))),
             tool(l,"observe",t("取得新观察。mode=tree 省去截图；screenshot 或 both 返回图像。format=compact 只返回可见的有用节点，full 保留层级。坐标始终以 width/height 的显示像素计，缩图须按 image_to_display_scale 换算。输入消耗观察。","Get a fresh observation. mode=tree avoids image capture; screenshot/both add an image. compact returns useful visible nodes; full preserves hierarchy. Coordinates use display width/height, so map scaled images with image_to_display_scale. Input consumes the observation.","取得新觀察。mode=tree 省去截圖；screenshot 或 both 傳回影像。compact 只傳回可見的有用節點，full 保留階層。座標以 width/height 的顯示像素計，縮圖須按 image_to_display_scale 換算。輸入消耗觀察。"),
@@ -95,6 +101,11 @@ class McpToolRegistry(private val sessions: VirtualScreenSessionManager,private 
                     "renew" -> leaseResult(sessions.renewLease(owner,token))
                     else -> when(val d=sessions.releaseLease(owner,token)) { is LeaseDecision.Granted -> OperationEnvelope.success("released" to true); is LeaseDecision.Rejected -> OperationEnvelope.failure(d.code) }
                 }
+                "request_control" -> when(args.getString("action")) {
+                    "request" -> approvals.request(owner,clientName(owner),purpose)
+                    "status" -> approvals.status(owner,args.getString("approval_id"))
+                    else -> approvals.cancel(owner,args.getString("approval_id"))
+                }
                 "service_status" -> {
                     val controller=sessions.leaseStatus(); val state=sessions.state.value; val c=state.capabilities
                     OperationEnvelope(true,sessionId=state.sessionId,values=mapOf("backend" to state.backend.wireName,"status" to state.status.name.lowercase(),"display_id" to state.displayId,
@@ -103,7 +114,7 @@ class McpToolRegistry(private val sessions: VirtualScreenSessionManager,private 
                         if(args.has("request_id")) mapOf("receipt" to receipts.get(owner,args.getString("request_id")),"receipt_found" to (receipts.get(owner,args.getString("request_id"))!=null)) else emptyMap())
                 }
                 "screen" -> when(args.getString("action")) { "create" -> sessions.create(owner,token,config(args)); "configure" -> sessions.configure(owner,token,config(args)); else -> sessions.close(owner,token) }
-                "applications" -> if(args.getString("action") == "launch") sessions.launch(owner,token,args.getString("component"),args.optString("uri").takeIf(String::isNotBlank)) else {
+                "applications" -> if(args.getString("action") == "launch") sessions.launch(owner,token,args.getString("component"),args.optString("uri").takeIf(String::isNotBlank),purpose,clientName(owner)) else {
                     check(sessions.renewLease(owner,token) is LeaseDecision.Granted) { "LEASE_REQUIRED" }
                     val query=args.optString("query")
                     OperationEnvelope.success("applications" to sessions.discoverApplications().filter { it.exported && it.packageName!=io.github.lejw0925.virtualscreen.BuildConfig.APPLICATION_ID && (args.optString("package").isBlank() || it.packageName==args.getString("package")) && (query.isBlank() || it.label.contains(query,true) || it.packageName.contains(query,true)) }.map { mapOf("label" to it.label,"package" to it.packageName,"component" to it.component) })
@@ -206,7 +217,10 @@ class McpToolRegistry(private val sessions: VirtualScreenSessionManager,private 
     }
     private fun config(a: JSONObject): VirtualScreenConfig {
         val c=if(sessions.state.value.displayId==null) sessions.defaultDisplayConfig else sessions.state.value.config
-        return VirtualScreenConfig(a.optInt("width",c.width),a.optInt("height",c.height),a.optInt("density",c.density),a.optInt("rotation",c.rotation),a.optBoolean("allow_screen_off",c.allowScreenOff),a.optInt("idle_timeout_minutes",c.idleTimeoutMinutes))
+        val width=a.optInt("width",if(a.has("height")) (c.width.toDouble()*a.getInt("height")/c.height).toInt().coerceIn(320,4096) else c.width)
+        val height=a.optInt("height",if(a.has("width")) (c.height.toDouble()*width/c.width).toInt().coerceIn(480,4096) else c.height)
+        val density=a.optInt("density",(c.density.toDouble()*width/c.width).toInt().coerceIn(120,640))
+        return VirtualScreenConfig(width,height,density,a.optInt("rotation",c.rotation),a.optBoolean("allow_screen_off",c.allowScreenOff),a.optInt("idle_timeout_minutes",c.idleTimeoutMinutes))
     }
     private fun operation(name: String,a: JSONObject): BackendOperation = when(name) {
         "pointer" -> when(a.getString("action")) {

@@ -1,9 +1,24 @@
 <resources>
     <style name="Theme.VirtualScreen" parent="android:style/Theme.Material.Light.NoActionBar">
         <item name="android:fontFamily">sans</item>
-        <item name="android:windowLightStatusBar">true</item>
+        <item name="android:windowLightStatusBar">@bool/avs_light_system_bars</item>
+        <item name="android:windowLightNavigationBar">@bool/avs_light_system_bars</item>
+        <item name="android:windowBackground">@color/avs_window_background</item>
+        <item name="android:colorBackground">@color/avs_window_background</item>
         <item name="android:colorAccent">#3F6DF6</item>
-        <item name="android:navigationBarColor">@android:color/white</item>
+        <item name="android:navigationBarColor">@android:color/transparent</item>
         <item name="android:statusBarColor">@android:color/transparent</item>
+    </style>
+    <style name="Theme.VirtualScreen.Light" parent="Theme.VirtualScreen">
+        <item name="android:windowLightStatusBar">true</item>
+        <item name="android:windowLightNavigationBar">true</item>
+        <item name="android:windowBackground">@color/avs_window_background_light</item>
+        <item name="android:colorBackground">@color/avs_window_background_light</item>
+    </style>
+    <style name="Theme.VirtualScreen.Dark" parent="Theme.VirtualScreen">
+        <item name="android:windowLightStatusBar">false</item>
+        <item name="android:windowLightNavigationBar">false</item>
+        <item name="android:windowBackground">@color/avs_window_background_dark</item>
+        <item name="android:colorBackground">@color/avs_window_background_dark</item>
     </style>
 </resources>

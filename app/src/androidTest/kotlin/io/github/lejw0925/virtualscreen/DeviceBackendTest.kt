@@ -70,14 +70,12 @@ class DeviceBackendTest {
         manager.selectBackend(backend.kind)
         var lease=manager.phoneTakeover()
         try {
+            // Keep this disposable fixture test isolated from a task left by a
+            // previous instrumentation run on the physical display.
+            instrumentation.uiAutomation.executeShellCommand("am force-stop io.github.lejw0925.virtualscreen.fixture").use { it.close() }
             val created=manager.create(lease.owner,lease.token,VirtualScreenConfig(720,1600,320,0,false,0))
             assertTrue("Create: ${created.code}",created.ok)
-            var launched=manager.launch(lease.owner,lease.token,fixture)
-            if(launched.code == "APP_RESTART_CONFIRMATION_REQUIRED") {
-                // The disposable fixture may have been restored by the ROM after
-                // removing a previous display; only phone identity can approve.
-                launched=manager.launch(lease.owner,lease.token,fixture,restartApproved=true)
-            }
+            val launched=manager.launch(lease.owner,lease.token,fixture)
             assertTrue("Launch: ${launched.code}",launched.ok)
             delay(1000)
             suspend fun observe(): OperationEnvelope {

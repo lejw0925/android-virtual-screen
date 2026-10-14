@@ -118,12 +118,17 @@ internal class LiveDisplayView(context: Context) : FrameLayout(context),SurfaceH
             if(!submit { try {
                 if(epoch.get()==generation) {
                     channel.motion(viewer,g,id,mapped)
-                    if(finished) { channel.settle(viewer,id); token?.let { post { onManualComplete(it) } } }
+                    if(finished) channel.settle(viewer,id)
                 }
-            } catch(e: Exception) { post { cancelGesture(); onError("INPUT_DISPATCH_UNCONFIRMED") } } finally { mapped.recycle() } }) mapped.recycle()
+            } catch(e: Exception) { post { cancelGesture(); onError("INPUT_DISPATCH_UNCONFIRMED") } }
+            finally { mapped.recycle(); if(finished) token?.let { onManualComplete(it) } } }) {
+                mapped.recycle(); epoch.incrementAndGet()
+                token?.let { onManualComplete(it) }
+            }
         } else {
             val p=viewport.toDisplay(event.x,event.y,true) ?: return true
             if(points.size<64 && (points.lastOrNull() != p.x to p.y)) points+=p.x to p.y
+            if(event.actionMasked==MotionEvent.ACTION_CANCEL) phoneToken?.let { onManualComplete(it) }
             if(event.actionMasked==MotionEvent.ACTION_UP) {
                 val duration=(event.eventTime-downAt).toInt()
                 val first=points.firstOrNull(); val last=points.lastOrNull()
@@ -138,7 +143,10 @@ internal class LiveDisplayView(context: Context) : FrameLayout(context),SurfaceH
     fun cancelGesture() {
         val channel=gestureChannel; val token=phoneToken; val id=gesture
         gestureChannel=null; phoneToken=null; active=false; points.clear()
-        if(channel!=null && !disposed) submit { runCatching { channel.cancel(); channel.settle(viewer,id) }.onSuccess { token?.let { post { onManualComplete(it) } } } }
+        if(channel!=null && !disposed) {
+            if(!submit { try { runCatching { channel.cancel(); channel.settle(viewer,id) } }
+                finally { token?.let { onManualComplete(it) } } }) token?.let { onManualComplete(it) }
+        } else token?.let { onManualComplete(it) }
         parent?.requestDisallowInterceptTouchEvent(false)
     }
     private fun submit(block: () -> Unit): Boolean = try { worker.execute(block); true } catch(e: java.util.concurrent.RejectedExecutionException) { if(!disposed) post { onError("INPUT_STREAM_BACKPRESSURE") }; false }

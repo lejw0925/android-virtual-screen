@@ -13,4 +13,16 @@
     <string name="notification_isolated">独立运行，不打扰主屏 · 可随时接管</string>
     <string name="notification_waiting">等待创建独立屏幕</string>
     <string name="notification_preview_unavailable">画中画不可用 · 点按通知查看虚拟屏</string>
+    <string name="control_approval_channel">控制权审批</string>
+    <string name="control_approval_title">%1$s 申请接管虚拟屏</string>
+    <string name="control_approval_detail">%1$s\n可允许一次，或始终允许持有当前 Token 的 Agent 申请接管手机占用。</string>
+    <string name="control_allow_once">允许一次</string>
+    <string name="control_allow_always">始终允许</string>
+    <string name="control_deny">拒绝</string>
+    <string name="clipboard_copied">已复制到剪贴板</string>
+    <string name="app_restart_channel">应用重启审批</string>
+    <string name="app_restart_title">%1$s 请求重启 %2$s</string>
+    <string name="app_restart_detail">%1$s\n该应用正在其他屏幕运行。允许后将结束当前任务，并在虚拟屏打开。两分钟内有效。</string>
+    <string name="app_restart_allow">允许重启</string>
+    <string name="app_restart_purpose">在虚拟屏打开 %1$s</string>
 </resources>

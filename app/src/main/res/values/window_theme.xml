@@ -1,0 +1,6 @@
+<resources>
+    <color name="avs_window_background_light">#F7F7F7</color>
+    <color name="avs_window_background_dark">#141414</color>
+    <color name="avs_window_background">@color/avs_window_background_light</color>
+    <bool name="avs_light_system_bars">true</bool>
+</resources>

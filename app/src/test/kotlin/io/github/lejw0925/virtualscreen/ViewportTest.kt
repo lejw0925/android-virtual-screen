@@ -35,4 +35,13 @@ class ViewportTest {
         assertTrue(kotlin.math.abs(large.width.toDouble()/large.height-1216.0/2493)<.001)
     }
 
+    @Test fun hostSizingKeepsAppDpDensityAndFitsLargeDisplaysProportionally() {
+        val config=io.github.lejw0925.virtualscreen.backend.VirtualScreenConfig()
+        val phone=io.github.lejw0925.virtualscreen.core.hostDisplayConfig(config,1216,2493,560)
+        assertEquals(1216,phone.width); assertEquals(2493,phone.height); assertEquals(560,phone.density)
+        val large=io.github.lejw0925.virtualscreen.core.hostDisplayConfig(config,3000,6000,560)
+        assertEquals(2048,large.width); assertEquals(4096,large.height)
+        assertEquals(3000.0/560,large.width.toDouble()/large.density,.01)
+    }
+
 }

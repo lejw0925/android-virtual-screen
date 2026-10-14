@@ -43,6 +43,18 @@ class RootBackend(context: Context) : CommandBackend(context) {
         granted
     }
 
+    suspend fun enableAccessibility() = withContext(Dispatchers.IO) {
+        val command = "CLASSPATH=${quote(context.applicationInfo.sourceDir)} app_process /system/bin ${AccessibilityAuthorization::class.java.name} ${android.os.Process.myUid()/100000}"
+        val child = ProcessBuilder("su", "-c", command).redirectErrorStream(true).start()
+        val timeout = deadlines.schedule({ child.destroyForcibly() }, 15, TimeUnit.SECONDS)
+        try {
+            val result = child.inputStream.bufferedReader().readText()
+            check(child.waitFor(1, TimeUnit.SECONDS) && child.exitValue() == 0 && "ACCESSIBILITY_ENABLED" in result) {
+                "ACCESSIBILITY_AUTHORIZATION_FAILED"
+            }
+        } finally { timeout.cancel(false); child.destroy() }
+    }
+
     override suspend fun connect(config: VirtualScreenConfig): JSONObject = withContext(Dispatchers.IO) {
         val command = "CLASSPATH=${quote(context.applicationInfo.sourceDir)} app_process /system/bin ${RootDisplayCommandMain::class.java.name}"
         val child = ProcessBuilder("su", "-c", command).start()

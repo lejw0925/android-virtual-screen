@@ -36,7 +36,8 @@ internal suspend fun verifyPublicMcp(http: OkHttpClient,url: String,token: Strin
         val listed = call("tools/list")
         assertEquals(listed.second,200,listed.first)
         val tools = JSONObject(listed.second).getJSONObject("result").getJSONArray("tools")
-        assertEquals(10,tools.length())
+        assertEquals(11,tools.length())
+        assertTrue((0 until tools.length()).any { tools.getJSONObject(it).getString("name")=="request_control" })
         for(index in 0 until tools.length()) {
             val required=tools.getJSONObject(index).getJSONObject("inputSchema").getJSONArray("required")
             assertTrue((0 until required.length()).any { required.getString(it)=="purpose" })

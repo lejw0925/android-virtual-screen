@@ -46,7 +46,7 @@ class DeviceCheckReceiver: BroadcastReceiver() {
                         if(backend==BackendKind.ROOT) app.sessions.requestAuthorization()
                         val lease=app.sessions.phoneTakeover()
                         val created=app.sessions.create(lease.owner,lease.token,app.settings.configForViewer()).also { check(it.ok) { it.code ?: "CREATE_FAILED" } }
-                        val launched=app.sessions.launch(lease.owner,lease.token,"io.github.lejw0925.virtualscreen.fixture/.FixtureActivity",restartApproved=true)
+                        val launched=app.sessions.launch(lease.owner,lease.token,"io.github.lejw0925.virtualscreen.fixture/.FixtureActivity")
                         check(launched.ok) { launched.code ?: "LAUNCH_FAILED" }
                         JSONObject().put("ok",true).put("backend",backend.name).put("display",app.sessions.state.value.displayId).put("bridge",app.sessions.liveChannel?.isAlive == true)
                     }
@@ -68,7 +68,7 @@ class DeviceCheckReceiver: BroadcastReceiver() {
                         val lease=app.sessions.phoneTakeover()
                         try {
                             check(app.sessions.create(lease.owner,lease.token).ok) { "CREATE_FAILED" }
-                            check(app.sessions.launch(lease.owner,lease.token,"io.github.lejw0925.virtualscreen.fixture/.FixtureActivity",restartApproved=true).ok) { "LAUNCH_FAILED" }
+                            check(app.sessions.launch(lease.owner,lease.token,"io.github.lejw0925.virtualscreen.fixture/.FixtureActivity").ok) { "LAUNCH_FAILED" }
                             delay(600)
                             val observed=app.sessions.observe(lease.owner,lease.token).getOrThrow()
                             val nodes=app.sessions.nodes(lease.owner,lease.token,observed.values["observation_id"] as String).getOrThrow()

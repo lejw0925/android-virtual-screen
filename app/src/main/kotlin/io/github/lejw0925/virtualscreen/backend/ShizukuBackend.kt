@@ -24,7 +24,7 @@ import java.util.UUID
 
 class ShizukuBackend(context: Context) : CommandBackend(context) {
     private val args = Shizuku.UserServiceArgs(ComponentName(context.packageName, ShizukuDisplayService::class.java.name))
-        .daemon(false).tag("virtual-screen").processNameSuffix("display").version(BuildConfig.VERSION_CODE*100+3)
+        .daemon(false).tag("virtual-screen").processNameSuffix("display").version(BuildConfig.VERSION_CODE*100+4)
     @Volatile override var liveChannel: LiveDisplayChannel? = null
         private set
     private var connected = CompletableDeferred<IBinder>()
@@ -55,12 +55,27 @@ class ShizukuBackend(context: Context) : CommandBackend(context) {
 
     fun requestPermission() { check(Shizuku.pingBinder()) { "SHIZUKU_NOT_RUNNING" }; Shizuku.requestPermission(8732) }
 
-    override suspend fun connect(config: VirtualScreenConfig): JSONObject {
+    private suspend fun bind() {
+        if (remote?.isBinderAlive == true) return
         check(Shizuku.pingBinder()) { "SHIZUKU_NOT_RUNNING" }
         check(Shizuku.checkSelfPermission() == PackageManager.PERMISSION_GRANTED) { "SHIZUKU_PERMISSION_REQUIRED" }
         connected = CompletableDeferred()
         withContext(Dispatchers.Main) { Shizuku.bindUserService(args, connection) }
         remote = withTimeout(15_000) { connected.await() }
+    }
+
+    suspend fun enableAccessibility() = withContext(Dispatchers.IO) {
+        bind()
+        val data = Parcel.obtain(); val reply = Parcel.obtain()
+        try {
+            data.writeInterfaceToken(ShizukuDisplayService.DESCRIPTOR)
+            check(remote!!.transact(ShizukuDisplayService.AUTHORIZE_ACCESSIBILITY, data, reply, 0)) { "SHIZUKU_TRANSACTION_FAILED" }
+            reply.readException()
+        } finally { data.recycle(); reply.recycle() }
+    }
+
+    override suspend fun connect(config: VirtualScreenConfig): JSONObject {
+        bind()
         frames = HandlerThread("shizuku-capture").apply { start() }
         reader = ImageReader.newInstance(config.width, config.height, PixelFormat.RGBA_8888, 3)
         capture = VirtualScreenFrameCapture(reader!!, Handler(frames!!.looper)) { active?.displayId?.let { context.getSystemService(DisplayManager::class.java).getDisplay(it) } }

@@ -17,6 +17,39 @@ import org.robolectric.annotation.Config
 
 @RunWith(RobolectricTestRunner::class) @Config(sdk=[34],application=Application::class)
 class McpToolsTest {
+    @Test fun displayDefaultsAndResolutionOverridesPreserveHostDensity() = runBlocking {
+        val sessions=VirtualScreenSessionManager(RuntimeEnvironment.getApplication(),FakeBackend(BackendKind.ROOT),FakeBackend(BackendKind.SHIZUKU),
+            configuredDisplay={ VirtualScreenConfig(1216,2493,560) })
+        val registry=McpToolRegistry(sessions)
+        val lease=(sessions.acquireLease("agent") as LeaseDecision.Granted).lease
+        suspend fun screen(action: String,extra: Map<String,Int> = emptyMap()) = registry.call("screen",JSONObject(extra)
+            .put("action",action).put("lease_token",lease.token).put("purpose","Verify display density"),"agent").getJSONObject("structuredContent")
+        assertTrue(screen("create").getBoolean("ok"))
+        assertEquals(VirtualScreenConfig(1216,2493,560),sessions.state.value.config)
+        screen("close")
+        assertTrue(screen("create",mapOf("width" to 720)).getBoolean("ok"))
+        assertEquals(720,sessions.state.value.config.width)
+        assertEquals(1216.0/560,720.0/sessions.state.value.config.density,.01)
+        screen("close")
+        assertTrue(screen("create",mapOf("width" to 720,"density" to 320)).getBoolean("ok"))
+        assertEquals(320,sessions.state.value.config.density)
+        sessions.shutdown()
+    }
+
+    @Test fun controlRequestPollRequiresMatchingAuthenticatedSession() = runBlocking {
+        val sessions=VirtualScreenSessionManager(RuntimeEnvironment.getApplication(),FakeBackend(BackendKind.ROOT),FakeBackend(BackendKind.SHIZUKU))
+        sessions.phoneTakeover()
+        val approvals=ControlApprovalManager(sessions)
+        val registry=McpToolRegistry(sessions,approvals)
+        val pending=registry.call("request_control",JSONObject().put("action","request").put("purpose","Resume approved task"),"agent").getJSONObject("structuredContent")
+        assertEquals("pending",pending.getString("approval_status")); assertFalse(pending.has("lease_token"))
+        val id=pending.getString("approval_id")
+        approvals.approve(id)
+        val args=JSONObject().put("action","status").put("approval_id",id).put("purpose","Check control approval")
+        assertEquals("CONTROL_REQUEST_NOT_FOUND",registry.call("request_control",args,"other").getJSONObject("structuredContent").getString("code"))
+        assertTrue(registry.call("request_control",args,"agent").getJSONObject("structuredContent").has("lease_token"))
+        sessions.shutdown()
+    }
     @Test fun missingPurposeAndInapplicableArgumentsNeverDispatchInput() = runBlocking {
         val root=FakeBackend(BackendKind.ROOT)
         val sessions=VirtualScreenSessionManager(RuntimeEnvironment.getApplication(),root,FakeBackend(BackendKind.SHIZUKU))
@@ -51,7 +84,7 @@ class McpToolsTest {
         val sessions=VirtualScreenSessionManager(RuntimeEnvironment.getApplication(),FakeBackend(BackendKind.ROOT),FakeBackend(BackendKind.SHIZUKU))
         var language=UiLanguage.ZH_HANS
         val registry=McpToolRegistry(sessions) { language }
-        val names=registry.tools.map { it.name }; assertEquals(10,names.size)
+        val names=registry.tools.map { it.name }; assertEquals(11,names.size)
         for(l in UiLanguage.entries) {
             language=l
             assertEquals(names,registry.tools.map { it.name })

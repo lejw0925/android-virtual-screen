@@ -94,7 +94,7 @@ def main():
         assert first.request('ping', token='invalid')[2] == 401
         assert first.request(http_method='GET')[2] == 405
         tools = first.request('tools/list')[0]['result']['tools']
-        assert len(tools) == 10 and all('purpose' in t['inputSchema']['required'] for t in tools)
+        assert len(tools) == 11 and all('purpose' in t['inputSchema']['required'] for t in tools)
         missing = first.request('tools/call', {'name': 'service_status', 'arguments': {}})[0]['result']
         assert data(missing, False)['code'] == 'PURPOSE_REQUIRED'
         lease = data(first.tool('control', '申请测试应用的独占控制权', action='acquire'))['lease_token']
