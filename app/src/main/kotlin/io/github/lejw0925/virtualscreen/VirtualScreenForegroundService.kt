@@ -114,16 +114,48 @@ class VirtualScreenForegroundService : Service() {
                 }
             }
         }
+        // CPU is held only for actual device work, and released while waiting for phone approval.
         scope.launch {
-            while(currentCoroutineContext().isActive) {
-                if(app.mcpWanted || app.mcp.state().running) {
-                    if(wakeLock?.isHeld == false) wakeLock?.acquire(600_000)
-                } else if(wakeLock?.isHeld == true) wakeLock?.release()
-                delay(3000)
-                app.mcp.approvals.refresh()
-                runCatching { app.sessions.healthCheck() }
-                if(app.sessions.state.value.displayId == null && !app.mcpWanted && !app.mcpChanging.value && !app.mcp.state().running &&
-                    app.sessions.state.value.status != SessionStatus.STARTING && app.tunnels.flow.value.phase !in setOf("starting","running","logging_in","login")) stopSelf()
+            combine(app.mcp.activity, app.sessions.restartApprovals.pending) { activity, pending ->
+                activity?.takeIf { it.phase == "running" && it.tool !in setOf("get_status", "get_request_receipt", "list_apps",
+                    "acquire_control", "renew_control", "release_control", "request_control") && pending.isEmpty() }?.id
+            }.distinctUntilChanged().collectLatest { operation ->
+                if (operation != null) try {
+                    while (currentCoroutineContext().isActive) {
+                        wakeLock?.acquire(120_000)
+                        delay(90_000)
+                    }
+                } finally { if (wakeLock?.isHeld == true) wakeLock?.release() }
+            }
+        }
+        scope.launch {
+            combine(app.mcp.approvals.pending, app.sessions.state.map { it.lease?.generation }.distinctUntilChanged()) { pending, generation ->
+                pending to generation
+            }.collectLatest { (pending, _) ->
+                if (pending.isNotEmpty()) {
+                    app.mcp.approvals.refresh()
+                    val deadline = pending.minOf { it.expiresAtMillis }
+                    delay((deadline - System.nanoTime() / 1_000_000).coerceAtLeast(1))
+                    app.mcp.approvals.refresh()
+                }
+            }
+        }
+        scope.launch {
+            combine(app.sessions.state, app.mcp.flow, app.mcpChanging, app.tunnels.flow, app.runtimeTasks) { screen, server, changing, tunnel, tasks ->
+                Triple(screen.displayId, screen.status == SessionStatus.STARTING,
+                    app.mcpWanted || server.running || changing || tunnel.running || tunnel.phase == "login" || tasks > 0)
+            }.distinctUntilChanged().collectLatest { (display, starting, keepAlive) ->
+                if (display == null && !starting && !keepAlive) {
+                    // A manual preview can be starting just after startForegroundService().
+                    delay(5000)
+                    stopSelf()
+                } else if (display != null) {
+                    while (currentCoroutineContext().isActive) {
+                        delay(10_000)
+                        runCatching { app.sessions.healthCheck() }
+                    }
+                }
+                // An idle MCP listener needs no backend polling or periodic service wakeup.
             }
         }
     }
@@ -134,7 +166,7 @@ class VirtualScreenForegroundService : Service() {
         val open = PendingIntent.getActivity(this, 0, Intent(this, MainActivity::class.java).addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_SINGLE_TOP),
             PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT)
         return Notification.Builder(this, CHANNEL)
-            .setSmallIcon(if(indicator.active) R.drawable.ic_status_active else R.drawable.ic_status_ready)
+            .setSmallIcon(R.drawable.ic_notification)
             .setContentTitle(getString(R.string.app_name) + " · " + indicator.title)
             .setContentText(indicator.detail)
             .setStyle(Notification.BigTextStyle().bigText(indicator.detail))
@@ -150,7 +182,7 @@ class VirtualScreenForegroundService : Service() {
             PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT)
         val detail = getString(R.string.control_approval_detail,request.purpose)
         return Notification.Builder(this,APPROVAL_CHANNEL)
-            .setSmallIcon(R.drawable.ic_status_active)
+            .setSmallIcon(R.drawable.ic_notification)
             .setContentTitle(getString(R.string.control_approval_title,request.clientName))
             .setContentText(detail).setStyle(Notification.BigTextStyle().bigText(detail))
             .setVisibility(Notification.VISIBILITY_PRIVATE).setAutoCancel(true).setTimeoutAfter(120_000)
@@ -167,7 +199,7 @@ class VirtualScreenForegroundService : Service() {
             PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT)
         val detail = getString(R.string.app_restart_detail, request.purpose)
         return Notification.Builder(this, RESTART_CHANNEL)
-            .setSmallIcon(R.drawable.ic_status_active)
+            .setSmallIcon(R.drawable.ic_notification)
             .setContentTitle(getString(R.string.app_restart_title, request.clientName, request.appName))
             .setContentText(detail).setStyle(Notification.BigTextStyle().bigText(detail))
             .setCategory(Notification.CATEGORY_EVENT).setOnlyAlertOnce(true)

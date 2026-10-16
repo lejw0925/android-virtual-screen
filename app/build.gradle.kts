@@ -88,12 +88,9 @@ dependencies {
     implementation("com.squareup.okhttp3:okhttp:5.5.0")
     implementation("org.tomlj:tomlj:1.1.1")
 
-    // The product uses miuix for its visual language; core controls are kept small
-    // so the same screens remain usable on devices without Material components.
-    implementation("top.yukonga.miuix.kmp:miuix-ui-android:0.9.4")
-    implementation("top.yukonga.miuix.kmp:miuix-icons-android:0.9.4")
-    implementation("top.yukonga.miuix.kmp:miuix-nav-android:0.9.4")
-    implementation("top.yukonga.miuix.kmp:miuix-preference-android:0.9.4")
+    // Settings keep their existing saved back stack and display lifecycle.
+    implementation("androidx.compose.material3:material3:1.3.1")
+    implementation("androidx.compose.material:material-icons-extended:1.7.6")
 
     testImplementation("junit:junit:4.13.2")
     testImplementation("org.json:json:20260814")

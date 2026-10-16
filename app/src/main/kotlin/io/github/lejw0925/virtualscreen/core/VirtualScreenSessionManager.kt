@@ -55,6 +55,8 @@ class VirtualScreenSessionManager(
     val state: StateFlow<SessionState> = mutableState.asStateFlow()
     @Volatile private var handle: VirtualScreenHandle? = null
     private var phoneGestureToken: String? = null
+    private val phoneViewers = mutableSetOf<String>()
+    val phoneViewerActive: Boolean get() = synchronized(this) { phoneViewers.isNotEmpty() }
     private var latest: ScreenObservation? = null
     private var latestNodes: NodeSnapshot? = null
     private fun update(block: (SessionState) -> SessionState) = synchronized(stateLock) { mutableState.value = block(mutableState.value) }
@@ -109,18 +111,29 @@ class VirtualScreenSessionManager(
                     kotlinx.coroutines.delay(100)
                 }
             }
+            if (backend() is CommandBackend && ScreenAccessibilityService.current == null) {
+                when(val selected=backend()) {
+                    is RootBackend -> selected.enableAccessibility(rebind=true)
+                    is ShizukuBackend -> selected.enableAccessibility(rebind=true)
+                }
+                repeat(30) {
+                    if(ScreenAccessibilityService.current == null) kotlinx.coroutines.delay(100)
+                }
+            }
             caps = backend().probe()
         }
         update { it.copy(capabilities = caps, detail = caps.details) }
         caps
     }
     @Synchronized fun leaseStatus(): Lease? {
+        retainPhoneViewerLease()
         val current = leases.snapshot()
         if (current?.generation != state.value.lease?.generation) fence()
         update { it.copy(lease = current) }
         return current
     }
     @Synchronized fun acquireLease(clientId: String): LeaseDecision {
+        retainPhoneViewerLease()
         val result = leases.acquire(clientId)
         if (result is LeaseDecision.Granted) {
             if (state.value.lease?.generation != result.lease.generation) fence()
@@ -135,7 +148,30 @@ class VirtualScreenSessionManager(
     @Synchronized fun beginPhoneGesture(): Lease = phoneTakeover().also { phoneGestureToken = it.token }
     @Synchronized fun finishPhoneControl(token: String) {
         if (phoneGestureToken == token) phoneGestureToken = null
+        if (phoneViewers.isNotEmpty()) return
         leases.snapshot()?.takeIf { it.owner==PHONE_CLIENT && it.token==token }?.let { releaseLease(it.owner,it.token) }
+    }
+    /** Keeps the phone lease for the duration of a full-screen local viewer. */
+    @Synchronized fun beginPhoneSession(viewer: String): Lease {
+        phoneViewers.add(viewer)
+        val current = leases.snapshot()
+        if (current?.owner == PHONE_CLIENT) {
+            update { it.copy(lease = current) }
+            return current
+        }
+        return phoneTakeover()
+    }
+    /** Releases only the phone-owned lease when the viewer returns to PiP/background. */
+    @Synchronized fun endPhoneSession(viewer: String) {
+        if (!phoneViewers.remove(viewer) || phoneViewers.isNotEmpty()) return
+        phoneGestureToken = null
+        leases.snapshot()?.takeIf { it.owner == PHONE_CLIENT }?.let { releaseLease(it.owner, it.token) }
+    }
+    private fun retainPhoneViewerLease() {
+        if (phoneViewers.isEmpty()) return
+        val current = leases.snapshot()
+        if (current?.owner == PHONE_CLIENT) leases.renew(current.owner, current.token)
+        else phoneTakeover()
     }
     fun allowRemoteControl() {
         leases.snapshot()?.takeIf { it.owner==PHONE_CLIENT }?.let { finishPhoneControl(it.token) }
@@ -155,6 +191,7 @@ class VirtualScreenSessionManager(
         val held = leases.snapshot()
         if (held?.generation != expectedGeneration) return LeaseDecision.Rejected("CONTROL_CHANGED", held?.owner)
         if (phoneGestureToken == held.token) return LeaseDecision.Rejected("PHONE_GESTURE_ACTIVE", held.owner)
+        if (phoneViewers.isNotEmpty()) return LeaseDecision.Rejected("PHONE_VIEWER_ACTIVE", held.owner)
         val lease = leases.takeover(clientId)
         fence(); update { it.copy(lease = lease) }
         return LeaseDecision.Granted(lease)
@@ -280,10 +317,16 @@ class VirtualScreenSessionManager(
         val result = backend().observe(current)
         result.onSuccess { frame ->
             synchronized(stateLock) { latest?.let { if (it.width != frame.width || it.height != frame.height || it.rotation != frame.rotation) invalidateObservation() } }
-            update { it.copy(frame = frame.frame,frameRotation=frame.rotation) }
+            update { it.copy(frame = frame.frame,frameRotation=frame.rotation,errorCode=null) }
+        }.onFailure { failure ->
+            if (failure.code() == "APP_MOVED_TO_PHONE") {
+                invalidateObservation()
+                update { it.copy(frame=null,errorCode="APP_MOVED_TO_PHONE") }
+            }
         }
     }
     suspend fun showRemotePreview(): BackendResult = mutex.withLock {
+        if (phoneViewerActive) return@withLock BackendResult.success("preview_requested" to false)
         val result=backend().showPreview(requireHandle())
         update { it.copy(previewStatus=if(!result.ok) PreviewStatus.UNAVAILABLE else if(it.previewStatus==PreviewStatus.VISIBLE) PreviewStatus.VISIBLE else PreviewStatus.REQUESTED) }
         result
@@ -320,10 +363,10 @@ class VirtualScreenSessionManager(
             update { it.copy(status = SessionStatus.ERROR, errorCode = "BACKEND_PERMISSION_OR_DISPLAY_LOST", detail = "BACKEND_PERMISSION_OR_DISPLAY_LOST") }
         }
     }
-    fun discoverApplications(): List<DiscoveredApplication> {
+    fun discoverApplications(includeIcons: Boolean = false): List<DiscoveredApplication> {
         val pm = context.packageManager
         return pm.queryIntentActivities(Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_LAUNCHER), PackageManager.MATCH_ALL)
-            .mapNotNull { info -> info.activityInfo?.let { ai -> DiscoveredApplication(ai.packageName, ComponentName(ai.packageName, ai.name).flattenToString(), info.loadLabel(pm).toString(), ai.exported) } }
+            .mapNotNull { info -> info.activityInfo?.let { ai -> DiscoveredApplication(ai.packageName, ComponentName(ai.packageName, ai.name).flattenToString(), info.loadLabel(pm).toString(), ai.exported, if(includeIcons) info.loadIcon(pm) else null) } }
             .distinctBy { it.component }.sortedBy { it.label.lowercase() }.take(500)
     }
 }
@@ -337,4 +380,4 @@ data class OperationEnvelope(val ok: Boolean, val code: String? = null, val sess
 private fun BackendResult.toEnvelope(sid: String?) = OperationEnvelope(ok, code, sid, values + (message?.let { mapOf("message" to it) } ?: emptyMap()))
 fun Throwable.code(): String = (this as? BackendException)?.code ?: message?.takeIf { it.matches(Regex("[A-Z0-9_]+")) } ?: "BACKEND_OPERATION_FAILED"
 private suspend fun <T> safeResult(block: suspend () -> T): Result<T> = try { Result.success(block()) } catch (c: CancellationException) { throw c } catch (e: Exception) { Result.failure(e) }
-data class DiscoveredApplication(val packageName: String, val component: String, val label: String, val exported: Boolean)
+data class DiscoveredApplication(val packageName: String, val component: String, val label: String, val exported: Boolean, val icon: android.graphics.drawable.Drawable? = null)

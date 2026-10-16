@@ -23,7 +23,7 @@ Virtual Screen gives an AI agent an independent Android display. Your agent laun
 
 - **Your phone remains usable.** Agent input stays on the display this app created. Failed operations never fall back to the main display. Restarting an app from another display requires confirmation on the phone.
 - **Visible progress and immediate takeover.** Remote display creation opens PiP automatically. The notification shows runtime state and the operation's purpose. Open the app's full-screen preview and touch it, or use the takeover action to revoke remote control.
-- **Small, precise tool surface.** Ten MCP tools cover control, displays, apps, observation, input, and waits. Tree-only observations skip image capture; compact nodes, unique selectors, and fresh observation IDs reduce ambiguity.
+- **Small, precise tool surface.** Twenty MCP tools cover control, displays, apps, observation, input, and waits. Tree-only observations skip image capture; compact nodes, unique selectors, and fresh observation IDs reduce ambiguity.
 - **Receipts for uncertain connections.** Input can return a new observation. Results distinguish accepted input from verified effects. Query a session-owned receipt by the original request ID without repeating the input.
 - **Choice of connections.** Loopback, LAN, frpc, Cloudflare Quick, or named tunnels. Credentials are encrypted; services and tunnels start disabled.
 - **A complete Android app.** Root / Shizuku, live Surface previews, onboarding, English / Simplified Chinese / Traditional Chinese, light and dark themes, and dynamic colors.
@@ -50,6 +50,8 @@ flowchart LR
 
 Each input consumes one observation. Expired leases, stale observations, and ambiguous selectors are rejected. Multi-display app behavior, privilege implementations, and background policies vary by ROM. PiP is a viewer; the app's full-screen preview supports direct touch input.
 
+The development branch now uses Material 3 and 20 focused MCP tools. Refresh tool discovery after upgrading. See [migration validation](docs/MIGRATION_VALIDATION.md) for vivo, emulator Shizuku, Cloudflare and power checks. The public 0.0.1 release is the earlier build.
+
 ## Validation and development
 
 Three rounds of physical-device UI and MCP workflow iteration were performed on a vivo V2419A running Android 16. Ten samples from the disposable fixture showed lower latency and payload size for tree-only observation than the original screenshot-plus-nodes path. See [0.0.1 validation](docs/RELEASE_VALIDATION.md) for raw measurements, signed release verification, and network limitations; results do not represent every app or device.
@@ -75,6 +77,6 @@ The detailed developer documents currently use Chinese; commands and machine-rea
 
 ## Credits and license
 
-Parts of the virtual-display engine are adapted from [ETA](https://github.com/Mangi-11/Eta). The UI uses [miuix](https://github.com/compose-miuix-ui/miuix); native tunnels use [frp](https://github.com/fatedier/frp) and [cloudflared](https://github.com/cloudflare/cloudflared). Tool design draws on research into [Mobile Next](https://github.com/mobile-next/mobile-mcp), [Android-MCP](https://github.com/CursorTouch/Android-MCP), [android-remote-control-mcp](https://github.com/danielealbano/android-remote-control-mcp), and [PhoneUse](https://github.com/nidhoggfgg/PhoneUse).
+Parts of the virtual-display engine are adapted from [ETA](https://github.com/Mangi-11/Eta). The UI uses Jetpack Compose Material 3; native tunnels use [frp](https://github.com/fatedier/frp) and [cloudflared](https://github.com/cloudflare/cloudflared). Tool design draws on research into [Mobile Next](https://github.com/mobile-next/mobile-mcp), [Android-MCP](https://github.com/CursorTouch/Android-MCP), [android-remote-control-mcp](https://github.com/danielealbano/android-remote-control-mcp), and [PhoneUse](https://github.com/nidhoggfgg/PhoneUse).
 
 Licensed under **[PolyForm Noncommercial 1.0.0](LICENSE)** with upstream Required Notices preserved. See [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md) for component licenses and native provenance.

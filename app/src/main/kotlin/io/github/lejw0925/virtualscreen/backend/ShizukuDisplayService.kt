@@ -20,10 +20,11 @@ class ShizukuDisplayService : Binder() {
         check(caller == ownerUid) { "DISPLAY_OWNER_MISMATCH" }
         try {
             if (code == AUTHORIZE_ACCESSIBILITY) {
+                val rebind=data.readBoolean()
                 data.enforceNoDataAvail()
                 val identity = clearCallingIdentity()
                 try {
-                    AccessibilityAuthorization.enable(ownerUid/100000)
+                    AccessibilityAuthorization.enable(ownerUid/100000,rebind)
                     reply?.writeNoException()
                 } finally { restoreCallingIdentity(identity) }
                 return true

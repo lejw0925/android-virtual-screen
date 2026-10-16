@@ -17,6 +17,6 @@ class ViewerActivity : MainActivity() {
 
     companion object {
         private var current: WeakReference<ViewerActivity>? = null
-        fun dismissPreview() { current?.get()?.finish() }
+        fun dismissPreview() { current?.get()?.dismissPreview() }
     }
 }

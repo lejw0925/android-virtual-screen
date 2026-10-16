@@ -18,6 +18,36 @@ import org.robolectric.annotation.Config
 
 @RunWith(RobolectricTestRunner::class) @Config(sdk=[34],application=Application::class)
 class McpServerTest {
+    @Test fun browserLandingExplainsMcpAndUnauthorizedRequestsLogTheirIpWithoutCredentials() {
+        val context=RuntimeEnvironment.getApplication()
+        val sessions=VirtualScreenSessionManager(context,FakeBackend(BackendKind.ROOT),FakeBackend(BackendKind.SHIZUKU))
+        val entries=java.util.Collections.synchronizedList(mutableListOf<ActivityLogEntry>())
+        val server=McpServerController(context,sessions,log=ActivityLogger { entries.add(it) })
+        val port=ServerSocket(0).use { it.localPort }
+        server.start(port=port).getOrThrow()
+        try {
+            for(path in listOf("/","/mcp")) {
+                val connection=URI("http://127.0.0.1:$port$path").toURL().openConnection() as HttpURLConnection
+                connection.setRequestProperty("Accept","text/html")
+                try {
+                    assertEquals(200,connection.responseCode)
+                    val page=connection.inputStream.bufferedReader().readText()
+                    assertTrue(page.contains("POST /mcp"))
+                    assertFalse(page.contains(server.state().token))
+                    assertEquals("no-store",connection.getHeaderField("Cache-Control"))
+                } finally { connection.disconnect() }
+            }
+            val connection=URI("http://127.0.0.1:$port/mcp").toURL().openConnection() as HttpURLConnection
+            connection.setRequestProperty("Authorization","Bearer private-invalid-token")
+            connection.setRequestProperty("Accept","application/json, text/event-stream")
+            try { assertEquals(401,connection.responseCode) } finally { connection.disconnect() }
+            val rejected=entries.single { it.status=="unauthorized" }
+            assertEquals("127.0.0.1",rejected.peerIp)
+            assertTrue(rejected.time>0)
+            assertFalse(entries.joinToString { it.text() }.contains("private-invalid-token"))
+        } finally { server.stop(); runBlocking { sessions.shutdown() } }
+    }
+
     @Test fun occupiedPortReportsFailureAndCanBeRestarted() {
         val context=RuntimeEnvironment.getApplication()
         val manager=VirtualScreenSessionManager(context,FakeBackend(BackendKind.ROOT),FakeBackend(BackendKind.SHIZUKU))
@@ -35,7 +65,8 @@ class McpServerTest {
         val context=RuntimeEnvironment.getApplication()
         val root=FakeBackend(BackendKind.ROOT)
         val sessions=VirtualScreenSessionManager(context,root,FakeBackend(BackendKind.SHIZUKU))
-        val server=McpServerController(context,sessions)
+        val events=java.util.Collections.synchronizedList(mutableListOf<ActivityLogEntry>())
+        val server=McpServerController(context,sessions,log=ActivityLogger { events.add(it) })
         val port=ServerSocket(0).use { it.localPort }
         server.start(port=port).getOrThrow()
         var token=server.state().token
@@ -62,16 +93,20 @@ class McpServerTest {
             assertEquals(401,request(rpc(0,"ping"),auth="wrong").first)
             assertEquals(403,request(rpc(0,"ping"),origin="https://evil.example").first)
             val a=init(); val b=init()
-            val granted=tool(2,"control",JSONObject().put("action","acquire"),session=a).getJSONObject("result").getJSONObject("structuredContent")
+            val granted=tool(2,"acquire_control",JSONObject(),session=a).getJSONObject("result").getJSONObject("structuredContent")
             val lease=granted.getString("lease_token")
-            assertEquals("CONTROL_BUSY",tool(2,"control",JSONObject().put("action","acquire"),session=b).getJSONObject("result").getJSONObject("structuredContent").getString("code"))
+            assertEquals("CONTROL_BUSY",tool(2,"acquire_control",JSONObject(),session=b).getJSONObject("result").getJSONObject("structuredContent").getString("code"))
             val auth=JSONObject().put("lease_token",lease)
-            assertTrue(tool(3,"screen",JSONObject(auth.toString()).put("action","create"),a).getJSONObject("result").getJSONObject("structuredContent").getBoolean("ok"))
+            assertTrue(tool(3,"create_screen",JSONObject(auth.toString()),a).getJSONObject("result").getJSONObject("structuredContent").getBoolean("ok"))
             val obs=tool(4,"observe",auth,a).getJSONObject("result").getJSONObject("structuredContent").getString("observation_id")
             val input=JSONObject().put("lease_token",lease).put("observation_id",obs).put("x",12).put("y",20)
-            assertTrue(tool(5,"pointer",JSONObject(input.toString()).put("action","tap"),a).getJSONObject("result").getJSONObject("structuredContent").getBoolean("ok"))
-            assertEquals(-32001,tool(5,"pointer",JSONObject(input.toString()).put("action","tap"),a).getJSONObject("error").getInt("code"))
+            assertTrue(tool(5,"tap_at",JSONObject(input.toString()),a).getJSONObject("result").getJSONObject("structuredContent").getBoolean("ok"))
+            assertEquals(-32001,tool(5,"tap_at",JSONObject(input.toString()),a).getJSONObject("error").getInt("code"))
             assertEquals(1,root.inputs)
+            assertTrue(events.any { it.operation=="connect" && it.client=="test" && it.peerIp=="127.0.0.1" })
+            assertTrue(events.any { it.operation=="tap_at" && it.status=="completed" && it.time>0 })
+            assertFalse(events.joinToString { it.text() }.contains(lease))
+            assertFalse(events.joinToString { it.text() }.contains(token))
             val future=java.util.concurrent.CompletableFuture.supplyAsync {
                 tool(7,"wait",JSONObject().put("lease_token",lease).put("timeout_ms",30000),a)
             }
@@ -115,12 +150,12 @@ class McpServerTest {
             val initialized=request(rpc(1,"initialize",JSONObject().put("protocolVersion","2025-11-25").put("clientInfo",JSONObject().put("name","restart-test").put("version","1"))))
             assertEquals(200,initialized.first); val session=initialized.third!!
             assertEquals(202,request(JSONObject().put("jsonrpc","2.0").put("method","notifications/initialized"),session).first)
-            val acquire=request(rpc(2,"tools/call",JSONObject().put("name","control").put("arguments",JSONObject().put("action","acquire").put("purpose","Prepare virtual screen"))),session).second!!
+            val acquire=request(rpc(2,"tools/call",JSONObject().put("name","acquire_control").put("arguments",JSONObject().put("purpose","Prepare virtual screen"))),session).second!!
             val lease=acquire.getJSONObject("result").getJSONObject("structuredContent").getString("lease_token")
-            val create=request(rpc(3,"tools/call",JSONObject().put("name","screen").put("arguments",JSONObject().put("action","create").put("lease_token",lease).put("purpose","Create virtual screen"))),session).second!!
+            val create=request(rpc(3,"tools/call",JSONObject().put("name","create_screen").put("arguments",JSONObject().put("lease_token",lease).put("purpose","Create virtual screen"))),session).second!!
             assertTrue(create.getJSONObject("result").getJSONObject("structuredContent").getBoolean("ok"))
-            val args=JSONObject().put("action","launch").put("component","io.github.lejw0925.virtualscreen.fixture/.FixtureActivity").put("lease_token",lease).put("purpose","Open fixture on virtual screen")
-            val call=rpc(4,"tools/call",JSONObject().put("name","applications").put("arguments",args))
+            val args=JSONObject().put("component","io.github.lejw0925.virtualscreen.fixture/.FixtureActivity").put("lease_token",lease).put("purpose","Open fixture on virtual screen")
+            val call=rpc(4,"tools/call",JSONObject().put("name","launch_app").put("arguments",args))
             val waiting=java.util.concurrent.CompletableFuture.supplyAsync { request(call,session,150_000) }
             val pendingDeadline=System.nanoTime()+5_000_000_000L
             while(sessions.restartApprovals.pending.value.isEmpty() && System.nanoTime()<pendingDeadline) Thread.sleep(20)
@@ -169,6 +204,16 @@ class McpServerTest {
             sessions.finishPhoneControl(local.token)
             assertEquals(next.lease,sessions.leaseStatus())
         } finally { server.stop(); sessions.shutdown() }
+    }
+    @Test fun startingMcpCannotReleaseAnOpenPhoneViewer() = runBlocking {
+        val sessions=VirtualScreenSessionManager(RuntimeEnvironment.getApplication(),FakeBackend(BackendKind.ROOT),FakeBackend(BackendKind.SHIZUKU))
+        val phone=sessions.beginPhoneSession("viewer")
+        val server=McpServerController(RuntimeEnvironment.getApplication(),sessions)
+        try {
+            server.start(port=ServerSocket(0).use { it.localPort }).getOrThrow()
+            assertEquals(phone.token,sessions.leaseStatus()?.token)
+            assertTrue(sessions.acquireLease("remote") is LeaseDecision.Rejected)
+        } finally { server.stop(); sessions.endPhoneSession("viewer"); sessions.shutdown() }
     }
 
 }

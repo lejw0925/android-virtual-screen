@@ -71,7 +71,7 @@ class ControlApprovalManager(
         refresh()
         val request = requests[id]?.takeIf { it.status == "pending" } ?: return
         val decision = sessions.approveControl(request.owner, request.controllerGeneration)
-        if (decision is LeaseDecision.Rejected && decision.code == "PHONE_GESTURE_ACTIVE") return
+        if (decision is LeaseDecision.Rejected && decision.code in setOf("PHONE_GESTURE_ACTIVE", "PHONE_VIEWER_ACTIVE")) return
         requests[id] = request.copy(status = if (decision is LeaseDecision.Granted) "approved" else "stale",
             grantedGeneration = (decision as? LeaseDecision.Granted)?.lease?.generation)
         if (always && decision is LeaseDecision.Granted) setAlwaysAllow(true)

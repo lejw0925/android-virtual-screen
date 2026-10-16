@@ -63,6 +63,8 @@ internal class LiveDisplayView(context: Context) : FrameLayout(context),SurfaceH
     private var gestureChannel: LiveDisplayChannel?=null
     private val points=mutableListOf<Pair<Int,Int>>()
     private var downAt=0L
+    private var attachAttempt=0
+    private val retryAttach=Runnable { attach() }
     init { setBackgroundColor(Color.BLACK); addView(live,LayoutParams(-1,-1)); addView(fallback,LayoutParams(-1,-1)) }
     fun setTarget(id: String?,channel: LiveDisplayChannel?,nextGeometry: LiveGeometry,frame: Bitmap?) {
         bitmap=frame
@@ -76,6 +78,7 @@ internal class LiveDisplayView(context: Context) : FrameLayout(context),SurfaceH
     override fun surfaceCreated(holder: SurfaceHolder) { ready=true; attach() }
     override fun surfaceChanged(holder: SurfaceHolder,format: Int,width: Int,height: Int) { attach() }
     override fun surfaceDestroyed(holder: SurfaceHolder) { ready=false; cancelGesture(); detach() }
+    override fun onAttachedToWindow() { super.onAttachedToWindow(); if(!disposed) attach() }
     private fun attach() {
         val channel=target; val parentSurface=if(ready) live.surfaceControl else null
         if(disposed || !resumed || channel == null || parentSurface?.isValid != true || width<=0 || height<=0) { detach(); return }
@@ -86,12 +89,26 @@ internal class LiveDisplayView(context: Context) : FrameLayout(context),SurfaceH
                 attached?.takeIf { it !== channel }?.let { runCatching { it.detach(viewer) } }
                 val info=channel.attach(viewer,parentSurface,w,h); attached=channel
                 post { if(!disposed && resumed && epoch.get()==generation && target===channel) {
+                    attachAttempt=0
                     geometry=LiveGeometry(info.getInt("width"),info.getInt("height"),info.getInt("rotation")); setLive(info.getBoolean("attached"))
                 } }
-            } catch(e: Exception) { post { if(epoch.get()==generation && !disposed) { setLive(false); onError("DISPLAY_MIRROR_UNAVAILABLE") } } }
+            } catch(e: Exception) { post {
+                if(epoch.get()==generation && !disposed && resumed && ready && target===channel) {
+                    setLive(false); onError("DISPLAY_MIRROR_UNAVAILABLE")
+                    removeCallbacks(retryAttach)
+                    if(attachAttempt<6) {
+                        val delay=(50L shl attachAttempt.coerceAtMost(4)).coerceAtMost(800L)
+                        attachAttempt++
+                        postDelayed(retryAttach,delay)
+                    }
+                }
+            } }
         }
     }
-    private fun detach() { epoch.incrementAndGet(); setLive(false); if(!disposed) submit { attached?.let { runCatching { it.detach(viewer) } }; attached=null } }
+    private fun detach() {
+        epoch.incrementAndGet(); removeCallbacks(retryAttach); attachAttempt=0; setLive(false)
+        if(!disposed) submit { attached?.let { runCatching { it.detach(viewer) } }; attached=null }
+    }
     private fun setLive(value: Boolean) {
         if(isLive==value) return
         cancelGesture(); isLive=value; fallback.visibility=if(value) GONE else VISIBLE
@@ -152,6 +169,11 @@ internal class LiveDisplayView(context: Context) : FrameLayout(context),SurfaceH
     private fun submit(block: () -> Unit): Boolean = try { worker.execute(block); true } catch(e: java.util.concurrent.RejectedExecutionException) { if(!disposed) post { onError("INPUT_STREAM_BACKPRESSURE") }; false }
     override fun performClick(): Boolean { super.performClick(); return true }
     fun dispose() { if(disposed) return; cancelGesture(); detach(); disposed=true; bitmap=null; worker.shutdown() }
-    override fun onDetachedFromWindow() { dispose(); super.onDetachedFromWindow() }
+    override fun onDetachedFromWindow() {
+        // Android detaches AndroidView instances during task/PiP transitions. Keep the
+        // worker and target alive so the same view can attach again on the next frame.
+        cancelGesture(); detach()
+        super.onDetachedFromWindow()
+    }
     companion object { private val gestures=AtomicLong() }
 }

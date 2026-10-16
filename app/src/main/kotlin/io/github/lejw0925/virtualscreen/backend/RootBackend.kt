@@ -43,8 +43,8 @@ class RootBackend(context: Context) : CommandBackend(context) {
         granted
     }
 
-    suspend fun enableAccessibility() = withContext(Dispatchers.IO) {
-        val command = "CLASSPATH=${quote(context.applicationInfo.sourceDir)} app_process /system/bin ${AccessibilityAuthorization::class.java.name} ${android.os.Process.myUid()/100000}"
+    suspend fun enableAccessibility(rebind: Boolean = false) = withContext(Dispatchers.IO) {
+        val command = "CLASSPATH=${quote(context.applicationInfo.sourceDir)} app_process /system/bin ${AccessibilityAuthorization::class.java.name} ${android.os.Process.myUid()/100000} $rebind"
         val child = ProcessBuilder("su", "-c", command).redirectErrorStream(true).start()
         val timeout = deadlines.schedule({ child.destroyForcibly() }, 15, TimeUnit.SECONDS)
         try {

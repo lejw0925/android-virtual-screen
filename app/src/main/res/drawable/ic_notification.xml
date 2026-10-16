@@ -1,0 +1,7 @@
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="24dp" android:height="24dp"
+    android:viewportWidth="108" android:viewportHeight="108">
+    <!-- The launcher's overlapping screens and plus, adapted to a monochrome status icon. -->
+    <path android:fillColor="#FFFFFFFF" android:fillType="evenOdd"
+        android:pathData="M27,12h26a10,10 0,0 1,10 10v11h-6V22a4,4 0,0 0,-4 -4H27a4,4 0,0 0,-4 4v55a4,4 0,0 0,4 4h11v6H27a10,10 0,0 1,-10 -10V22a10,10 0,0 1,10 -10zM48,27h27a10,10 0,0 1,10 10v55a10,10 0,0 1,-10 10H48a10,10 0,0 1,-10 -10V37a10,10 0,0 1,10 -10zM48,33a4,4 0,0 0,-4 4v48h35V37a4,4 0,0 0,-4 -4zM57,92v4h9v-4zM88,9h5v9h9v5h-9v9h-5v-9h-9v-5h9z" />
+</vector>

@@ -12,6 +12,7 @@ import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.update
 
 class VirtualScreenApplication : Application() {
     private val runtimeScope = CoroutineScope(SupervisorJob()+Dispatchers.IO)
@@ -20,6 +21,12 @@ class VirtualScreenApplication : Application() {
     private var startupJob: Job? = null
     private val mutableMcpChanging = MutableStateFlow(false)
     val mcpChanging = mutableMcpChanging.asStateFlow()
+    private val mutableRuntimeTasks = MutableStateFlow(0)
+    val runtimeTasks = mutableRuntimeTasks.asStateFlow()
+    suspend fun <T> runtimeWork(block: suspend () -> T): T {
+        mutableRuntimeTasks.update { it + 1 }
+        try { return block() } finally { mutableRuntimeTasks.update { it - 1 } }
+    }
     val mcpWanted: Boolean get() = getSharedPreferences("runtime",MODE_PRIVATE).getBoolean("mcpEnabled",false)
     private fun rememberMcp(enabled: Boolean) { getSharedPreferences("runtime",MODE_PRIVATE).edit().putBoolean("mcpEnabled",enabled).commit() }
     fun setMcpEnabled(enabled: Boolean) {
@@ -66,6 +73,8 @@ class VirtualScreenApplication : Application() {
             runCatching { sessions.shutdown() }
         } }
     }
+    lateinit var activityLog: io.github.lejw0925.virtualscreen.core.ActivityLog
+        private set
     lateinit var sessions: VirtualScreenSessionManager
         private set
     lateinit var mcp: McpServerController
@@ -81,8 +90,9 @@ class VirtualScreenApplication : Application() {
         org.lsposed.hiddenapibypass.HiddenApiBypass.addHiddenApiExemptions("L")
         settings = io.github.lejw0925.virtualscreen.core.AppSettings(this)
         sessions = VirtualScreenSessionManager(this,configuredDisplay={ settings.configForViewer() })
-        mcp = McpServerController(this, sessions)
-        tunnels = TunnelManager(this)
+        activityLog = io.github.lejw0925.virtualscreen.core.ActivityLog(this)
+        mcp = McpServerController(this, sessions, log=activityLog)
+        tunnels = TunnelManager(this, log=activityLog)
         rikka.shizuku.Shizuku.addRequestPermissionResultListener { requestCode, result ->
             if(requestCode == 8732 && result == PackageManager.PERMISSION_GRANTED) runtimeScope.launch {
                 runCatching { sessions.ensureAccessibility() }

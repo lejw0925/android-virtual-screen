@@ -4,7 +4,7 @@
 
 首页“MCP 服务”开关或设置 → MCP 连接可以开关服务。开启前检查 Root / Shizuku、通知、画中画和后台运行权限；缺失时弹窗提供授权入口。授权 Root 或 Shizuku 后自动启用虚拟屏节点服务，并移除本服务的系统无障碍快捷按钮，保留其他服务。默认地址为 `http://127.0.0.1:8732/mcp`；通过 ADB 使用 `adb forward tcp:8732 tcp:8732` 即可在电脑访问。开启局域网访问后设置页显示手机的局域网地址。
 
-服务启动独立于界面生命周期，后台保持前台通知和 CPU 唤醒锁；系统回收进程后恢复已开启的 MCP。手动关闭服务或系统强行停止仍会停止运行。部分 ROM 还需在应用后台权限中允许自启动。
+服务启动独立于界面生命周期，后台保持前台通知；仅执行设备操作时持有有超时保护的 CPU 唤醒锁，空闲监听及等待手机审批时释放。没有虚拟屏时不轮询后端；系统回收进程后恢复已开启的 MCP。手动关闭服务或系统强行停止仍会停止运行。部分 ROM 还需在应用后台权限中允许自启动。
 
 每个请求都需要随机 Bearer Token。初始化成功后保存响应的 `Mcp-Session-Id`，后续请求携带该标识与协商的 `MCP-Protocol-Version`。轮换 Token 会立即使旧 Token 失效并断开所有客户端。浏览器 Origin 默认拒绝；面向原生 MCP HTTP 客户端使用。
 
@@ -22,7 +22,7 @@
 }
 ```
 
-使用 Streamable HTTP 的 JSON 响应方式。POST 的 `Accept` 必须包含 `application/json, text/event-stream`；GET 返回 405，不提供 SSE 推送流。支持 2025-11-25、2025-06-18、2025-03-26；不支持的版本在初始化时协商为服务器支持版本。初始化后发送 `notifications/initialized`；`DELETE /mcp` 关闭当前会话；`notifications/cancelled` 取消指定请求。
+使用 Streamable HTTP 的 JSON 响应方式。POST 的 `Accept` 必须包含 `application/json, text/event-stream`；经过认证的协议 GET 返回 405，不提供 SSE 推送流。浏览器访问根地址显示连接说明，访问 `/mcp` 的 HTML 请求跳转到说明页；页面不包含 Token，MCP POST 的认证要求不变。支持 2025-11-25、2025-06-18、2025-03-26；不支持的版本在初始化时协商为服务器支持版本。初始化后发送 `notifications/initialized`；`DELETE /mcp` 关闭当前会话；`notifications/cancelled` 取消指定请求。
 
 ## Minis 接入
 
@@ -46,37 +46,46 @@ MCP-Protocol-Version: 2025-06-18
 
 | 工具 | 操作 |
 | --- | --- |
-| `control` | `acquire` / `renew` / `release` 独占控制权 |
+| `acquire_control` | 申请五分钟独占控制权，不传 Token |
+| `renew_control` / `release_control` | 使用必填 `lease_token` 续租或释放 |
 | `request_control` | `request` 申请占用接管；`status` 查询审批；`cancel` 取消 |
-| `service_status` | 查看后端、权限能力、虚拟屏及控制方；无需租约 |
-| `screen` | `create` / `configure` / `close` |
-| `applications` | `list` / `launch`，启动目标为虚拟屏 |
-| `observe` | `mode=tree/screenshot/both`；`format=compact/full`；新观察标识与可选图像 |
-| `pointer` | `tap` / `long_press` / `swipe` / `scroll` |
+| `get_status` | 查看后端、能力、虚拟屏及控制方；无需租约 |
+| `get_request_receipt` | 必填 `request_id` 查询当前会话的请求回执；无需租约 |
+| `create_screen` | 创建虚拟屏，可指定宽、高、DPI、旋转、熄屏和空闲参数 |
+| `configure_screen` | 重建已有虚拟屏，使旧观察失效；未指定参数保留 |
+| `close_screen` | 关闭虚拟屏，仅接受租约和 purpose |
+| `list_apps` | 只读查询，可按 `query` 或 `package` 过滤 |
+| `launch_app` | 必填 `component`，可选 `uri`；必要时等待手机重启审批 |
+| `observe` | `mode=tree/screenshot/both`；`format=compact/full` |
+| `tap_at` | 必填 `x/y`；不接受滑动路径、时长或滚动量 |
+| `long_press_at` | 必填 `x/y`，可选 `duration_ms`，200–2000 ms |
+| `swipe_path` | 必填 `points`（2–64 个 `[x,y]`），可选 `duration_ms` |
+| `scroll_at` | 必填 `x/y/delta`；delta 为 -20 到 20 的非零整数 |
 | `input_text` | Unicode 输入，`replace` 替换当前编辑框内容 |
 | `node_action` | 点击、长按、聚焦、滚动、设置文字 |
 | `press_key` | 显示限定的导航和编辑按键，默认返回键 4 |
 | `wait` | 延迟、帧变化、节点文本、存在 / 不存在、前台应用、稳定状态；最长 30 秒 |
+
+共 20 个工具。原 `control/screen/applications/pointer/service_status` 已拆分，客户端升级后需刷新工具发现。`get_status/get_request_receipt/list_apps/observe/wait` 提供只读提示，启动和输入操作不提供只读提示。
 
 以 `tools/list` 返回的 schema 为准。不能把其他 action 的参数混入当前操作，不能调用主屏 Home / Power 等全局按键。
 
 ## 调用顺序
 
 1. `initialize` → `notifications/initialized` → `tools/list`。
-2. `control(action=acquire,purpose=...)`，保存 `lease_token`。租约默认在五分钟无活动后过期，有效操作续租。
-3. 用 `screen` 创建屏幕，或先查询现有状态。默认使用手机可用显示区域的像素分辨率和 DPI，保持应用实际密度；只指定分辨率时同比缩放 DPI，显式 `density` 则覆盖自动计算。设置中可保留自定义参数。
-4. 发现并启动应用。跨屏冲突时，`applications(action=launch)` 保持等待，手机显示原生悬浮审批通知；用户允许后继续启动并返回最终结果，客户端不能自动强制重启。
+2. `acquire_control(purpose=...)`，保存 `lease_token`。租约默认在五分钟无活动后过期，有效操作续租。
+3. 用 `create_screen` 创建屏幕，或先查询现有状态。默认使用手机可用显示区域的像素分辨率和 DPI，保持应用实际密度；只指定分辨率时同比缩放 DPI，显式 `density` 则覆盖自动计算。设置中可保留自定义参数。
+4. 发现并启动应用。跨屏冲突时，`launch_app(component=...,lease_token=...,purpose=...)` 保持等待，手机显示原生悬浮审批通知；用户允许后继续启动并返回最终结果，客户端不能自动强制重启。
 5. `observe(mode=tree)` 返回节点和 `observation_id`，省去截图；需要视觉信息时用 `both`。节点不可用时，`both` 仍可返回截图和 `nodes_error`。`screenshot` 无节点；旧 `include_nodes` 参数保留，不能与 `mode` 同时传入。
 6. 每次输入携带租约与当前观察标识，输入后重新 `observe`，或指定 `observe_after=tree/screenshot/both` 返回新观察。重新配置显示、手机接管、取消或租约变化都会使旧观察失效。
-7. 完成后 `control(action=release)`，再 DELETE 当前 MCP 会话。
+7. 完成后 `release_control(lease_token=...,purpose=...)`，再 DELETE 当前 MCP 会话。
 
 手机系统语言为简体中文时，一次点击的参数示例：
 
 ```json
 {
-  "name": "pointer",
+  "name": "tap_at",
   "arguments": {
-    "action": "tap",
     "x": 200,
     "y": 350,
     "lease_token": "<current-lease>",
@@ -129,7 +138,7 @@ MCP-Protocol-Version: 2025-06-18
 
 ## 输入结果与条件等待
 
-pointer、input_text、node_action、press_key 支持 `observe_after=none/tree/screenshot/both`，默认 none。结果中 `execution_status=accepted` 表示后端接受输入；`effect_status=verified/unconfirmed` 区分已读回效果与尚未确认。超时或传输不确定可能是 unknown，不能盲目重试。
+tap_at、long_press_at、swipe_path、scroll_at、input_text、node_action、press_key 支持 `observe_after=none/tree/screenshot/both`，默认 none。结果中 `execution_status=accepted` 表示后端接受输入；`effect_status=verified/unconfirmed` 区分已读回效果与尚未确认。超时或传输不确定可能是 unknown，不能盲目重试。
 
 输入接受后若新观察失败，仍保留 `ok=true` 与 accepted，同时返回 `observation_status=failed`、`observation_error`。输入不会重放；重新观察并用业务状态决定下一步。操作被拒绝时先处理租约 / 观察 / 参数问题。
 
@@ -148,6 +157,14 @@ pointer、input_text、node_action、press_key 支持 `observe_after=none/tree/s
 
 ## 断线后的回执
 
-工具结果返回 `request_id`，也可直接使用客户端在发送前保存的原 JSON-RPC id 字符串。在原 MCP 会话中调用 `service_status(request_id=...)` 返回 `receipt_found` 与 metadata receipt，包括 tool、phase、ok、code 和可用的执行 / 效果 / 观察状态。无需控制租约，查询不会重新执行原操作。
+工具结果返回 `request_id`，也可直接使用客户端在发送前保存的原 JSON-RPC id 字符串。在原 MCP 会话中调用 `get_request_receipt(request_id=...,purpose=...)` 返回 `receipt_found` 与 metadata receipt，包括 tool、phase、ok、code 和可用的执行 / 效果 / 观察状态。无需控制租约，查询不会重新执行原操作。
 
 每会话保留最近 32 条、服务全局至多 1024 条，不存参数、截图或凭据；其他会话不能读取。连接恢复且原会话仍有效时可查询；DELETE、服务重启或缓存过期会丢失回执。`receipt_found=false` 表示无记录，不能据此推断“从未执行”。running / cancelled / unknown 要结合新观察判断，不承诺跨会话或跨重启 exactly-once。
+
+## 手机端日志
+
+设置 → 运行日志可按 MCP / 隧道筛选、复制或清空。记录时间、客户端名、实际网络连接 IP、工具名、结果与耗时，不记录请求参数、输入内容、截图或认证 Token。Cloudflare 转发的来源 IP 单独标记为“代理报告 IP”，不用于认证。日志位于 App 私有 no-backup 目录，最多三个 512 KiB 文件；界面显示最近 500 条。写盘在后台批量处理，过载时记录丢弃数量。
+
+Cloudflare edge 注册后先显示“正在验证公网连接”，只有随机 / 固定域名实际返回手机服务的连接说明页后才显示“已连接”。DNS 传播和暂时的连接失败会继续等待并记录，不会提前显示终止失败。
+
+公网隧道页还提供实时日志区域；可在连接和重试过程中查看，停止后保留最近记录。瞬时日志错误不会将仍在重试的隧道标记为终止失败。

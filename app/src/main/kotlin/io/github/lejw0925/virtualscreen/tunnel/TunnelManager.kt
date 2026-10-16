@@ -5,6 +5,8 @@ import android.net.ConnectivityManager
 import android.net.Network
 import android.util.Base64
 import io.github.lejw0925.virtualscreen.core.CredentialVault
+import io.github.lejw0925.virtualscreen.core.ActivityLogger
+import io.github.lejw0925.virtualscreen.core.ActivityLogEntry
 import io.github.lejw0925.virtualscreen.core.code
 import java.io.File
 import java.util.concurrent.TimeUnit
@@ -18,11 +20,11 @@ import org.json.JSONArray
 import org.json.JSONObject
 
 data class TunnelState(val mode: TunnelMode = TunnelMode.OFF,val running: Boolean = false,val publicAddress: String? = null,val errorCode: String? = null,val phase: String = "stopped",
-    val loginUrl: String? = null,val certificateReady: Boolean = false,val logs: List<String> = emptyList())
+    val loginUrl: String? = null,val certificateReady: Boolean = false,val logs: List<String> = emptyList(),val publicVerified: Boolean = false)
 data class CloudflareTunnel(val id: String,val name: String)
 
 /** Exactly one long-lived child; CLI management uses private temporary files. */
-class TunnelManager(context: Context,private val mcpPort: Int = 8732) {
+class TunnelManager(context: Context,private val mcpPort: Int = 8732,private val log: ActivityLogger = ActivityLogger.NONE) {
     private val app = context.applicationContext
     private val vault = CredentialVault(app)
     private val directory = File(app.noBackupFilesDir,"tunnel-runtime").apply { mkdirs() }
@@ -39,14 +41,32 @@ class TunnelManager(context: Context,private val mcpPort: Int = 8732) {
     @Volatile private var secrets: List<String> = emptyList()
     private var configuredAddress: String? = null
     private var supervisor: Job? = null
+    private var publicProbe: Job? = null
+    private var probeCall: okhttp3.Call? = null
+    private var verifiedAddress: String? = null
     private var dns: AndroidDnsBridge? = null
     private val http = OkHttpClient.Builder().callTimeout(30,TimeUnit.SECONDS).build()
-    init {
-        directory.listFiles()?.forEach { it.deleteRecursively() }
-        runCatching { app.getSystemService(ConnectivityManager::class.java).registerDefaultNetworkCallback(object: ConnectivityManager.NetworkCallback() {
-            override fun onLost(network: Network) { if(state().running) mutableState.value = state().copy(phase="reconnecting",publicAddress=null) }
-            override fun onAvailable(network: Network) { if(state().running) appendLog("NETWORK_AVAILABLE") }
-        }) }
+    private val probeHttp = http.newBuilder().callTimeout(8,TimeUnit.SECONDS).connectTimeout(5,TimeUnit.SECONDS).readTimeout(5,TimeUnit.SECONDS).build()
+    private var connectionGeneration = 0L
+    private var progress = TunnelConnectionProgress()
+    private var watchingNetwork = false
+    private val connectivity = app.getSystemService(ConnectivityManager::class.java)
+    private val networkCallback = object: ConnectivityManager.NetworkCallback() {
+        override fun onLost(network: Network) {
+            synchronized(this@TunnelManager) {
+                connectionGeneration++
+                verifiedAddress=null
+                progress=TunnelConnectionProgress()
+                publicProbe?.cancel(); publicProbe=null
+                probeCall?.cancel(); probeCall=null
+                mutableState.update { if(it.running) it.copy(phase="reconnecting",errorCode=null,publicVerified=false) else it }
+            }
+        }
+        override fun onAvailable(network: Network) { if(state().running) appendLog("NETWORK_AVAILABLE") }
+    }
+    init { directory.listFiles()?.forEach { it.deleteRecursively() } }
+    private fun watchNetwork() {
+        if(!watchingNetwork) runCatching { connectivity.registerDefaultNetworkCallback(networkCallback); watchingNetwork=true }
     }
     fun saveProfile(frpc: FrpcConfig?,cloudflare: CloudflareConfig?) {
         val data = JSONObject(vault.get("profile") ?: "{}")
@@ -104,7 +124,9 @@ class TunnelManager(context: Context,private val mcpPort: Int = 8732) {
             }
             saveProfile(frpc,cloudflare)
             val expected = ++epoch
-            mutableState.value = TunnelState(mode,true,phase="connecting",certificateReady=hasCertificate())
+            mutableState.value = TunnelState(mode,true,phase="connecting",certificateReady=hasCertificate(),logs=state().logs)
+            watchNetwork()
+            appendLog("TUNNEL_START ${mode.name}")
             supervisor = scope.launch {
                 var attempts = 0
                 while(isActive && epoch == expected) {
@@ -112,8 +134,16 @@ class TunnelManager(context: Context,private val mcpPort: Int = 8732) {
                         if(epoch == expected) mutableState.value = state().copy(running=false,errorCode="TUNNEL_EXEC_FAILED",phase="error")
                         return@launch
                     }
+                    synchronized(this@TunnelManager) {
+                        connectionGeneration++
+                        progress = TunnelConnectionProgress()
+                        verifiedAddress = null
+                        publicProbe?.cancel(); publicProbe = null
+                        probeCall?.cancel(); probeCall = null
+                        if(mode == TunnelMode.CLOUDFLARE_QUICK) configuredAddress = null
+                    }
                     try {
-                        process.inputStream.bufferedReader().useLines { lines -> lines.forEach { line -> if(epoch == expected) consumeLine(line) } }
+                        process.inputStream.bufferedReader().useLines { lines -> lines.forEach { line -> if(epoch == expected) consumeLine(line,expected) } }
                     } catch (_: java.io.IOException) {
                         if(epoch == expected) appendLog("TUNNEL_PROCESS_IO_FAILED")
                     }
@@ -122,39 +152,94 @@ class TunnelManager(context: Context,private val mcpPort: Int = 8732) {
                     val exit = process.waitFor()
                     if(epoch != expected) break
                     synchronized(this@TunnelManager) { if(child === process) child = null }
-                    mutableState.value = state().copy(phase="reconnecting",publicAddress=null,errorCode="TUNNEL_EXIT_$exit")
+                    mutableState.update { it.copy(phase="reconnecting",errorCode=null,publicVerified=false) }
+                    appendLog("TUNNEL_EXIT_$exit; automatic retry")
                     attempts++
                     delay((1000L shl attempts.coerceAtMost(5)).coerceAtMost(30000))
                 }
             }
         } catch(c: CancellationException) { stop(); throw c }
-          catch(e: Exception) { mutableState.value = TunnelState(mode,errorCode=e.code(),phase="error",certificateReady=hasCertificate()) }
+          catch(e: Exception) { mutableState.value = TunnelState(mode,errorCode=e.code(),phase="error",certificateReady=hasCertificate(),logs=state().logs); appendLog(e.code()) }
         state()
     } }
     @Synchronized fun stop() {
         epoch++
+        connectionGeneration++
         supervisor?.cancel(); supervisor = null
+        publicProbe?.cancel(); publicProbe = null
+        probeCall?.cancel(); probeCall = null
+        verifiedAddress = null
         val process = child; child = null
         process?.let(::terminate)
         dns?.close(); dns = null
+        if(watchingNetwork) { runCatching { connectivity.unregisterNetworkCallback(networkCallback) }; watchingNetwork=false }
         directory.listFiles()?.forEach { it.deleteRecursively() }
         secrets = emptyList(); configuredAddress = null
-        mutableState.value = TunnelState(certificateReady=hasCertificate())
+        mutableState.value = TunnelState(certificateReady=hasCertificate(),logs=state().logs)
     }
-    private fun consumeLine(line: String) {
+    @Synchronized private fun consumeLine(line: String,expected: Long) {
+        if(epoch != expected) return
         if(state().mode == TunnelMode.CLOUDFLARE_QUICK) Regex("https://[a-zA-Z0-9-]+\\.trycloudflare\\.com").find(line)?.value?.let { configuredAddress = "$it/mcp" }
-        if("Registered tunnel connection" in line || "start proxy success" in line) mutableState.value = state().copy(phase="connected",publicAddress=configuredAddress,errorCode=null)
-        if("Retrying connection" in line || "connection with edge closed" in line || "login to server failed" in line) mutableState.value = state().copy(phase="reconnecting",publicAddress=null)
-        if("failed" in line.lowercase() || "error" in line.lowercase()) mutableState.value = state().copy(errorCode="TUNNEL_CONNECTION_ERROR")
+        val current=state()
+        val next=progress.update(current,line,configuredAddress)
+        if(next.phase == "reconnecting" && current.phase != "reconnecting") {
+            connectionGeneration++
+            verifiedAddress=null
+            publicProbe?.cancel(); publicProbe=null
+            probeCall?.cancel(); probeCall=null
+        }
+        mutableState.value=if(next.phase == "connected" && next.mode in setOf(TunnelMode.CLOUDFLARE_QUICK,TunnelMode.CLOUDFLARE_NAMED) && verifiedAddress != configuredAddress)
+            next.copy(phase="verifying",publicVerified=false)
+        else next
+        if(state().phase == "verifying" && publicProbe?.isActive != true) {
+            configuredAddress?.let { address ->
+                val generation=connectionGeneration
+                publicProbe = scope.launch { verifyPublicOrigin(address,expected,generation) }
+            }
+        }
         appendLog(line)
     }
-    @Synchronized private fun appendLog(line: String) { mutableState.value = state().copy(logs=(state().logs + TunnelConfiguration.redact(line,secrets)).takeLast(120)) }
+    private suspend fun verifyPublicOrigin(address: String,expected: Long,generation: Long) {
+        var attempt = 0
+        while(currentCoroutineContext().isActive && epoch == expected && connectionGeneration == generation && state().running && state().phase == "verifying") {
+            val request = Request.Builder().url(address.removeSuffix("/mcp") + "/").get().build()
+            val call = synchronized(this) {
+                if(epoch != expected || connectionGeneration != generation) return
+                probeHttp.newCall(request).also { probeCall=it }
+            }
+            val ready = try {
+                call.execute().use { it.isSuccessful && it.header("X-Virtual-Screen") == "mcp" }
+            } catch(c: CancellationException) { throw c }
+              catch(e: Exception) {
+                if(epoch == expected && (attempt == 0 || attempt % 5 == 0)) appendLog("PUBLIC_ORIGIN_PENDING ${e.javaClass.simpleName}")
+                false
+            } finally { synchronized(this) { if(probeCall === call) probeCall=null } }
+            if(ready) {
+                synchronized(this) {
+                    if(epoch == expected && connectionGeneration == generation && state().running && state().phase == "verifying") {
+                        verifiedAddress=address
+                        mutableState.update { it.copy(phase="connected",publicAddress=address,errorCode=null,publicVerified=true) }
+                        appendLog("PUBLIC_ORIGIN_VERIFIED")
+                    }
+                }
+                return
+            }
+            attempt++
+            delay((2000L shl attempt.coerceAtMost(4)).coerceAtMost(30_000))
+        }
+    }
+    @Synchronized private fun appendLog(line: String) {
+        val safe = TunnelConfiguration.redact(line,secrets)
+        val time = java.time.LocalTime.now().toString().take(12)
+        mutableState.update { it.copy(logs=(it.logs + "$time $safe").takeLast(160)) }
+        log.record(ActivityLogEntry(category="tunnel",operation=state().mode.name.lowercase(),status=state().phase,detail=safe))
+    }
     fun hasCertificate(): Boolean = runCatching { vault.get("origin-cert") != null }.getOrDefault(false)
 
     suspend fun login(): TunnelState = withContext(Dispatchers.IO) { mutex.withLock {
         stop()
         if(hasCertificate()) { mutableState.value = state().copy(phase="credentials_ready",certificateReady=true); return@withLock state() }
-        mutableState.value = TunnelState(TunnelMode.CLOUDFLARE_NAMED,phase="login")
+        mutableState.value = TunnelState(TunnelMode.CLOUDFLARE_NAMED,phase="login",logs=state().logs)
         val expected = ++epoch
         try {
             val process = launchChild(listOf(binary("cloudflared").absolutePath,"--no-autoupdate","tunnel","--origincert",certificate.absolutePath,"login"),expected=expected)
@@ -187,15 +272,12 @@ class TunnelManager(context: Context,private val mcpPort: Int = 8732) {
         List(array.length()) { array.getJSONObject(it).let { CloudflareTunnel(it.getString("id"),it.getString("name")) } }
     }
     suspend fun createTunnel(name: String): CloudflareTunnel = management {
-        require(name.matches(Regex("[a-zA-Z0-9_-]{1,64}"))) { "INVALID_TUNNEL_NAME" }
-        mutableState.value = state().copy(phase="tunnel_configuring")
-        val file = File(directory,"new-tunnel.json")
-        try {
-            command(listOf("tunnel","--origincert",certificate.absolutePath,"create","--credentials-file",file.absolutePath,name))
-            val data = JSONObject(file.readText()); val id = data.getString("TunnelID")
-            vault.put("tunnel-$id",data.toString())
-            CloudflareTunnel(id,name)
-        } finally { file.delete() }
+        mutableState.update { it.copy(phase="tunnel_configuring",errorCode=null) }
+        val created=CloudflareTunnelSetup.create(name,certificate.absolutePath,File(directory,"new-tunnel.json")) { command(it) }
+        vault.put("tunnel-${created.tunnel.id}",created.credentials)
+        if(created.reconciled) appendLog("TUNNEL_CREATE_RECONCILED")
+        mutableState.update { it.copy(phase="credentials_ready",errorCode=null) }
+        created.tunnel
     }
     suspend fun obtainTunnelCredentials(id: String) = management {
         require(id.matches(Regex("[a-fA-F0-9-]{36}"))) { "INVALID_TUNNEL_ID" }
@@ -233,15 +315,21 @@ class TunnelManager(context: Context,private val mcpPort: Int = 8732) {
         check(!state().running && child == null) { "STOP_TUNNEL_BEFORE_CONFIGURATION" }
         val cert = vault.get("origin-cert") ?: error("CLOUDFLARE_LOGIN_REQUIRED")
         privateFile(".cloudflared/cert.pem",cert)
-        try { block() } catch(e: Exception) { mutableState.value = state().copy(phase="error",errorCode=e.code()); throw e } finally { certificate.delete() }
+        val expected=epoch
+        try { block() }
+        catch(c: CancellationException) { throw c }
+        catch(e: Exception) {
+            if(epoch == expected) mutableState.update { it.copy(phase="error",errorCode=e.code()) }
+            throw e
+        } finally { certificate.delete() }
     } }
-    private suspend fun command(args: List<String>): String {
+    private suspend fun command(args: List<String>,timeoutMillis: Long = 90_000): String {
         val expected = epoch
         val process = launchChild(listOf(binary("cloudflared").absolutePath,"--no-autoupdate")+args,expected=expected)
         val output = StringBuilder()
         val drain = scope.launch { runCatching { process.inputStream.bufferedReader().useLines { lines -> lines.forEach { line -> if(output.length < 262144) output.appendLine(line); appendLog(line) } } } }
         try {
-            check(process.waitFor(30000,TimeUnit.MILLISECONDS)) { "CLOUDFLARE_COMMAND_TIMEOUT" }
+            check(process.waitFor(timeoutMillis,TimeUnit.MILLISECONDS)) { "CLOUDFLARE_COMMAND_TIMEOUT" }
             drain.join()
             currentCoroutineContext().ensureActive()
             check(epoch == expected) { "TUNNEL_CONFIGURATION_CANCELLED" }

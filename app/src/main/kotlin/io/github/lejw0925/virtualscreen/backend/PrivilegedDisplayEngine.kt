@@ -40,6 +40,7 @@ internal class PrivilegedDisplayEngine : AutoCloseable {
     private var wakeLock: PowerManager.WakeLock? = null
     private var wakeRenewed = 0L
     private var id = ""
+    private val hostedTasks = mutableSetOf<Int>()
     private var allowOff = false
     @Volatile private var touched = SystemClock.elapsedRealtime()
     private var idleMinutes = 20
@@ -49,10 +50,9 @@ internal class PrivilegedDisplayEngine : AutoCloseable {
                 wakeLock?.acquire(60_000); wakeRenewed = SystemClock.elapsedRealtime()
             }
             if (display != null && idleMinutes > 0 && SystemClock.elapsedRealtime() - touched > idleMinutes * 60_000L) Thread { releaseIfIdle() }.start()
-            handler.postDelayed(this, 1000)
+            if (display != null) handler.postDelayed(this, 10_000)
         }
     }
-    init { handler.post(idle) }
 
     @Synchronized private fun releaseIfIdle() {
         // An input or a newly created display may arrive while this worker waits.
@@ -74,6 +74,8 @@ internal class PrivilegedDisplayEngine : AutoCloseable {
             // Legacy overload also works on Android 13; hidden flags are probed on each ROM.
             display = manager.createVirtualDisplay("android-virtual-screen", config.width, config.height, config.density, surface, flags)
                 ?: error("DISPLAY_CREATE_FAILED")
+            handler.removeCallbacks(idle)
+            handler.postDelayed(idle, 10_000)
             val current = display!!
             check(current.display.displayId > 0) { "INVALID_DISPLAY" }
             id = UUID.randomUUID().toString()
@@ -106,6 +108,11 @@ internal class PrivilegedDisplayEngine : AutoCloseable {
         if (action == "probe") return geometry().put("ok", true).put("interactive", power.isInteractive).put("locked", keyguard.isDeviceLocked)
         touched = SystemClock.elapsedRealtime()
         check(allowOff || power.isInteractive && !keyguard.isDeviceLocked) { "SCREEN_OFF_UNAVAILABLE" }
+        if (action !in setOf("launch", "preview")) {
+            val tasks = runningTasks()
+            check(tasks.any { taskDisplay(it) == current.display.displayId } ||
+                tasks.none { it.taskId in hostedTasks && taskDisplay(it) != current.display.displayId }) { "APP_MOVED_TO_PHONE" }
+        }
         if (action == "observe") {
             val frame = capture?.capture(2000) ?: error("DISPLAY_FRAME_PENDING")
             return geometry().put("ok", true).put("width", frame.width).put("height", frame.height)
@@ -197,11 +204,15 @@ internal class PrivilegedDisplayEngine : AutoCloseable {
         }
         val uri = request.optString("uri")
         require(uri.length <= 8192 && '\u0000' !in uri) { "INVALID_URI" }
-        val output = command(listOf("/system/bin/am", "start", "--display", displayId.toString(), "-f", "0x18000000", "-n", target.flattenToString()) +
+        // Hosted apps must stay private to the virtual display. If their task is
+        // offered in the phone's Recents, opening it there migrates the task to the
+        // default display and leaves the virtual display blank.
+        val output = command(listOf("/system/bin/am", "start", "--display", displayId.toString(), "-f", "0x18800000", "-n", target.flattenToString()) +
             if (uri.isNotBlank()) listOf("-a", "android.intent.action.VIEW", "-d", uri) else emptyList())
         check("Error:" !in output && "Activity not started" !in output) { "DISPLAY_LAUNCH_REJECTED" }
         val tasks = runningTasks().filter { it.baseActivity?.packageName == target.packageName || it.topActivity?.packageName == target.packageName }
         check(tasks.isNotEmpty() && tasks.all { taskDisplay(it) == displayId }) { "DISPLAY_LAUNCH_MISMATCH" }
+        hostedTasks.addAll(tasks.map { it.taskId })
         rotation?.apply(info.screenOrientation)
         return geometry().put("ok", true).put("component", target.flattenToString()).put("restarted", elsewhere)
     }
@@ -221,6 +232,7 @@ internal class PrivilegedDisplayEngine : AutoCloseable {
     }
 
     @Synchronized private fun release() {
+        handler.removeCallbacks(idle)
         runCatching { mirror?.close() }; mirror=null
         input?.close(); input = null
         runCatching { rotation?.close() }; rotation = null
@@ -229,6 +241,7 @@ internal class PrivilegedDisplayEngine : AutoCloseable {
         runCatching { reader?.close() }; reader = null
         runCatching { wakeLock?.release() }; wakeLock = null
         id = ""
+        hostedTasks.clear()
     }
 
     override fun close() { release(); handler.removeCallbacksAndMessages(null); frames.quitSafely() }
@@ -238,7 +251,12 @@ internal class PrivilegedDisplayEngine : AutoCloseable {
             if (android.os.Looper.myLooper() == null) android.os.Looper.prepare()
             val type = Class.forName("android.app.ActivityThread")
             val thread = type.getMethod("systemMain").invoke(null)
-            return type.getMethod("getSystemContext").invoke(thread) as Context
+            val system = type.getMethod("getSystemContext").invoke(thread) as Context
+            // A normal Shizuku server runs as shell, not system/root. DisplayManager
+            // validates the operation package against that actual Binder UID.
+            return if (android.os.Process.myUid() == 2000)
+                system.createPackageContext("com.android.shell", Context.CONTEXT_IGNORE_SECURITY)
+            else system
         }
         private fun flag(name: String) = runCatching { DisplayManager::class.java.getField(name).getInt(null) }.getOrDefault(0)
         private fun ok() = JSONObject().put("ok", true)

@@ -17,30 +17,27 @@ import io.github.lejw0925.virtualscreen.core.ScreenAccessibilityService
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
-import kotlinx.coroutines.withTimeout
+import kotlinx.coroutines.withTimeoutOrNull
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.NonCancellable
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
+import java.util.concurrent.atomic.AtomicLong
 import org.json.JSONObject
 import rikka.shizuku.Shizuku
 import java.util.UUID
 
 class ShizukuBackend(context: Context) : CommandBackend(context) {
-    private val args = Shizuku.UserServiceArgs(ComponentName(context.packageName, ShizukuDisplayService::class.java.name))
-        .daemon(false).tag("virtual-screen").processNameSuffix("display").version(BuildConfig.VERSION_CODE*100+4)
     @Volatile override var liveChannel: LiveDisplayChannel? = null
         private set
-    private var connected = CompletableDeferred<IBinder>()
     @Volatile private var remote: IBinder? = null
     private var reader: ImageReader? = null
     private var frames: HandlerThread? = null
     private var capture: VirtualScreenFrameCapture? = null
-    private val connection = object : ServiceConnection {
-        override fun onServiceConnected(name: ComponentName?, service: IBinder?) {
-            if (service == null) return
-            remote = service
-            service.linkToDeath({ remote = null; active = null }, 0)
-            connected.complete(service)
-        }
-        override fun onServiceDisconnected(name: ComponentName?) { remote = null; active = null }
-    }
+    private val bindingLock = Mutex()
+    private val bindingEpoch = AtomicLong()
+    private var serviceArgs: Shizuku.UserServiceArgs? = null
+    private var serviceConnection: ServiceConnection? = null
     override val kind = BackendKind.SHIZUKU
 
     override suspend fun probe(): BackendCapabilities {
@@ -55,23 +52,57 @@ class ShizukuBackend(context: Context) : CommandBackend(context) {
 
     fun requestPermission() { check(Shizuku.pingBinder()) { "SHIZUKU_NOT_RUNNING" }; Shizuku.requestPermission(8732) }
 
-    private suspend fun bind() {
-        if (remote?.isBinderAlive == true) return
+    private suspend fun bind() = bindingLock.withLock {
+        if (remote?.isBinderAlive == true) return@withLock
         check(Shizuku.pingBinder()) { "SHIZUKU_NOT_RUNNING" }
         check(Shizuku.checkSelfPermission() == PackageManager.PERMISSION_GRANTED) { "SHIZUKU_PERMISSION_REQUIRED" }
-        connected = CompletableDeferred()
-        withContext(Dispatchers.Main) { Shizuku.bindUserService(args, connection) }
-        remote = withTimeout(15_000) { connected.await() }
+        val expected = bindingEpoch.incrementAndGet()
+        val connected = CompletableDeferred<IBinder>()
+        // Removal of an old UserService is asynchronous in Shizuku. A new identity
+        // prevents that removal from deleting an immediately rebound service.
+        val args = Shizuku.UserServiceArgs(ComponentName(context.packageName, ShizukuDisplayService::class.java.name))
+            .daemon(false).tag("virtual-screen-${UUID.randomUUID()}").processNameSuffix("display")
+            .version(BuildConfig.VERSION_CODE * 100 + 7)
+        val connection = object : ServiceConnection {
+            override fun onServiceConnected(name: ComponentName?, service: IBinder?) {
+                if (service == null || bindingEpoch.get() != expected) return
+                remote = service
+                service.linkToDeath({
+                    if (bindingEpoch.get() == expected && remote === service) { remote = null; active = null }
+                }, 0)
+                connected.complete(service)
+            }
+            override fun onServiceDisconnected(name: ComponentName?) {
+                if (bindingEpoch.get() == expected) { remote = null; active = null }
+            }
+        }
+        serviceArgs = args
+        serviceConnection = connection
+        try {
+            withContext(Dispatchers.Main) { Shizuku.bindUserService(args, connection) }
+            remote = withTimeoutOrNull(15_000) { connected.await() } ?: error("SHIZUKU_SERVICE_BIND_TIMEOUT")
+        } catch (failure: Exception) {
+            bindingEpoch.incrementAndGet()
+            remote = null
+            serviceArgs = null
+            serviceConnection = null
+            withContext(NonCancellable + Dispatchers.Main) { runCatching { Shizuku.unbindUserService(args, connection, true) } }
+            throw failure
+        }
     }
 
-    suspend fun enableAccessibility() = withContext(Dispatchers.IO) {
+    suspend fun enableAccessibility(rebind: Boolean = false) = withContext(Dispatchers.IO) {
         bind()
         val data = Parcel.obtain(); val reply = Parcel.obtain()
         try {
             data.writeInterfaceToken(ShizukuDisplayService.DESCRIPTOR)
+            data.writeBoolean(rebind)
             check(remote!!.transact(ShizukuDisplayService.AUTHORIZE_ACCESSIBILITY, data, reply, 0)) { "SHIZUKU_TRANSACTION_FAILED" }
             reply.readException()
-        } finally { data.recycle(); reply.recycle() }
+        } finally {
+            data.recycle(); reply.recycle()
+            if(active == null) withContext(NonCancellable) { disconnect() }
+        }
     }
 
     override suspend fun connect(config: VirtualScreenConfig): JSONObject {
@@ -105,10 +136,17 @@ class ShizukuBackend(context: Context) : CommandBackend(context) {
             return if (code == ShizukuDisplayService.CANCEL) JSONObject().put("ok", true) else JSONObject(reply.readString() ?: error("INVALID_REPLY"))
         } finally { data.recycle(); reply.recycle() }
     }
-    override suspend fun disconnect() {
+    override suspend fun disconnect() = bindingLock.withLock {
         capture?.close(); capture = null; reader?.close(); reader = null; frames?.quitSafely(); frames = null
-        liveChannel=null
+        liveChannel = null
+        bindingEpoch.incrementAndGet()
         remote = null
-        withContext(Dispatchers.Main) { runCatching { Shizuku.unbindUserService(args, connection, true) } }
+        val args = serviceArgs
+        val connection = serviceConnection
+        serviceArgs = null
+        serviceConnection = null
+        if (args != null && connection != null) withContext(NonCancellable + Dispatchers.Main) {
+            runCatching { Shizuku.unbindUserService(args, connection, true) }
+        }
     }
 }

@@ -8,6 +8,7 @@ import io.github.lejw0925.virtualscreen.core.CredentialVault
 import io.github.lejw0925.virtualscreen.mcp.McpServerController
 import io.github.lejw0925.virtualscreen.tunnel.*
 import okhttp3.OkHttpClient
+import okhttp3.Request
 import java.util.concurrent.TimeUnit
 import kotlinx.coroutines.*
 import org.junit.Assert.*
@@ -34,18 +35,27 @@ class DeviceTunnelTest {
             tunnels.start(TunnelMode.CLOUDFLARE_QUICK)
             assertEquals("127.0.0.1",tunnels.loadProfile().first?.serverAddress)
             assertEquals("fixture-token",tunnels.loadProfile().second?.tunnelToken)
-            val deadline=System.nanoTime()+90_000_000_000L
+            val deadline=System.nanoTime()+180_000_000_000L
             var reported = 0
-            while(tunnels.state().publicAddress == null && System.nanoTime()<deadline) {
+            while(!tunnels.state().publicVerified && System.nanoTime()<deadline) {
                 delay(300)
                 if(++reported % 30 == 0) instrumentation.sendStatus(2,Bundle().apply { putString("tunnel_diagnostics",tunnels.state().logs.takeLast(6).joinToString("\n")) })
             }
             val state=tunnels.state()
+            assertTrue("Public origin was not verified: ${state.phase} ${state.logs.takeLast(40)}",state.publicVerified)
             assertNotNull("Tunnel connection: ${state.errorCode} ${state.logs.takeLast(40)}",state.publicAddress)
             val url=state.publicAddress!!
             val result=Bundle().apply { putString("quick_tunnel_address",url) }
             instrumentation.sendStatus(2,result)
             val http=OkHttpClient.Builder().connectTimeout(30,TimeUnit.SECONDS).readTimeout(30,TimeUnit.SECONDS).build()
+            val landing=Request.Builder().url(url.removeSuffix("/mcp")+"/").get().build()
+            http.newCall(landing).execute().use { response ->
+                assertEquals(200,response.code)
+                assertEquals("mcp",response.header("X-Virtual-Screen"))
+                val page=response.body.string()
+                assertTrue(page.contains("POST /mcp"))
+                assertFalse(page.contains(mcp.state().token))
+            }
             verifyPublicMcp(http,url,mcp.state().token)
         } finally {
             tunnels.stop(); mcp.stop(); sessions.shutdown()

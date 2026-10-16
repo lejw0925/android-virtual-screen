@@ -6,7 +6,8 @@ Required Notice: Copyright © 2026 蛮吉 (Mangi-11).
 
 | 组件 | 来源 | 许可文件 |
 | --- | --- | --- |
-| miuix 0.9.4 | [compose-miuix-ui/miuix](https://github.com/compose-miuix-ui/miuix/tree/v0.9.4) | `assets/licenses/miuix.txt`，Apache-2.0 |
+| AndroidX Compose Material 3 / Material Icons | [androidx/androidx](https://github.com/androidx/androidx) | `assets/licenses/AndroidX.txt`，Apache-2.0 |
+| miuix 0.9.4（历史 UI；迁移后保留通知） | [compose-miuix-ui/miuix](https://github.com/compose-miuix-ui/miuix/tree/v0.9.4) | `assets/licenses/miuix.txt`，Apache-2.0 |
 | frpc 0.65.0 | [fatedier/frp](https://github.com/fatedier/frp/tree/v0.65.0) | `assets/licenses/frp.txt`，Apache-2.0 |
 | cloudflared 2025.8.1 | [cloudflare/cloudflared](https://github.com/cloudflare/cloudflared/tree/2025.8.1) | `assets/licenses/cloudflared.txt`，Apache-2.0 |
 

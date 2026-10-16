@@ -14,17 +14,17 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.luminance
-import top.yukonga.miuix.kmp.theme.MiuixTheme
+import androidx.compose.material3.MaterialTheme
 
 /** Two independent screens and a small agent spark, drawn at native resolution. */
 @Composable internal fun ScreenMark(modifier: Modifier = Modifier,enabled: Boolean = false) {
     val light by animateFloatAsState(if(enabled) 1f else 0f,tween(450),label="MCP screen light")
-    val accent=androidx.compose.ui.graphics.lerp(MiuixTheme.colorScheme.onSurfaceVariantSummary,Color.White,light)
-    val lightTheme=MiuixTheme.colorScheme.background.luminance()>.5f
-    val panelOn=if(lightTheme) MiuixTheme.colorScheme.onSurfaceVariantSummary else MiuixTheme.colorScheme.surface
-    val panel=androidx.compose.ui.graphics.lerp(MiuixTheme.colorScheme.surfaceVariant,panelOn,light)
-    val shadow=MiuixTheme.colorScheme.onBackground.copy(alpha=if(lightTheme) .16f*light else 0f)
-    val edge=MiuixTheme.colorScheme.onBackground.copy(alpha=if(lightTheme) .2f*light else 0f)
+    val accent=androidx.compose.ui.graphics.lerp(MaterialTheme.colorScheme.onSurfaceVariant,Color.White,light)
+    val lightTheme=MaterialTheme.colorScheme.background.luminance()>.5f
+    val panelOn=if(lightTheme) MaterialTheme.colorScheme.onSurfaceVariant else MaterialTheme.colorScheme.surface
+    val panel=androidx.compose.ui.graphics.lerp(MaterialTheme.colorScheme.surfaceVariant,panelOn,light)
+    val shadow=MaterialTheme.colorScheme.onBackground.copy(alpha=if(lightTheme) .16f*light else 0f)
+    val edge=MaterialTheme.colorScheme.onBackground.copy(alpha=if(lightTheme) .2f*light else 0f)
     Canvas(modifier) {
         val u=size.minDimension/120f
         drawCircle(Brush.radialGradient(listOf(accent.copy(alpha=.03f+.16f*light),Color.Transparent)),size.minDimension*(.42f+.08f*light))

@@ -3,7 +3,11 @@ package io.github.lejw0925.virtualscreen.ui
 import android.content.Intent
 import androidx.core.net.toUri
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
+import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.selection.SelectionContainer
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.runtime.*
@@ -14,10 +18,7 @@ import io.github.lejw0925.virtualscreen.VirtualScreenApplication
 import io.github.lejw0925.virtualscreen.core.code
 import io.github.lejw0925.virtualscreen.tunnel.*
 import kotlinx.coroutines.CancellationException
-import top.yukonga.miuix.kmp.basic.*
-import top.yukonga.miuix.kmp.preference.ArrowPreference
-import top.yukonga.miuix.kmp.preference.WindowDropdownPreference
-import top.yukonga.miuix.kmp.theme.MiuixTheme
+import androidx.compose.material3.*
 
 @Composable internal fun TunnelSettings(
     app: VirtualScreenApplication,
@@ -59,8 +60,9 @@ import top.yukonga.miuix.kmp.theme.MiuixTheme
             catch(e: Exception) { taskError = e.code() }
         }
     }
-    val error = taskError ?: tunnel.errorCode ?: server.lastError.takeUnless { server.running }
-    val certificateReady = tunnel.certificateReady || app.tunnels.hasCertificate()
+    val error = taskError ?: tunnel.errorCode.takeIf { tunnel.phase == "error" } ?: server.lastError.takeUnless { server.running }
+    val savedCertificate = remember { app.tunnels.hasCertificate() }
+    val certificateReady = tunnel.certificateReady || savedCertificate
     val loggingIn = tunnel.phase == "login"
     val editable = !busy && !tunnel.running
     val configurationReady = when(mode) {
@@ -85,9 +87,9 @@ import top.yukonga.miuix.kmp.theme.MiuixTheme
             },
         )
         Column(Modifier.padding(start = 16.dp, end = 16.dp, bottom = 16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-            Text(phaseLabel(l, tunnel.phase), style = MiuixTheme.textStyles.body2,
-                color = if(tunnel.phase == "connected") MiuixTheme.colorScheme.primary else MiuixTheme.colorScheme.onSurfaceVariantSummary)
-            error?.let { Text(localizedError(l, it), color = MiuixTheme.colorScheme.error) }
+            Text(phaseLabel(l, tunnel.phase), style = MaterialTheme.typography.bodyMedium,
+                color = if(tunnel.phase == "connected") MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant)
+            error?.let { Text(localizedError(l, it), color = MaterialTheme.colorScheme.error) }
             if(!server.running) TunnelHint(l.text("先开启 MCP 服务，再连接公网隧道。","Enable MCP before connecting the public tunnel.","先開啟 MCP 服務，再連線公網通道。"))
             else if(!configurationReady && !tunnel.running && !loggingIn) TunnelHint(l.text(
                 "补全下方连接配置后即可连接。","Complete the connection settings below to connect.","補全下方連線設定後即可連線。"))
@@ -119,14 +121,19 @@ import top.yukonga.miuix.kmp.theme.MiuixTheme
         tunnel.publicAddress?.let { address ->
             ArrowPreference(title = l.text("复制公网地址","Copy public address","複製公網位址"),
                 summary = address, onClick = { copy(app, address) })
+            ArrowPreference(title = l.text("复制 MCP 连接配置","Copy MCP configuration","複製 MCP 連線設定"),
+                onClick = { copy(app, app.mcp.clientConfiguration(address.replaceFirst("tcp://", "http://"))) })
+            ArrowPreference(title = l.text("检查公网连接","Check public connection","檢查公網連線"),
+                summary = l.text("打开连接说明页","Open the connection page","開啟連線說明頁"),
+                onClick = { app.startActivity(Intent(Intent.ACTION_VIEW, address.replaceFirst("tcp://", "http://").substringBefore("/mcp").toUri()).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)) })
         }
     }
 
     when(mode) {
-        TunnelMode.CLOUDFLARE_QUICK -> TunnelHint(l.text(
+        TunnelMode.CLOUDFLARE_QUICK -> Column(Modifier.padding(horizontal=16.dp)) { TunnelHint(l.text(
             "无需账号。每次连接会分配随机地址，连接成功后可复制。",
             "No account needed. Each connection gets a random address you can copy once connected.",
-            "無需帳號。每次連線會分配隨機位址，連線成功後可複製。"))
+            "無需帳號。每次連線會分配隨機位址，連線成功後可複製。")) }
         TunnelMode.CLOUDFLARE_NAMED -> Section(l.text("连接配置","Connection settings","連線設定")) {
             WindowDropdownPreference(
                 title = l.text("授权方式","Authorization","授權方式"),
@@ -174,14 +181,27 @@ import top.yukonga.miuix.kmp.theme.MiuixTheme
         }
         TunnelMode.OFF -> Unit
     }
-    if(tunnel.logs.isNotEmpty()) Card(Modifier.fillMaxWidth()) {
-        ArrowPreference(title = l.text("连接诊断","Connection diagnostics","連線診斷"),
-            summary = l.text("查看或复制最近日志","View or copy recent logs","檢視或複製最近日誌"), onClick = { showDiagnostics = true })
+    Section(l.text("隧道日志", "Tunnel logs", "通道日誌")) {
+        Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+            if(tunnel.logs.isEmpty()) TunnelHint(l.text("连接后会在这里显示实时日志。", "Live logs appear here when you connect.", "連線後會在這裡顯示即時日誌。"))
+            else {
+                LazyColumn(Modifier.fillMaxWidth().height(220.dp), reverseLayout = true,
+                    verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                    items(tunnel.logs.asReversed()) { line ->
+                        SelectionContainer { Text(line, style = MaterialTheme.typography.bodySmall,
+                            fontFamily = FontFamily.Monospace, color = MaterialTheme.colorScheme.onSurface) }
+                    }
+                }
+                OutlinedButton(onClick = { showDiagnostics = true }, modifier = Modifier.fillMaxWidth()) {
+                    Text(l.text("查看与复制完整日志", "View and copy full logs", "檢視與複製完整日誌"))
+                }
+            }
+        }
     }
 
     if(showCloudflare) TunnelDialog(l.text("Cloudflare 配置","Cloudflare setup","Cloudflare 設定"), { showCloudflare = false }) {
         if(busy) TunnelHint(phaseLabel(l, tunnel.phase))
-        error?.let { Text(localizedError(l, it), color = MiuixTheme.colorScheme.error) }
+        error?.let { Text(localizedError(l, it), color = MaterialTheme.colorScheme.error) }
         TunnelStep(l.text("1. 授权账号","1. Authorize account","1. 授權帳號"))
         if(!certificateReady) {
             TunnelHint(l.text("通过 Cloudflare 官方页面选择你的域名，完成后自动取得授权证书。",
@@ -259,9 +279,9 @@ import top.yukonga.miuix.kmp.theme.MiuixTheme
         }
     }
     if(showDiagnostics) TunnelDialog(l.text("连接诊断","Connection diagnostics","連線診斷"), { showDiagnostics = false }) {
-        val logs = tunnel.logs.takeLast(40).joinToString("\n")
+        val logs = tunnel.logs.joinToString("\n")
         TunnelButton(l.text("复制诊断日志","Copy diagnostics","複製診斷日誌")) { copy(app, logs) }
-        SelectionContainer { Text(logs, style = MiuixTheme.textStyles.footnote1) }
+        SelectionContainer { Text(logs, style = MaterialTheme.typography.bodySmall) }
     }
 }
 
@@ -285,26 +305,26 @@ private class FrpcForm(config: FrpcConfig?) {
 }
 
 @Composable private fun TunnelHint(text: String) {
-    Text(text, style = MiuixTheme.textStyles.footnote1, color = MiuixTheme.colorScheme.onSurfaceVariantSummary)
+    Text(text, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
 }
 
 @Composable private fun TunnelStep(text: String) {
-    Text(text, style = MiuixTheme.textStyles.subtitle, modifier = Modifier.padding(top = 8.dp))
+    Text(text, style = MaterialTheme.typography.titleMedium, modifier = Modifier.padding(top = 8.dp), color = MaterialTheme.colorScheme.onSurface)
 }
 
 @Composable private fun TunnelButton(text: String, enabled: Boolean = true, onClick: () -> Unit) {
-    Button(onClick = onClick, enabled = enabled, modifier = Modifier.fillMaxWidth(), colors = ButtonDefaults.buttonColorsPrimary()) { Text(text) }
+    Button(onClick = onClick, enabled = enabled, modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(12.dp)) { Text(text) }
 }
 
 @Composable private fun TunnelDialog(title: String, onDismiss: () -> Unit, content: @Composable ColumnScope.() -> Unit) {
     val l = LocalLanguage.current
     Dialog(onDismissRequest = onDismiss) {
-        Card(Modifier.fillMaxWidth()) {
-            Column(Modifier.heightIn(max = 640.dp).padding(20.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                Text(title, style = MiuixTheme.textStyles.title3)
+        Card(Modifier.fillMaxWidth(), shape = RoundedCornerShape(28.dp)) {
+            Column(Modifier.heightIn(max = 640.dp).padding(24.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
+                Text(title, style = MaterialTheme.typography.headlineSmall, color = MaterialTheme.colorScheme.onSurface)
                 Column(Modifier.weight(1f, fill = false).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(12.dp), content = content)
                 Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
-                    Action(l.text("完成","Done","完成"), onClick = onDismiss)
+                    TextButton(onClick = onDismiss, shape = RoundedCornerShape(12.dp)) { Text(l.text("完成","Done","完成")) }
                 }
             }
         }

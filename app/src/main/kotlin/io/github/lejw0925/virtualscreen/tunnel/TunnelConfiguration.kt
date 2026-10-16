@@ -73,6 +73,7 @@ object TunnelConfiguration {
     fun redact(line: String,secrets: Collection<String> = emptyList()): String {
         var result = line.take(2048)
         secrets.filter { it.isNotEmpty() }.sortedByDescending { it.length }.forEach { result = result.replace(it,"[redacted]") }
+        result = result.replace(Regex("(?i)\\bBearer\\s+[A-Za-z0-9._~+/=-]+"),"Bearer [redacted]")
         return result.replace(Regex("(?i)(token|secret|authorization|password|credential)[=: ]+[^ ,;]+"),"$1=[redacted]")
             .replace(Regex("https://dash\\.cloudflare\\.com/argotunnel[^ ]*"),"[Cloudflare authorization URL]")
             .replace(Regex("[A-Za-z0-9+/=_-]{80,}"),"[redacted]")

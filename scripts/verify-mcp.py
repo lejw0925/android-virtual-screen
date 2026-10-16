@@ -72,10 +72,22 @@ def data(result, ok=True):
     return value
 
 def observe(client, lease):
-    result = client.tool('observe', '观察测试应用，核对操作结果', lease_token=lease, include_nodes=True)
-    value = data(result)
-    assert value.get('package') == FIXTURE, 'Only the project fixture may be operated'
-    assert value.get('nodes'), 'Fixture nodes unavailable: ' + str(value.get('nodes_error'))
+    # A resized Android window can briefly expose its previous accessibility bounds.
+    # Only observations are retried; no accepted input is replayed.
+    deadline = time.monotonic() + 8
+    while True:
+        result = client.tool('observe', '观察测试应用，核对操作结果', lease_token=lease, mode='both')
+        value = data(result)
+        nodes = value.get('nodes') or []
+        counter = next((n for n in nodes if n.get('clickable') and 'tap counter' in (n.get('text') or '').lower()), None)
+        bounds = counter.get('bounds') if counter else None
+        geometry_ready = not bounds or (0 <= (bounds[0]+bounds[2])//2 < value['width'] and
+                                        0 <= (bounds[1]+bounds[3])//2 < value['height'])
+        if value.get('package') == FIXTURE and nodes and geometry_ready:
+            break
+        if time.monotonic() >= deadline:
+            raise AssertionError('Disposable fixture nodes or resized layout did not become ready: ' + str(value.get('nodes_error')))
+        time.sleep(.25)
     assert any(c.get('type') == 'image' and c.get('mimeType') == 'image/jpeg' for c in result['content'])
     return value
 
@@ -94,15 +106,15 @@ def main():
         assert first.request('ping', token='invalid')[2] == 401
         assert first.request(http_method='GET')[2] == 405
         tools = first.request('tools/list')[0]['result']['tools']
-        assert len(tools) == 11 and all('purpose' in t['inputSchema']['required'] for t in tools)
-        missing = first.request('tools/call', {'name': 'service_status', 'arguments': {}})[0]['result']
+        assert len(tools) == 20 and all('purpose' in t['inputSchema']['required'] for t in tools)
+        missing = first.request('tools/call', {'name': 'get_status', 'arguments': {}})[0]['result']
         assert data(missing, False)['code'] == 'PURPOSE_REQUIRED'
-        lease = data(first.tool('control', '申请测试应用的独占控制权', action='acquire'))['lease_token']
-        busy = data(second.tool('control', '检查第二客户端的控制竞争', action='acquire'), False)
+        lease = data(first.tool('acquire_control', '申请测试应用的独占控制权'))['lease_token']
+        busy = data(second.tool('acquire_control', '检查第二客户端的控制竞争'), False)
         assert busy['code'] == 'CONTROL_BUSY'
-        status = data(second.tool('service_status', '查看当前控制方与设备能力'))
+        status = data(second.tool('get_status', '查看当前控制方与设备能力'))
         assert status['controller'] == first.session
-        print('Authentication, ten tools, required purpose and exclusive lease verified.', flush=True)
+        print('Authentication, twenty tools, required purpose and exclusive lease verified.', flush=True)
 
         frame = observe(first, lease)
         button = next(n for n in frame['nodes'] if n.get('clickable') and 'tap counter' in (n.get('text') or '').lower())
@@ -110,14 +122,14 @@ def main():
         x1,y1,x2,y2 = button['bounds']
         x,y = (x1+x2)//2,(y1+y2)//2
         assert 0 <= x < frame['width'] and 0 <= y < frame['height'], 'Wait for the fixture layout to settle before coordinate input'
-        pointer = {'name': 'pointer', 'arguments': {'action': 'tap', 'x': x, 'y': y,
+        pointer = {'name': 'tap_at', 'arguments': {'x': x, 'y': y,
                    'lease_token': lease, 'observation_id': frame['observation_id'], 'purpose': '点击测试计数器，验证输入一次执行'}}
         request_id = first.next_id()
         result = first.request('tools/call', pointer, request_id=request_id)[0]
         data(result['result'])
         repeated = first.request('tools/call', pointer, request_id=request_id)[0]
         assert repeated['error']['code'] == -32001
-        consumed = first.tool('pointer', '检查已消费的观察会被拒绝', action='tap', x=x, y=y,
+        consumed = first.tool('tap_at', '检查已消费的观察会被拒绝', x=x, y=y,
                               lease_token=lease, observation_id=frame['observation_id'])
         assert data(consumed, False)['code'] == 'STALE_OBSERVATION'
         data(first.tool('wait', '等待计数器状态确认，避免重复输入', condition='node_text', text='tap counter: '+str(initial_count+1), timeout_ms=5000, lease_token=lease))
@@ -138,8 +150,8 @@ def main():
             time.sleep(1)
             revoked = first.tool('observe', '检查本地接管后的旧租约', lease_token=lease)
             assert data(revoked, False)['code'] == 'LEASE_REQUIRED'
-            lease = data(first.tool('control', '本地手势结束后重新取得控制权', action='acquire'))['lease_token']
-            stale = first.tool('pointer', '检查接管前的观察失效', action='tap', x=x, y=y,
+            lease = data(first.tool('acquire_control', '本地手势结束后重新取得控制权'))['lease_token']
+            stale = first.tool('tap_at', '检查接管前的观察失效', x=x, y=y,
                                lease_token=lease, observation_id=frame['observation_id'])
             assert data(stale, False)['code'] == 'STALE_OBSERVATION'
             frame = observe(first, lease)
@@ -171,12 +183,12 @@ def main():
             cancelled = waiting.result(timeout=10)[0]
             assert cancelled['error']['code'] == -32800
         observe(first, lease)
-        data(first.tool('control', '测试完成，释放控制权', action='release', lease_token=lease))
+        data(first.tool('release_control', '测试完成，释放控制权', lease_token=lease))
         lease = None
         print('Cancellation, re-observation, lease release and session close verified.', flush=True)
     finally:
         if lease:
-            first.tool('control', '结束验证并释放控制权', action='release', lease_token=lease)
+            first.tool('release_control', '结束验证并释放控制权', lease_token=lease)
         first.close(); second.close()
 
 if __name__ == '__main__':

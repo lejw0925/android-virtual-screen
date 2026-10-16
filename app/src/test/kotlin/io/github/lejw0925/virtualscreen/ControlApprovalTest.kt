@@ -99,4 +99,15 @@ class ControlApprovalTest {
         assertTrue(approvals.pending.value.isEmpty())
         assertEquals("CONTROL_REQUEST_NOT_FOUND",approvals.status("agent",id).code)
     }
+    @Test fun alwaysAllowCannotInterruptAnOpenPhoneViewer() {
+        val sessions=sessions()
+        sessions.beginPhoneSession("viewer")
+        val approvals=ControlApprovalManager(sessions,initiallyAlwaysAllow=true)
+        val request=approvals.request("agent","Agent","Resume")
+        assertEquals("pending",request.values["approval_status"])
+        approvals.approve(request.values["approval_id"] as String)
+        assertEquals(VirtualScreenSessionManager.PHONE_CLIENT,sessions.leaseStatus()?.owner)
+        sessions.endPhoneSession("viewer")
+        assertEquals("approved",approvals.request("agent","Agent","Resume after PiP").values["approval_status"])
+    }
 }

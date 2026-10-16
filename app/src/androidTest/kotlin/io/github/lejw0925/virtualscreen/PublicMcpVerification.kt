@@ -36,13 +36,13 @@ internal suspend fun verifyPublicMcp(http: OkHttpClient,url: String,token: Strin
         val listed = call("tools/list")
         assertEquals(listed.second,200,listed.first)
         val tools = JSONObject(listed.second).getJSONObject("result").getJSONArray("tools")
-        assertEquals(11,tools.length())
+        assertEquals(20,tools.length())
         assertTrue((0 until tools.length()).any { tools.getJSONObject(it).getString("name")=="request_control" })
         for(index in 0 until tools.length()) {
             val required=tools.getJSONObject(index).getJSONObject("inputSchema").getJSONArray("required")
             assertTrue((0 until required.length()).any { required.getString(it)=="purpose" })
         }
-        val status = call("tools/call",JSONObject().put("name","service_status").put("arguments",JSONObject().put("purpose","验证隧道中的 MCP 连接状态")))
+        val status = call("tools/call",JSONObject().put("name","get_status").put("arguments",JSONObject().put("purpose","验证隧道中的 MCP 连接状态")))
         assertEquals(status.second,200,status.first)
         assertTrue(JSONObject(status.second).getJSONObject("result").getJSONObject("structuredContent").getBoolean("ok"))
     } finally {

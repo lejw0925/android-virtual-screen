@@ -93,9 +93,9 @@ class McpSessionCleanupTest {
     @Test fun currentControllerSurvivesUntilItsLeaseExpiresWithoutClosingTheDisplay() {
         TestServer(leaseMillis = 600_000).use { test ->
             val client = test.initialize()
-            val lease = test.tool(client, "control", JSONObject().put("action", "acquire"))
+            val lease = test.tool(client, "acquire_control", JSONObject())
                 .body!!.getJSONObject("result").getJSONObject("structuredContent").getString("lease_token")
-            val created = test.tool(client, "screen", JSONObject().put("action", "create").put("lease_token", lease))
+            val created = test.tool(client, "create_screen", JSONObject().put("lease_token", lease))
             assertTrue(created.body!!.getJSONObject("result").getJSONObject("structuredContent").getBoolean("ok"))
             test.clock.set(300_000)
             test.server.recycleIdleSessions()
@@ -113,11 +113,11 @@ class McpSessionCleanupTest {
     @Test fun runningToolIsNotReapedAndIdleTimeStartsAfterCompletion() {
         TestServer().use { test ->
             val client = test.initialize()
-            val lease = test.tool(client, "control", JSONObject().put("action", "acquire"))
+            val lease = test.tool(client, "acquire_control", JSONObject())
                 .body!!.getJSONObject("result").getJSONObject("structuredContent").getString("lease_token")
             val gate = CompletableDeferred<Unit>().also { test.root.createGate = it }
             val operation = CompletableFuture.supplyAsync {
-                test.tool(client, "screen", JSONObject().put("action", "create").put("lease_token", lease))
+                test.tool(client, "create_screen", JSONObject().put("lease_token", lease))
             }
             try {
                 runBlocking { withTimeout(5_000) { test.root.entered.await() } }

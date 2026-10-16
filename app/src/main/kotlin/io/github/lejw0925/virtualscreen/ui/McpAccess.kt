@@ -8,15 +8,17 @@ import android.net.Uri
 import android.os.PowerManager
 import android.provider.Settings
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
 import io.github.lejw0925.virtualscreen.VirtualScreenApplication
 import io.github.lejw0925.virtualscreen.backend.BackendKind
-import top.yukonga.miuix.kmp.basic.*
-import top.yukonga.miuix.kmp.preference.ArrowPreference
-import top.yukonga.miuix.kmp.theme.MiuixTheme
+
 
 private enum class McpPermission { BACKEND, NOTIFICATIONS, PREVIEW, BACKGROUND }
 
@@ -42,32 +44,59 @@ private fun missingMcpPermissions(app: VirtualScreenApplication): List<McpPermis
         missing = missingMcpPermissions(app)
         if(missing.isEmpty()) app.setMcpEnabled(true)
     }
-    if(missing.isNotEmpty()) Dialog(onDismissRequest={ missing=emptyList() }) { Card {
-        Column(Modifier.padding(20.dp),verticalArrangement=Arrangement.spacedBy(12.dp)) {
-            Text(l.text("开启 MCP 前需要授权","Permissions needed for MCP","開啟 MCP 前需要授權"),style=MiuixTheme.textStyles.title3)
-            Text(l.text("授权后返回，重新检查即可开启。Root 或 Shizuku 授权后会自动启用节点服务。","Return after granting access and check again. Root or Shizuku automatically enables the node service.","授權後返回，重新檢查即可開啟。Root 或 Shizuku 授權後會自動啟用節點服務。"),style=MiuixTheme.textStyles.body2)
-            missing.forEach { permission -> ArrowPreference(title=when(permission) {
-                McpPermission.BACKEND -> l.text("授权 Root 或 Shizuku","Authorize Root or Shizuku","授權 Root 或 Shizuku")
-                McpPermission.NOTIFICATIONS -> l.text("允许通知","Allow notifications","允許通知")
-                McpPermission.PREVIEW -> l.text("允许画中画","Allow picture-in-picture","允許子母畫面")
-                McpPermission.BACKGROUND -> l.text("允许后台运行","Allow background operation","允許背景執行")
-            },onClick={
-                val intent = when(permission) {
-                    McpPermission.BACKEND -> Intent(app,SettingsActivity::class.java).putExtra("page","BACKEND")
-                    McpPermission.NOTIFICATIONS -> { notifications(); null }
-                    McpPermission.PREVIEW -> Intent("android.settings.PICTURE_IN_PICTURE_SETTINGS",Uri.parse("package:${app.packageName}"))
-                    McpPermission.BACKGROUND -> Intent(Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS,Uri.parse("package:${app.packageName}"))
+    if(missing.isNotEmpty()) Dialog(onDismissRequest={ missing=emptyList() }) {
+        Card(
+            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+            modifier = Modifier.fillMaxWidth(),
+            shape = RoundedCornerShape(28.dp)
+        ) {
+            Column(Modifier.verticalScroll(rememberScrollState()).padding(24.dp),verticalArrangement=Arrangement.spacedBy(16.dp)) {
+                Text(
+                    text = l.text("开启 MCP 前需要授权","Permissions needed for MCP","開啟 MCP 前需要授權"),
+                    style = MaterialTheme.typography.headlineSmall,
+                    color = MaterialTheme.colorScheme.onSurface
+                )
+                Text(
+                    text = l.text("授权后返回，重新检查即可开启。Root 或 Shizuku 授权后会自动启用节点服务。","Return after granting access and check again. Root or Shizuku automatically enables the node service.","授權後返回，重新檢查即可開啟。Root 或 Shizuku 授權後會自動啟用節點服務。"),
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    lineHeight = MaterialTheme.typography.bodyMedium.lineHeight
+                )
+                Column(Modifier.padding(vertical=8.dp)) {
+                    missing.forEach { permission -> ArrowPreference(title=when(permission) {
+                        McpPermission.BACKEND -> l.text("授权 Root 或 Shizuku","Authorize Root or Shizuku","授權 Root 或 Shizuku")
+                        McpPermission.NOTIFICATIONS -> l.text("允许通知","Allow notifications","允許通知")
+                        McpPermission.PREVIEW -> l.text("允许画中画","Allow picture-in-picture","允許子母畫面")
+                        McpPermission.BACKGROUND -> l.text("允许后台运行","Allow background operation","允許背景執行")
+                    },onClick={
+                        val intent = when(permission) {
+                            McpPermission.BACKEND -> Intent(app,SettingsActivity::class.java).putExtra("page","BACKEND")
+                            McpPermission.NOTIFICATIONS -> { notifications(); null }
+                            McpPermission.PREVIEW -> Intent("android.settings.PICTURE_IN_PICTURE_SETTINGS",Uri.parse("package:${app.packageName}"))
+                            McpPermission.BACKGROUND -> Intent(Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS,Uri.parse("package:${app.packageName}"))
+                        }
+                        intent?.let {
+                            val target=if(it.resolveActivity(app.packageManager)!=null) it else Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS,Uri.parse("package:${app.packageName}"))
+                            app.startActivity(target.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
+                        }
+                    }) }
                 }
-                intent?.let {
-                    val target=if(it.resolveActivity(app.packageManager)!=null) it else Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS,Uri.parse("package:${app.packageName}"))
-                    app.startActivity(target.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
+                Button(
+                    onClick={ enable() },
+                    modifier=Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(16.dp)
+                ) {
+                    Text(l.text("重新检查并开启","Check again and enable","重新檢查並開啟"))
                 }
-            }) }
-            Button(onClick={ enable() },modifier=Modifier.fillMaxWidth(),colors=ButtonDefaults.buttonColorsPrimary()) {
-                Text(l.text("重新检查并开启","Check again and enable","重新檢查並開啟"))
+                TextButton(
+                    onClick={ missing=emptyList() },
+                    modifier=Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(12.dp)
+                ) {
+                    Text(l.text("稍后","Later","稍後"))
+                }
             }
-            Action(l.text("稍后","Later","稍後")) { missing=emptyList() }
         }
-    } }
+    }
     return { enabled -> if(enabled) enable() else app.setMcpEnabled(false) }
 }

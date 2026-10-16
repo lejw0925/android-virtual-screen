@@ -42,23 +42,26 @@ class McpToolRegistry(private val sessions: VirtualScreenSessionManager,
         val l=language()
         fun t(h: String,e: String,z: String)=l.text(h,e,z)
         return listOf(
-            tool(l,"control",t("申请、续租或释放五分钟独占控制权。身份绑定当前 MCP 会话。","Acquire, renew or release five-minute exclusive control bound to this MCP session.","申請、續租或釋放五分鐘獨佔控制權。身分綁定目前 MCP 工作階段。"),
-                lease+("action" to choice("acquire","renew","release")),setOf("action"),branches=mapOf("acquire" to emptySet(),"renew" to lease.keys,"release" to lease.keys)),
+            tool(l,"acquire_control",t("申请五分钟独占控制权，无需 lease_token。身份绑定当前 MCP 会话。","Acquire five-minute exclusive control for this MCP session. No lease_token is needed.","申請五分鐘獨佔控制權，無需 lease_token。身分繫結目前 MCP 工作階段。")),
+            tool(l,"renew_control",t("使用当前 lease_token 续租五分钟独占控制权。","Renew exclusive control for five minutes using the current lease_token.","使用目前 lease_token 續租五分鐘獨佔控制權。"),lease,lease.keys),
+            tool(l,"release_control",t("释放当前会话的控制权，使旧租约和观察失效。","Release this session's control and invalidate its lease and observations.","釋放目前工作階段的控制權，使舊租約和觀察失效。"),lease,lease.keys),
             tool(l,"request_control",t("控制权被手机或其他 Agent 占用时，发送通知申请接管。用户可允许一次或始终允许；立即返回 pending，不阻塞服务。用 action=status 和 approval_id 每秒查询，获批后使用新 lease_token 并重新观察。始终允许仅自动接管手机占用，不能绕过其他 Agent 的审批。","Request occupied control through a phone notification. The user can allow once or always. Returns pending immediately; poll action=status with approval_id once per second. Approval returns a new lease_token; observe again. Always allow applies only to phone occupancy; competing agents still require approval.","控制權被手機或其他 Agent 佔用時，傳送通知申請接管。使用者可允許一次或始終允許；立即傳回 pending。用 action=status 和 approval_id 每秒查詢，獲批後使用新 lease_token 並重新觀察。始終允許僅自動接管手機佔用，其他 Agent 仍需審批。"),
                 mapOf("action" to choice("request","status","cancel"),"approval_id" to string(128)),setOf("action"),
                 branches=mapOf("status" to setOf("approval_id"),"cancel" to setOf("approval_id"))),
-            tool(l,"service_status",t("查看状态、能力与控制方，无需租约。request_id 查询当前 MCP 会话最近 32 个请求的回执，使用原 JSON-RPC id 的字符串；查询不会重发输入。","Read status, capabilities and controller without a lease. request_id queries this MCP session's last 32 receipts using the original JSON-RPC id as a string; querying never repeats input.","查看狀態、能力與控制方，無需租約。request_id 查詢目前 MCP 工作階段最近 32 個請求的回執，使用原 JSON-RPC id 的字串；查詢不會重播輸入。"),mapOf("request_id" to string(128)),readOnly=true),
-            tool(l,"screen",t("创建、重新配置或关闭唯一虚拟屏。默认匹配手机可用分辨率和 DPI；只指定分辨率时按比例计算 DPI，保持实际应用密度。显式 density 覆盖自动计算。重新配置会使旧观察失效。权限在手机端授予。","Create, reconfigure or close the isolated display. Defaults match the phone viewport and DPI. Resolution-only overrides scale DPI to preserve app density; explicit density overrides this. Reconfiguration invalidates observations. Authorize permissions on the phone.","建立、重新設定或關閉唯一虛擬螢幕。預設符合手機可用解析度和 DPI；只指定解析度時按比例計算 DPI，保持實際應用程式密度。顯式 density 覆寫自動計算。重新設定會使舊觀察失效。權限在手機端授予。"),
-                lease+display+("action" to choice("create","configure","close")),lease.keys+"action"),
-            tool(l,"applications",t("列出应用或在虚拟屏启动应用。跨屏冲突时等待手机系统通知确认重启，最长两分钟；允许后继续启动，客户端超时应至少150秒。","List launcher activities or launch one on the virtual display. Cross-display conflicts await phone notification approval for up to two minutes, then continue launching if approved. Set the client timeout to at least 150 seconds.","列出應用程式或在虛擬螢幕啟動應用程式。跨螢幕衝突時等待手機系統通知確認重新啟動，最長兩分鐘；允許後繼續啟動，用戶端逾時應至少150秒。"),
-                lease+mapOf("action" to choice("list","launch"),"component" to string(),"uri" to string(),"query" to string(),"package" to string()),lease.keys+"action",
-                branches=mapOf("list" to emptySet(),"launch" to setOf("component"))),
+            tool(l,"get_status",t("查看状态、后端能力和当前控制方，无需租约。","Read status, backend capabilities and the current controller without a lease.","檢視狀態、後端能力和目前控制方，無需租約。"),readOnly=true),
+            tool(l,"get_request_receipt",t("用原 JSON-RPC id 字符串查询当前 MCP 会话最近 32 个请求的回执，无需租约。查询不会重发输入。","Look up one of this MCP session's last 32 request receipts by the original JSON-RPC id string. No lease required; never replays input.","用原 JSON-RPC id 字串查詢目前 MCP 工作階段最近 32 個請求的回執，無需租約。查詢不會重播輸入。"),mapOf("request_id" to string(128).put("minLength",1)),setOf("request_id"),readOnly=true),
+            tool(l,"create_screen",t("创建唯一虚拟屏，默认匹配手机可用分辨率和 DPI。只指定宽或高时按比例计算另一边及 DPI。需要控制租约。","Create the isolated display using the phone viewport and DPI by default. A width or height override scales the other dimension and density. Requires control.","建立唯一虛擬螢幕，預設符合手機可用解析度和 DPI。只指定寬或高時按比例計算另一邊及 DPI。需要控制租約。"),lease+display,lease.keys),
+            tool(l,"configure_screen",t("重新配置已有虚拟屏。保留未指定参数；重建显示并使旧观察失效。","Reconfigure an existing display, retaining unspecified settings. Rebuilds the display and invalidates old observations.","重新設定現有虛擬螢幕。保留未指定參數；重建顯示並使舊觀察失效。"),lease+display,lease.keys),
+            tool(l,"close_screen",t("关闭虚拟屏并使旧观察失效。需要当前控制租约。","Close the isolated display and invalidate its observations. Requires the current control lease.","關閉虛擬螢幕並使舊觀察失效。需要目前控制租約。"),lease,lease.keys),
+            tool(l,"list_apps",t("查询可启动应用，可按 query 或 package 过滤。需要控制租约，不会启动应用。","List launchable apps, optionally filtering by query or package. Requires control; does not launch apps.","查詢可啟動應用程式，可按 query 或 package 篩選。需要控制租約，不會啟動應用程式。"),lease+mapOf("query" to string(),"package" to string()),lease.keys,readOnly=true),
+            tool(l,"launch_app",t("在虚拟屏启动 component，可传 uri。跨屏冲突时等待手机通知确认重启，最长两分钟；客户端超时应至少150秒。","Launch component on the isolated display with an optional uri. Cross-display conflicts await phone restart approval for up to two minutes. Use a client timeout of at least 150 seconds.","在虛擬螢幕啟動 component，可傳 uri。跨螢幕衝突時等待手機通知確認重新啟動，最長兩分鐘；用戶端逾時應至少150秒。"),lease+mapOf("component" to string().put("minLength",1),"uri" to string()),lease.keys+"component"),
             tool(l,"observe",t("取得新观察。mode=tree 省去截图；screenshot 或 both 返回图像。format=compact 只返回可见的有用节点，full 保留层级。坐标始终以 width/height 的显示像素计，缩图须按 image_to_display_scale 换算。输入消耗观察。","Get a fresh observation. mode=tree avoids image capture; screenshot/both add an image. compact returns useful visible nodes; full preserves hierarchy. Coordinates use display width/height, so map scaled images with image_to_display_scale. Input consumes the observation.","取得新觀察。mode=tree 省去截圖；screenshot 或 both 傳回影像。compact 只傳回可見的有用節點，full 保留階層。座標以 width/height 的顯示像素計，縮圖須按 image_to_display_scale 換算。輸入消耗觀察。"),
                 lease+mapOf("include_nodes" to boolean(),"mode" to choice("tree","screenshot","both"),"format" to choice("compact","full"),"max_image_width" to integer(320,2048)),lease.keys,readOnly=true),
-            tool(l,"pointer",t("使用最新未消耗观察点击、长按、滑动或滚动。points 为 2–64 个 [x,y]；delta 正数向下滚动。","Tap, long press, swipe or scroll using a fresh unconsumed observation. points: 2–64 [x,y] pairs. Positive delta scrolls down.","使用最新未消耗觀察點按、長按、滑動或捲動。points 為 2–64 個 [x,y]；delta 正數向下捲動。"),
-                observed+after+xy+mapOf("action" to choice("tap","long_press","swipe","scroll"),"duration_ms" to integer(100,2000),"delta" to integer(-20,20),
-                    "points" to JSONObject().put("type","array").put("minItems",2).put("maxItems",64).put("items",JSONObject().put("type","array").put("minItems",2).put("maxItems",2).put("items",integer(0,4095)))),
-                observed.keys+"action",branches=mapOf("tap" to xy.keys,"long_press" to xy.keys,"swipe" to setOf("points"),"scroll" to xy.keys+"delta")),
+            tool(l,"tap_at",t("使用最新未消耗观察，在虚拟屏像素坐标 x/y 点击。","Tap display pixel coordinates x/y using a fresh unconsumed observation.","使用最新未消耗觀察，在虛擬螢幕像素座標 x/y 點按。"),observed+after+xy,observed.keys+xy.keys),
+            tool(l,"long_press_at",t("在虚拟屏 x/y 长按，duration_ms 为200–2000，默认600。消耗当前观察。","Long press display coordinates x/y for 200–2000 ms (default 600). Consumes the observation.","在虛擬螢幕 x/y 長按，duration_ms 為200–2000，預設600。消耗目前觀察。"),observed+after+xy+("duration_ms" to integer(200,2000)),observed.keys+xy.keys),
+            tool(l,"swipe_path",t("沿2–64个 [x,y] 虚拟屏像素坐标滑动，duration_ms 默认300。消耗当前观察。","Swipe along 2–64 display-pixel [x,y] points. duration_ms defaults to 300. Consumes the observation.","沿2–64個 [x,y] 虛擬螢幕像素座標滑動，duration_ms 預設300。消耗目前觀察。"),observed+after+mapOf("duration_ms" to integer(100,2000),
+                "points" to JSONObject().put("type","array").put("minItems",2).put("maxItems",64).put("items",JSONObject().put("type","array").put("minItems",2).put("maxItems",2).put("items",integer(0,4095)))),observed.keys+"points"),
+            tool(l,"scroll_at",t("在虚拟屏 x/y 滚动。delta 为-20至20的非零整数，正数向下。消耗当前观察。","Scroll at display coordinates x/y. delta is a nonzero integer from -20 to 20; positive scrolls down. Consumes the observation.","在虛擬螢幕 x/y 捲動。delta 為-20至20的非零整數，正數向下。消耗目前觀察。"),observed+after+xy+("delta" to integer(-20,20).put("not",JSONObject().put("const",0))),observed.keys+xy.keys+"delta"),
             tool(l,"input_text",t("向虚拟屏焦点编辑框输入 Unicode 文字。replace=true 替换全部。","Insert Unicode into the virtual display's focused editor. replace=true replaces all text.","向虛擬螢幕焦點編輯框輸入 Unicode 文字。replace=true 取代全部。"),observed+after+mapOf("text" to string(20000),"replace" to boolean()),observed.keys+"text"),
             tool(l,"node_action",t("对当前观察中的节点操作。node_id 和 selector 二选一；selector 字段为精确匹配，必须唯一，歧义或截断会拒绝。set_text 必填 value，可设为空。不会降级到主屏。observe_after 可返回新观察，接受输入后观察失败不会重放输入。","Act on the current observation. Supply exactly one of node_id/selector. Selector fields match exactly and must identify one node; ambiguity/truncation is rejected. set_text requires value and allows empty text. No phone-display fallback. observe_after returns a fresh observation; a failed observation never replays accepted input.","對目前觀察中的節點操作。node_id 和 selector 二選一；selector 欄位為精確比對，必須唯一，歧義或截斷會拒絕。set_text 必填 value，可設為空。不會降級到主螢幕。observe_after 可傳回新觀察，接受輸入後觀察失敗不會重播輸入。"),
                 observed+after+mapOf("node_id" to string(),"selector" to selector,"action" to choice("click","long_click","focus","scroll_forward","scroll_backward","set_text"),"value" to string(20000)),observed.keys+"action",branches=mapOf("set_text" to setOf("value"))),
@@ -69,12 +72,33 @@ class McpToolRegistry(private val sessions: VirtualScreenSessionManager,
             if(spec.name=="node_action") spec.schema.put("oneOf",JSONArray(listOf(
                 JSONObject().put("required",JSONArray(listOf("node_id"))).put("not",JSONObject().put("required",JSONArray(listOf("selector")))),
                 JSONObject().put("required",JSONArray(listOf("selector"))).put("not",JSONObject().put("required",JSONArray(listOf("node_id")))))))
-            if(spec.name=="pointer") spec.schema.getJSONArray("allOf").put(
-                conditional("action","long_press",emptyList(),mapOf("duration_ms" to integer(200,2000))))
-            if(spec.name=="wait") spec.schema.put("allOf",JSONArray(listOf(
-                conditional("condition","frame_changed",listOf("fingerprint")),conditional("condition","node_text",listOf("text")),
-                conditional("condition","node_present",listOf("selector")),conditional("condition","node_absent",listOf("selector")),
-                conditional("condition","app_foreground",listOf("package")))))
+            if(spec.name=="node_action") spec.schema.getJSONArray("allOf").getJSONObject(0)
+                .put("else",JSONObject().put("not",JSONObject().put("required",JSONArray(listOf("value")))))
+            if(spec.name=="observe") spec.schema.put("not",JSONObject().put("required",JSONArray(listOf("include_nodes","mode"))))
+            if(spec.name=="request_control") spec.schema.getJSONArray("allOf").put(
+                conditional("action","request",emptyList()).also { branch ->
+                    branch.getJSONObject("then").put("not",JSONObject().put("required",JSONArray(listOf("approval_id"))))
+                })
+            if(spec.name=="wait") {
+                val fields=setOf("text","fingerprint","selector","package","case_sensitive")
+                val branches=listOf("delay","frame_changed","node_text","node_present","node_absent","app_foreground","ui_stable").map { condition ->
+                    val applicable=when(condition) {
+                        "frame_changed" -> setOf("fingerprint")
+                        "node_text" -> setOf("text","case_sensitive")
+                        "node_present","node_absent" -> setOf("selector")
+                        "app_foreground" -> setOf("package")
+                        else -> emptySet()
+                    }
+                    val required=applicable-"case_sensitive"
+                    val branch=conditional("condition",condition,required.toList())
+                    branch.getJSONObject("then").put("not",JSONObject().put("anyOf",JSONArray((fields-applicable).map {
+                        JSONObject().put("required",JSONArray(listOf(it)))
+                    })))
+                    if(condition=="delay") branch.getJSONObject("if").remove("required")
+                    branch
+                }
+                spec.schema.put("allOf",JSONArray(branches))
+            }
         }
     }
     suspend fun call(name: String,args: JSONObject,owner: String,requestId: String = UUID.randomUUID().toString()): JSONObject {
@@ -92,29 +116,39 @@ class McpToolRegistry(private val sessions: VirtualScreenSessionManager,
             // Other clients' status queries and rejected lease requests must not
             // replace the purpose of the operation currently controlling the screen.
             current.update { previous ->
-                if(previous?.phase != "running" || (previous.owner == owner && name != "service_status")) activity else previous
+                if(previous?.phase != "running" || (previous.owner == owner && name !in setOf("get_status","get_request_receipt"))) activity else previous
             }
             val token=args.optString("lease_token"); val observation=args.optString("observation_id")
             val result=when(name) {
-                "control" -> when(args.getString("action")) {
-                    "acquire" -> leaseResult(sessions.acquireLease(owner))
-                    "renew" -> leaseResult(sessions.renewLease(owner,token))
-                    else -> when(val d=sessions.releaseLease(owner,token)) { is LeaseDecision.Granted -> OperationEnvelope.success("released" to true); is LeaseDecision.Rejected -> OperationEnvelope.failure(d.code) }
+                "acquire_control" -> leaseResult(sessions.acquireLease(owner))
+                "renew_control" -> leaseResult(sessions.renewLease(owner,token))
+                "release_control" -> when(val decision=sessions.releaseLease(owner,token)) {
+                    is LeaseDecision.Granted -> OperationEnvelope.success("released" to true)
+                    is LeaseDecision.Rejected -> OperationEnvelope.failure(decision.code)
                 }
                 "request_control" -> when(args.getString("action")) {
                     "request" -> approvals.request(owner,clientName(owner),purpose)
                     "status" -> approvals.status(owner,args.getString("approval_id"))
                     else -> approvals.cancel(owner,args.getString("approval_id"))
                 }
-                "service_status" -> {
+                "get_status" -> {
                     val controller=sessions.leaseStatus(); val state=sessions.state.value; val c=state.capabilities
                     OperationEnvelope(true,sessionId=state.sessionId,values=mapOf("backend" to state.backend.wireName,"status" to state.status.name.lowercase(),"display_id" to state.displayId,
                         "controller" to controller?.owner,"preview_status" to state.previewStatus.name.lowercase(),"lease_remaining_ms" to controller?.let { (it.expiresAtMillis-System.nanoTime()/1000000).coerceAtLeast(0) },
-                        "capabilities" to mapOf("display" to c.displayCreation.name,"capture" to c.frameCapture.name,"input" to c.inputInjection.name,"nodes" to c.accessibilityNodes.name,"screen_off" to c.screenOff.name),"error_code" to state.errorCode)+
-                        if(args.has("request_id")) mapOf("receipt" to receipts.get(owner,args.getString("request_id")),"receipt_found" to (receipts.get(owner,args.getString("request_id"))!=null)) else emptyMap())
+                        "capabilities" to mapOf("display" to c.displayCreation.name,"capture" to c.frameCapture.name,"input" to c.inputInjection.name,"nodes" to c.accessibilityNodes.name,"screen_off" to c.screenOff.name),"error_code" to state.errorCode))
                 }
-                "screen" -> when(args.getString("action")) { "create" -> sessions.create(owner,token,config(args)); "configure" -> sessions.configure(owner,token,config(args)); else -> sessions.close(owner,token) }
-                "applications" -> if(args.getString("action") == "launch") sessions.launch(owner,token,args.getString("component"),args.optString("uri").takeIf(String::isNotBlank),purpose,clientName(owner)) else {
+                "get_request_receipt" -> {
+                    val receipt=receipts.get(owner,args.getString("request_id"))
+                    OperationEnvelope.success("receipt" to receipt,"receipt_found" to (receipt!=null))
+                }
+                "create_screen" -> sessions.create(owner,token,config(args))
+                "configure_screen" -> {
+                    check(sessions.state.value.displayId != null) { "NO_VIRTUAL_SCREEN" }
+                    sessions.configure(owner,token,config(args))
+                }
+                "close_screen" -> sessions.close(owner,token)
+                "launch_app" -> sessions.launch(owner,token,args.getString("component"),args.optString("uri").takeIf(String::isNotBlank),purpose,clientName(owner))
+                "list_apps" -> {
                     check(sessions.renewLease(owner,token) is LeaseDecision.Granted) { "LEASE_REQUIRED" }
                     val query=args.optString("query")
                     OperationEnvelope.success("applications" to sessions.discoverApplications().filter { it.exported && it.packageName!=io.github.lejw0925.virtualscreen.BuildConfig.APPLICATION_ID && (args.optString("package").isBlank() || it.packageName==args.getString("package")) && (query.isBlank() || it.label.contains(query,true) || it.packageName.contains(query,true)) }.map { mapOf("label" to it.label,"package" to it.packageName,"component" to it.component) })
@@ -223,12 +257,10 @@ class McpToolRegistry(private val sessions: VirtualScreenSessionManager,
         return VirtualScreenConfig(width,height,density,a.optInt("rotation",c.rotation),a.optBoolean("allow_screen_off",c.allowScreenOff),a.optInt("idle_timeout_minutes",c.idleTimeoutMinutes))
     }
     private fun operation(name: String,a: JSONObject): BackendOperation = when(name) {
-        "pointer" -> when(a.getString("action")) {
-            "tap" -> BackendOperation.Tap(a.getInt("x"),a.getInt("y"))
-            "long_press" -> BackendOperation.LongPress(a.getInt("x"),a.getInt("y"),a.optInt("duration_ms",600).also { require(it>=200) { "INVALID_DURATION" } })
-            "swipe" -> a.getJSONArray("points").let { p -> BackendOperation.Swipe(List(p.length()) { i -> p.getJSONArray(i).let { it.getInt(0) to it.getInt(1) } },a.optInt("duration_ms",300)) }
-            else -> BackendOperation.Scroll(a.getInt("x"),a.getInt("y"),a.getInt("delta").also { require(it != 0) { "INVALID_SCROLL" } })
-        }
+        "tap_at" -> BackendOperation.Tap(a.getInt("x"),a.getInt("y"))
+        "long_press_at" -> BackendOperation.LongPress(a.getInt("x"),a.getInt("y"),a.optInt("duration_ms",600))
+        "swipe_path" -> a.getJSONArray("points").let { p -> BackendOperation.Swipe(List(p.length()) { i -> p.getJSONArray(i).let { it.getInt(0) to it.getInt(1) } },a.optInt("duration_ms",300)) }
+        "scroll_at" -> BackendOperation.Scroll(a.getInt("x"),a.getInt("y"),a.getInt("delta"))
         "input_text" -> BackendOperation.Text(a.getString("text"),a.optBoolean("replace"))
         "press_key" -> BackendOperation.Key(a.optInt("key_code",4))
         "node_action" -> BackendOperation.NodeAction(a.getString("node_id"),a.getString("action"),a.optString("value").takeIf { a.has("value") })
@@ -237,10 +269,7 @@ class McpToolRegistry(private val sessions: VirtualScreenSessionManager,
     private fun validateAction(name: String,a: JSONObject) {
         val action=a.optString("action")
         val forbidden=when(name) {
-            "control" -> if(action == "acquire") setOf("lease_token") else emptySet()
-            "screen" -> if(action == "close") display.keys else emptySet()
-            "applications" -> if(action == "list") setOf("component","uri") else setOf("query","package")
-            "pointer" -> when(action) { "tap" -> setOf("points","delta","duration_ms"); "long_press" -> setOf("points","delta"); "swipe" -> xy.keys+"delta"; else -> setOf("points","duration_ms") }
+            "request_control" -> if(action == "request") setOf("approval_id") else emptySet()
             "node_action" -> {
                 require(a.has("node_id") xor a.has("selector")) { "INVALID_NODE_TARGET" }
                 if(action != "set_text") setOf("value") else { require(a.has("value")) { "MISSING_ARGUMENT" }; emptySet() }
@@ -270,6 +299,13 @@ class McpToolRegistry(private val sessions: VirtualScreenSessionManager,
             if(image!=null) data.put("image_width",image.width).put("image_height",image.height).put("coordinate_space","display")
                 .put("image_to_display_scale",JSONArray(listOf(frame.width.toDouble()/image.width,frame.height.toDouble()/image.height)))
             data.put("message",if(e.ok) l.text("操作完成","Operation completed","操作完成") else localizedError(l,e.code ?: "BACKEND_OPERATION_FAILED"))
+            if (e.code in setOf("LEASE_REQUIRED", "CONTROL_CHANGED", "LEASE_EXPIRED", "LEASE_TOKEN_INVALID")) {
+                data.put("requires_control",true).put("requires_observation",true)
+                    .put("recovery_tools",JSONArray(listOf("get_status","acquire_control","observe")))
+            } else if (e.code == "APP_MOVED_TO_PHONE") {
+                data.put("requires_relaunch",true).put("requires_observation",true)
+                    .put("recovery_tools",JSONArray(listOf("launch_app","observe")))
+            }
             val content=JSONArray().put(JSONObject().put("type","text").put("text",data.toString()))
             image?.let { bitmap -> val bytes=ByteArrayOutputStream(); bitmap.compress(Bitmap.CompressFormat.JPEG,80,bytes)
                 content.put(JSONObject().put("type","image").put("mimeType","image/jpeg").put("data",Base64.encodeToString(bytes.toByteArray(),Base64.NO_WRAP)))
@@ -306,6 +342,10 @@ class McpToolRegistry(private val sessions: VirtualScreenSessionManager,
             } }
         }
         private fun validateValue(s: JSONObject,v: Any) {
+            if(s.has("not")) {
+                val forbidden=s.getJSONObject("not").opt("const")
+                require(if(v is Number && forbidden is Number) v.toDouble()!=forbidden.toDouble() else v!=forbidden) { "INVALID_ARGUMENT" }
+            }
             when(s.getString("type")) {
                 "string" -> require(v is String && v.length in s.optInt("minLength",0)..s.getInt("maxLength") && '\u0000' !in v && (!s.has("enum") || (0 until s.getJSONArray("enum").length()).any { s.getJSONArray("enum").getString(it)==v })) { "INVALID_ARGUMENT" }
                 "integer" -> require(v is Number && v.toDouble().isFinite() && v.toDouble()==v.toLong().toDouble() && v.toLong() in s.getLong("minimum")..s.getLong("maximum") && (!s.has("enum") || (0 until s.getJSONArray("enum").length()).any { s.getJSONArray("enum").getInt(it)==v.toInt() })) { "INVALID_ARGUMENT" }

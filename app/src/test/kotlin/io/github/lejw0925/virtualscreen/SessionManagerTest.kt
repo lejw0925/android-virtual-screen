@@ -57,6 +57,37 @@ class SessionManagerTest {
         root.entered.await(); manager.phoneTakeover(); root.createGate!!.complete(Unit)
         assertFalse(task.await().ok); assertEquals(1,root.closed); assertNull(manager.state.value.displayId)
     }
+    @Test fun fullScreenPhoneSessionKeepsLeaseAcrossLocalGesturesAndReleasesOnExit()=runBlocking {
+        val manager=VirtualScreenSessionManager(context,FakeBackend(BackendKind.ROOT),FakeBackend(BackendKind.SHIZUKU))
+        manager.beginPhoneSession("viewer")
+        val gesture=manager.beginPhoneGesture()
+        manager.finishPhoneControl(gesture.token)
+        assertEquals(gesture,manager.leaseStatus())
+        manager.endPhoneSession("viewer")
+        assertNull(manager.leaseStatus())
+    }
+    @Test fun oldViewerExitCannotReleaseNewViewerOrRemoteLease() {
+        val manager=VirtualScreenSessionManager(context,FakeBackend(BackendKind.ROOT),FakeBackend(BackendKind.SHIZUKU))
+        manager.beginPhoneSession("old")
+        val phone=manager.beginPhoneSession("new")
+        manager.endPhoneSession("old")
+        assertEquals(phone.token,manager.leaseStatus()?.token)
+        assertTrue(manager.acquireLease("remote") is LeaseDecision.Rejected)
+        manager.endPhoneSession("new")
+        val remote=(manager.acquireLease("remote") as LeaseDecision.Granted).lease
+        manager.endPhoneSession("old")
+        assertEquals(remote,manager.leaseStatus())
+    }
+    @Test fun visiblePhoneViewerRetainsControlPastIdleLeaseExpiry() {
+        var clock=0L
+        val manager=VirtualScreenSessionManager(context,FakeBackend(BackendKind.ROOT),FakeBackend(BackendKind.SHIZUKU),ControlLeaseManager(100) { clock })
+        manager.beginPhoneSession("viewer")
+        clock=101
+        assertTrue(manager.acquireLease("remote") is LeaseDecision.Rejected)
+        assertEquals(VirtualScreenSessionManager.PHONE_CLIENT,manager.leaseStatus()?.owner)
+        manager.endPhoneSession("viewer")
+        assertTrue(manager.acquireLease("remote") is LeaseDecision.Granted)
+    }
     @Test fun backendSwitchReleasesActiveDisplayBeforeChanging()=runBlocking {
         val root=FakeBackend(BackendKind.ROOT); val manager=VirtualScreenSessionManager(context,root,FakeBackend(BackendKind.SHIZUKU))
         val lease=(manager.acquireLease("remote") as LeaseDecision.Granted).lease

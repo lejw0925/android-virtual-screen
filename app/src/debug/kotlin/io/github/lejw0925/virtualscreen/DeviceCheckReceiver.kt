@@ -20,12 +20,31 @@ class DeviceCheckReceiver: BroadcastReceiver() {
             val app=context.applicationContext as VirtualScreenApplication
             val output=File(app.filesDir,"device-check.json")
             try {
-                val result=when(intent.getStringExtra("check")) {
+                val result=app.runtimeWork { when(intent.getStringExtra("check")) {
+                    "configuration" -> {
+                        val settings=app.settings.flow.value
+                        JSONObject().put("ok",true).put("backend",settings.backend.name).put("theme",settings.theme)
+                            .put("language",settings.language).put("guide_completed",app.settings.guideCompleted.value).put("mcp_wanted",app.mcpWanted)
+                    }
+                    "settings" -> {
+                        val page=intent.getStringExtra("page") ?: "HOME"
+                        require(page in setOf("HOME","BACKEND","DISPLAY","MCP","TUNNEL","APPEARANCE","BACKGROUND","LOGS","ABOUT","LICENSES","GUIDE"))
+                        context.startActivity(Intent(context,io.github.lejw0925.virtualscreen.ui.MainActivity::class.java).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
+                        context.startActivity(Intent(context,io.github.lejw0925.virtualscreen.ui.SettingsActivity::class.java).putExtra("page",page).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
+                        JSONObject().put("ok",true)
+                    }
+                    "authorize_shizuku" -> {
+                        app.settings.update { it.copy(backend=BackendKind.SHIZUKU) }
+                        app.sessions.selectBackend(BackendKind.SHIZUKU)
+                        app.sessions.requestAuthorization()
+                        JSONObject().put("ok",true)
+                    }
                     "status" -> {
                         val state=app.sessions.state.value
-                        val notification=app.getSystemService(android.app.NotificationManager::class.java).activeNotifications.firstOrNull()?.notification
+                        val notification=app.getSystemService(android.app.NotificationManager::class.java).activeNotifications.firstOrNull { it.id==8732 }?.notification
                         JSONObject().put("ok",true).put("display",state.displayId).put("state",state.status.name)
                             .put("preview",state.previewStatus.name).put("mcp_running",app.mcp.state().running)
+                            .put("notification_icon_matches",notification?.smallIcon?.resId==R.drawable.ic_notification)
                             .put("notification_title",notification?.extras?.getString(android.app.Notification.EXTRA_TITLE))
                             .put("notification_text",notification?.extras?.getString(android.app.Notification.EXTRA_TEXT))
                     }
@@ -101,7 +120,7 @@ class DeviceCheckReceiver: BroadcastReceiver() {
                     "login_state" -> JSONObject().put("ok",true).put("phase",app.tunnels.state().phase).put("login_url",app.tunnels.state().loginUrl).put("certificate_ready",app.tunnels.state().certificateReady).put("error",app.tunnels.state().errorCode)
                     "stop" -> { app.tunnels.stop(); app.mcp.stop(); app.sessions.shutdown(); JSONObject().put("ok",true) }
                     else -> error("UNKNOWN_CHECK")
-                }
+                } }
                 output.writeText(result.toString())
             } catch(e: Exception) { output.writeText(JSONObject().put("ok",false).put("code",e.code()).put("detail",e.message).toString()) }
             finally { pending.finish() }

@@ -26,9 +26,49 @@ class DeviceBackendTest {
     }
     @Test fun shizukuSurfaceScreenshotAndInput()=runBlocking {
         val backend=ShizukuBackend(context)
-        assumeTrue("Grant Shizuku in the app before running this test",backend.probe().displayCreation != CapabilityStatus.REQUIRES_AUTHORIZATION)
+        var authorized=backend.probe().displayCreation != CapabilityStatus.REQUIRES_AUTHORIZATION
+        repeat(20) { if(!authorized) { delay(100); authorized=backend.probe().displayCreation != CapabilityStatus.REQUIRES_AUTHORIZATION } }
+        if(InstrumentationRegistry.getArguments().getString("require_shizuku") == "true")
+            assertTrue("Shizuku must be authorized; this validation cannot be skipped",authorized)
+        else assumeTrue("Grant Shizuku in the app before running this test",authorized)
         verify(backend)
     }
+    @Test fun shizukuReconfigurationKeepsTheNewBindingAndInvalidatesOldObservations() = runBlocking {
+        val authorized=ShizukuBackend(context).probe().displayCreation != CapabilityStatus.REQUIRES_AUTHORIZATION
+        if(InstrumentationRegistry.getArguments().getString("require_shizuku") == "true") assertTrue("Shizuku is required",authorized)
+        else assumeTrue("Grant Shizuku before validating reconfiguration",authorized)
+        val instrumentation=InstrumentationRegistry.getInstrumentation()
+        instrumentation.getUiAutomation(android.app.UiAutomation.FLAG_DONT_SUPPRESS_ACCESSIBILITY_SERVICES)
+        instrumentation.runOnMainSync {
+            context.startActivity(android.content.Intent(context,io.github.lejw0925.virtualscreen.ui.MainActivity::class.java).addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK))
+            context.startForegroundService(android.content.Intent(context,VirtualScreenForegroundService::class.java))
+        }
+        val manager=(context.applicationContext as VirtualScreenApplication).sessions
+        manager.selectBackend(BackendKind.SHIZUKU)
+        val lease=manager.phoneTakeover()
+        try {
+            instrumentation.uiAutomation.executeShellCommand("am force-stop io.github.lejw0925.virtualscreen.fixture").use { it.close() }
+            assertTrue(manager.create(lease.owner,lease.token,VirtualScreenConfig(720,1600,320,0,false,0)).ok)
+            assertTrue(manager.launch(lease.owner,lease.token,fixture).ok)
+            delay(500)
+            for(height in listOf(1476,1600,1476)) {
+                val oldSession=manager.state.value.sessionId
+                val oldObservation=manager.observe(lease.owner,lease.token).getOrThrow().values["observation_id"] as String
+                val configured=manager.configure(lease.owner,lease.token,VirtualScreenConfig(720,height,320,0,false,0))
+                assertTrue("Reconfigure failed: ${configured.code}",configured.ok)
+                assertNotEquals(oldSession,manager.state.value.sessionId)
+                assertEquals("STALE_OBSERVATION",runCatching {
+                    manager.operate(lease.owner,lease.token,oldObservation,BackendOperation.Tap(10,10))
+                }.exceptionOrNull()?.message)
+                assertTrue(manager.launch(lease.owner,lease.token,fixture).ok)
+                delay(500)
+                val frame=manager.observe(lease.owner,lease.token).getOrThrow().values["frame"] as Bitmap
+                assertEquals(720,frame.width)
+                assertEquals(height,frame.height)
+            }
+        } finally { manager.shutdown() }
+    }
+
     @Test fun rootCancelledPreviewKeepsTheDisplayAndTransportInSync()=runBlocking {
         val root=RootBackend(context)
         assertTrue(root.requestPermission())

@@ -26,7 +26,7 @@ def main():
     raw = args.token_file.read_text().strip()
     token = json.loads(raw)['token'] if raw.startswith('{') else raw
     client = base.Client(args.url, token, 'enhanced-workflow')
-    lease = base.data(client.tool('control', '验证高效观察和准确操作', action='acquire'))['lease_token']
+    lease = base.data(client.tool('acquire_control', '验证高效观察和准确操作'))['lease_token']
     records = {}
     try:
         def call(name, **values):
@@ -56,17 +56,17 @@ def main():
         assert base.data(ambiguous, False)['code'] == 'AMBIGUOUS_NODE'
         invalid = call('press_key', key_code=3, observation_id=original)
         assert base.data(invalid, False)['code'] == 'INVALID_ARGUMENT'
-        invalid = call('pointer', action='long_press', x=5, y=5, duration_ms=100, observation_id=original)
+        invalid = call('long_press_at', x=5, y=5, duration_ms=100, observation_id=original)
         assert base.data(invalid, False)['code'] == 'INVALID_ARGUMENT'
         clicked = base.data(call('node_action', action='click', selector={'resource_id': base.FIXTURE+':id/test_counter'},
                                  observation_id=original, observe_after='tree'))
         assert clicked['execution_status'] == 'accepted' and clicked['effect_status'] == 'unconfirmed'
         assert clicked['observation_status'] == 'available' and clicked['observation_id'] != original
-        receipt = base.data(client.tool('service_status', '查询原请求回执，确认无需重发输入', request_id=clicked['request_id']))
+        receipt = base.data(client.tool('get_request_receipt', '查询原请求回执，确认无需重发输入', request_id=clicked['request_id']))
         assert receipt['receipt_found'] and receipt['receipt']['execution_status'] == 'accepted'
         other = base.Client(args.url, token, 'receipt-isolation-check')
         try:
-            assert not base.data(other.tool('service_status', '确认回执只属于原会话', request_id=clicked['request_id']))['receipt_found']
+            assert not base.data(other.tool('get_request_receipt', '确认回执只属于原会话', request_id=clicked['request_id']))['receipt_found']
         finally:
             other.close()
         stale = call('node_action', action='click', node_id=button['id'], observation_id=original)
@@ -89,7 +89,7 @@ def main():
         assert any(c['type'] == 'image' for c in small['content'])
         stable = base.data(call('wait', condition='ui_stable', timeout_ms=5000))
         assert stable['condition_matched']
-        apps = base.data(call('applications', action='list', package=base.FIXTURE))['applications']
+        apps = base.data(call('list_apps', package=base.FIXTURE))['applications']
         assert apps and all(a['package'] == base.FIXTURE for a in apps)
         records['workflow'] = {'unique_selector': True, 'ambiguous_rejected': True, 'unsupported_key_rejected': True,
                                'short_long_press_rejected': True, 'after_observation': True, 'stale_rejected': True,
@@ -98,7 +98,7 @@ def main():
         args.results.write_text(json.dumps(records, indent=2))
         print(json.dumps({k: {a: v[a] for a in ('median_ms', 'mean_bytes')} if k != 'workflow' else v for k, v in records.items()}, indent=2))
     finally:
-        client.tool('control', '工作流验证结束释放控制权', action='release', lease_token=lease)
+        client.tool('release_control', '工作流验证结束释放控制权', lease_token=lease)
         client.close()
 
 if __name__ == '__main__':

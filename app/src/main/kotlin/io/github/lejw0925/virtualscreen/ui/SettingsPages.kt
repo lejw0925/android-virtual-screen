@@ -9,20 +9,29 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import io.github.lejw0925.virtualscreen.VirtualScreenApplication
 import io.github.lejw0925.virtualscreen.tunnel.*
-import top.yukonga.miuix.kmp.basic.TextButton
-import top.yukonga.miuix.kmp.theme.*
-
+import androidx.compose.material3.*
 import androidx.compose.ui.text.input.TextFieldValue
-import top.yukonga.miuix.kmp.basic.TextField
-@Composable internal fun Action(label: String,enabled: Boolean = true,onClick: () -> Unit) { TextButton(text=label,onClick=onClick,enabled=enabled,
-    colors=top.yukonga.miuix.kmp.basic.ButtonDefaults.textButtonColors(color=Color.Transparent,textColor=MiuixTheme.colorScheme.primary)) }
+import androidx.compose.ui.text.input.PasswordVisualTransformation
+import androidx.compose.ui.text.input.VisualTransformation
+
+@Composable internal fun Action(label: String,enabled: Boolean = true,onClick: () -> Unit) {
+    TextButton(onClick=onClick,enabled=enabled) {
+        Text(label)
+    }
+}
 @Composable internal fun Field(label: String,value: String,secret: Boolean = false,multiline: Boolean = false,enabled: Boolean = true,onValue: (String) -> Unit) {
     var field by remember { mutableStateOf(TextFieldValue(value)) }
     LaunchedEffect(value) { if(field.text != value) field=TextFieldValue(value) }
-    TextField(value=field,onValueChange={ field=it; onValue(it.text.take(if(multiline) 65536 else 20000)) },label=label,enabled=enabled,
-        singleLine=!multiline,maxLines=if(multiline) 6 else 1,
-        visualTransformation=if(secret) androidx.compose.ui.text.input.PasswordVisualTransformation() else androidx.compose.ui.text.input.VisualTransformation.None,
-        modifier=Modifier.fillMaxWidth())
+    OutlinedTextField(
+        value=field,
+        onValueChange={ field=it; onValue(it.text.take(if(multiline) 65536 else 20000)) },
+        label={ Text(label) },
+        enabled=enabled,
+        singleLine=!multiline,
+        maxLines=if(multiline) 6 else 1,
+        visualTransformation=if(secret) PasswordVisualTransformation() else VisualTransformation.None,
+        modifier=Modifier.fillMaxWidth()
+    )
 }
 internal fun copy(context: Context,text: String) {
     val clip=ClipData.newPlainText(context.getString(io.github.lejw0925.virtualscreen.R.string.app_name),text)
@@ -50,6 +59,7 @@ internal fun tunnelLabel(l: UiLanguage,mode: TunnelMode)=when(mode) {
 internal fun phaseLabel(l: UiLanguage,phase: String)=when(phase) {
     "connected" -> l.text("已连接","Connected","已連線")
     "connecting", "starting" -> l.text("正在连接","Connecting","正在連線")
+    "verifying" -> l.text("正在验证公网连接","Verifying public connection","正在驗證公網連線")
     "reconnecting" -> l.text("重新连接中","Reconnecting","重新連線中")
     "login", "logging_in" -> l.text("等待官方授权","Awaiting authorization","等待官方授權")
     "credentials_ready", "certificate_ready" -> l.text("凭据已就绪","Credentials ready","憑證已就緒")

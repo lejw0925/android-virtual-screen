@@ -9,7 +9,7 @@
 | Android Gradle Plugin | 9.4.1 |
 | Kotlin / Compose compiler plugin | 2.4.20 |
 | Android SDK | compile / target 37，min 33 |
-| miuix | 0.9.4 |
+| Compose Material 3 | 1.3.1 |
 | Ktor CIO | 3.3.3 |
 | Shizuku API | 13.1.5 |
 | Android NDK | 28.2.13676358 |

@@ -23,7 +23,7 @@
 
 - **手机继续由你使用**：所有 Agent 输入限定在本应用创建的显示中；失败时不会回退到主屏。跨屏应用重启需在手机确认。
 - **看得见，也能接管**：远程创建屏幕后自动显示画中画；通知显示运行状态和操作目的。打开本应用的全屏预览后触摸，或点击通知的接管按钮，即可撤销远程租约。
-- **准确而节制的工具**：10 个 MCP 工具覆盖控制、显示、应用、观察、输入和等待。纯节点观察省去截图；精简节点、唯一选择器和新鲜观察标识减少歧义。
+- **准确而节制的工具**：20 个 MCP 工具覆盖控制、显示、应用、观察、输入和等待。纯节点观察省去截图；精简节点、唯一选择器和新鲜观察标识减少歧义。
 - **网络中断有据可查**：操作后可返回新观察；回执区分输入接受和效果确认。按原请求 ID 查询会话回执，查询不会重发输入。
 - **连接方式可选**：本机、局域网、frpc、Cloudflare Quick 或固定域名；凭据加密保存，服务和隧道默认关闭。
 - **手机上的完整体验**：Root / Shizuku、实时 Surface 预览、首次使用指引、简中 / 繁中 / 英文、深浅色及动态配色。
@@ -50,6 +50,8 @@ flowchart LR
 
 输入消耗一次观察；旧观察、过期租约和不唯一的选择器会被拒绝。应用多屏适配、Root / Shizuku 实现及后台策略因 ROM 而异。画中画本身用于查看，本应用的全屏预览支持本地触摸。
 
+当前开发分支已迁移到 Material 3，并将 MCP 拆分为 20 个工具。客户端升级后请刷新工具列表；本轮 vivo、模拟器 Shizuku、Cloudflare 与功耗验证见 [迁移记录](docs/MIGRATION_VALIDATION.md)。公开 0.0.1 Release 仍是此前的发行包。
+
 ## 验证与开发
 
 在 vivo V2419A / Android 16 上完成三轮界面与真实 MCP 工作流迭代。测试夹具的 10 次采样中，纯节点观察相比旧截图加节点路径降低了响应时间和数据量；完整原始数据、签名发行验证及网络限制见 [0.0.1 验证记录](docs/RELEASE_VALIDATION.md)。这些结果不代表所有应用或设备。
@@ -73,6 +75,6 @@ GitHub Actions 对提交和 PR 执行检查、提供 Debug 产物；版本标签
 
 ## 来源与许可
 
-虚拟显示内核部分改编自 [ETA](https://github.com/Mangi-11/Eta)，界面使用 [miuix](https://github.com/compose-miuix-ui/miuix)，原生隧道来自 [frp](https://github.com/fatedier/frp) 和 [cloudflared](https://github.com/cloudflare/cloudflared)。工具设计参考 [Mobile Next](https://github.com/mobile-next/mobile-mcp)、[Android-MCP](https://github.com/CursorTouch/Android-MCP)、[android-remote-control-mcp](https://github.com/danielealbano/android-remote-control-mcp) 和 [PhoneUse](https://github.com/nidhoggfgg/PhoneUse) 的调研结果。
+虚拟显示内核部分改编自 [ETA](https://github.com/Mangi-11/Eta)，界面使用 Jetpack Compose Material 3，原生隧道来自 [frp](https://github.com/fatedier/frp) 和 [cloudflared](https://github.com/cloudflare/cloudflared)。工具设计参考 [Mobile Next](https://github.com/mobile-next/mobile-mcp)、[Android-MCP](https://github.com/CursorTouch/Android-MCP)、[android-remote-control-mcp](https://github.com/danielealbano/android-remote-control-mcp) 和 [PhoneUse](https://github.com/nidhoggfgg/PhoneUse) 的调研结果。
 
 项目遵循 **[PolyForm Noncommercial 1.0.0](LICENSE)**，保留上游 Required Notice。组件许可、来源和原生二进制溯源见 [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md)。
