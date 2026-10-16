@@ -106,7 +106,8 @@ open class MainActivity : ComponentActivity() {
         prepareWindowTheme(app)
         super.onCreate(savedInstanceState); enableEdgeToEdge()
         pip = isInPictureInPictureMode
-        launchingPreview = this is ViewerActivity && intent.getBooleanExtra("pip",false) && !pip
+        launchingPreview = this is ViewerActivity && intent.getBooleanExtra("pip",false) && !pip && savedInstanceState==null
+        intent.removeExtra("pip")
         if(launchingPreview) window.decorView.alpha=0f
         if(BuildConfig.DEBUG && intent.getBooleanExtra("device_test",false)) window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
         window.attributes=window.attributes.apply { preferredRefreshRate=120f }
@@ -145,12 +146,11 @@ open class MainActivity : ComponentActivity() {
         super.onPictureInPictureModeChanged(isInPictureInPictureMode,newConfig)
         pip=isInPictureInPictureMode
         app.sessions.previewVisibility(pip)
+        revealPreviewWindow()
         if(pip) {
-            launchingPreview = false
-            window.decorView.alpha=1f
             endPhoneSession()
         }
-        else if(!isFinishing && !previewDismissed && lifecycle.currentState.isAtLeast(Lifecycle.State.RESUMED) && hasWindowFocus() && app.sessions.state.value.displayId!=null) { launchingPreview = false; beginPhoneSession() }
+        else if(!isFinishing && !previewDismissed && lifecycle.currentState.isAtLeast(Lifecycle.State.RESUMED) && hasWindowFocus() && app.sessions.state.value.displayId!=null) { beginPhoneSession() }
     }
     override fun onWindowFocusChanged(hasFocus: Boolean) {
         super.onWindowFocusChanged(hasFocus)
@@ -168,8 +168,11 @@ open class MainActivity : ComponentActivity() {
     }
     override fun onDestroy() { endPhoneSession(); super.onDestroy() }
     override fun onNewIntent(intent: Intent) {
-        super.onNewIntent(intent); setIntent(intent)
-        if(intent.getBooleanExtra("pip",false) && !pip) {
+        super.onNewIntent(intent)
+        val requestPreview=intent.getBooleanExtra("pip",false)
+        intent.removeExtra("pip")
+        setIntent(intent)
+        if(requestPreview && !pip) {
             launchingPreview=true
             window.decorView.alpha=0f
             window.decorView.postOnAnimation { if(!isFinishing && !pip) requestPreviewPictureInPicture() }

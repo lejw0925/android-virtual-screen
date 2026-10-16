@@ -130,9 +130,6 @@ internal class PrivilegedDisplayEngine : AutoCloseable {
             val appOps=context.getSystemService(android.app.AppOpsManager::class.java)
             check(appOps.checkOpNoThrow(android.app.AppOpsManager.OPSTR_PICTURE_IN_PICTURE,appUid,ownerPackage)==android.app.AppOpsManager.MODE_ALLOWED) { "PREVIEW_UNAVAILABLE" }
             // Fixed, read-only phone-side viewer; this API cannot launch an arbitrary main-display app.
-            val ratio=(width.toFloat()/height).coerceIn(.42f,2.38f)
-            val params=android.app.PictureInPictureParams.Builder()
-                .setAspectRatio(android.util.Rational((ratio*1000).toInt(),1000)).setSeamlessResizeEnabled(true).build()
             val intent=android.content.Intent().setClassName(io.github.lejw0925.virtualscreen.BuildConfig.APPLICATION_ID,
                 io.github.lejw0925.virtualscreen.BuildConfig.APPLICATION_ID+".ui.ViewerActivity")
                 .addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK or android.content.Intent.FLAG_ACTIVITY_NO_ANIMATION)
@@ -141,8 +138,10 @@ internal class PrivilegedDisplayEngine : AutoCloseable {
             // app_process has no registered ApplicationThread. A null caller uses
             // the real Binder root/shell identity instead of the synthetic system context.
             val start=Class.forName("android.app.IActivityManager").methods.first { it.name=="startActivityAsUserWithFeature" }
-            val result=start.invoke(activityManager,null,"com.android.shell",null,intent,null,null,null,0,0,null,
-                android.app.ActivityOptions.makeLaunchIntoPip(params).toBundle(),0) as Int
+            // makeLaunchIntoPip makes Expand return to the launcher's host task.
+            // This worker has no host task. The viewer enters ordinary PiP before drawing
+            // instead, so the system's Expand button restores the viewer itself.
+            val result=start.invoke(activityManager,null,"com.android.shell",null,intent,null,null,null,0,0,null,null,0) as Int
             check(result>=0) { "PREVIEW_UNAVAILABLE" }
             return ok().put("preview_requested",true)
         }
