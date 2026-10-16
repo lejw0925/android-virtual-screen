@@ -141,7 +141,7 @@ class VirtualScreenSessionManager(
         }
         return result
     }
-    @Synchronized fun renewLease(clientId: String, token: String): LeaseDecision = leases.renew(clientId, token).also { if (it is LeaseDecision.Granted) update { s -> s.copy(lease = it.lease) } }
+    @Synchronized internal fun touchLease(clientId: String, token: String): LeaseDecision = leases.touch(clientId, token).also { if (it is LeaseDecision.Granted) update { s -> s.copy(lease = it.lease) } }
     @Synchronized fun releaseLease(clientId: String, token: String): LeaseDecision = leases.release(clientId, token).also {
         if (it is LeaseDecision.Granted) { fence(); update { s -> s.copy(lease = null) } }
     }
@@ -170,7 +170,7 @@ class VirtualScreenSessionManager(
     private fun retainPhoneViewerLease() {
         if (phoneViewers.isEmpty()) return
         val current = leases.snapshot()
-        if (current?.owner == PHONE_CLIENT) leases.renew(current.owner, current.token)
+        if (current?.owner == PHONE_CLIENT) leases.touch(current.owner, current.token)
         else phoneTakeover()
     }
     fun allowRemoteControl() {
@@ -198,9 +198,7 @@ class VirtualScreenSessionManager(
     }
     fun cancelActive(owner: String? = null) { if(owner == null || leases.snapshot()?.owner == owner) fence() }
     private fun requireLease(owner: String, token: String) {
-        check(leases.check(owner, token)) { "LEASE_REQUIRED" }
-        val renewed = leases.renew(owner, token)
-        if (renewed is LeaseDecision.Granted) update { it.copy(lease = renewed.lease) }
+        check(touchLease(owner, token) is LeaseDecision.Granted) { "LEASE_REQUIRED" }
     }
     private fun requireObservation(id: String?) = synchronized(stateLock) {
         check(id != null && latest?.id == id && latest?.generation == epoch.get()) { "STALE_OBSERVATION" }

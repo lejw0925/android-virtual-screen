@@ -44,7 +44,6 @@ class McpToolRegistry(private val sessions: VirtualScreenSessionManager,
         fun t(h: String,e: String,z: String)=l.text(h,e,z)
         return listOf(
             tool(l,"acquire_control",t("申请五分钟独占控制权，无需 lease_token。身份绑定当前 MCP 会话。","Acquire five-minute exclusive control for this MCP session. No lease_token is needed.","申請五分鐘獨佔控制權，無需 lease_token。身分繫結目前 MCP 工作階段。")),
-            tool(l,"renew_control",t("使用当前 lease_token 续租五分钟独占控制权。","Renew exclusive control for five minutes using the current lease_token.","使用目前 lease_token 續租五分鐘獨佔控制權。"),lease,lease.keys),
             tool(l,"release_control",t("释放当前会话的控制权，使旧租约和观察失效。","Release this session's control and invalidate its lease and observations.","釋放目前工作階段的控制權，使舊租約和觀察失效。"),lease,lease.keys),
             tool(l,"request_control",t("控制权被手机或其他 Agent 占用时，发送通知申请接管。用户可允许一次或始终允许；立即返回 pending，不阻塞服务。用 action=status 和 approval_id 每秒查询，获批后使用新 lease_token 并重新观察。始终允许仅自动接管手机占用，不能绕过其他 Agent 的审批。","Request occupied control through a phone notification. The user can allow once or always. Returns pending immediately; poll action=status with approval_id once per second. Approval returns a new lease_token; observe again. Always allow applies only to phone occupancy; competing agents still require approval.","控制權被手機或其他 Agent 佔用時，傳送通知申請接管。使用者可允許一次或始終允許；立即傳回 pending。用 action=status 和 approval_id 每秒查詢，獲批後使用新 lease_token 並重新觀察。始終允許僅自動接管手機佔用，其他 Agent 仍需審批。"),
                 mapOf("action" to choice("request","status","cancel"),"approval_id" to string(128)),setOf("action"),
@@ -122,7 +121,6 @@ class McpToolRegistry(private val sessions: VirtualScreenSessionManager,
             val token=args.optString("lease_token"); val observation=args.optString("observation_id")
             val result=when(name) {
                 "acquire_control" -> leaseResult(sessions.acquireLease(owner))
-                "renew_control" -> leaseResult(sessions.renewLease(owner,token))
                 "release_control" -> when(val decision=sessions.releaseLease(owner,token)) {
                     is LeaseDecision.Granted -> OperationEnvelope.success("released" to true)
                     is LeaseDecision.Rejected -> OperationEnvelope.failure(decision.code)
@@ -152,7 +150,7 @@ class McpToolRegistry(private val sessions: VirtualScreenSessionManager,
                         sessions.launch(owner,token,args.getString("component"),args.optString("uri").takeIf(String::isNotBlank),purpose,clientName(owner)),
                         args.optString("observe_after",defaultOperationObservation))
                 "list_apps" -> {
-                    check(sessions.renewLease(owner,token) is LeaseDecision.Granted) { "LEASE_REQUIRED" }
+                    check(sessions.touchLease(owner,token) is LeaseDecision.Granted) { "LEASE_REQUIRED" }
                     val query=args.optString("query")
                     OperationEnvelope.success("applications" to sessions.discoverApplications().filter { it.exported && it.packageName!=io.github.lejw0925.virtualscreen.BuildConfig.APPLICATION_ID && (args.optString("package").isBlank() || it.packageName==args.getString("package")) && (query.isBlank() || it.label.contains(query,true) || it.packageName.contains(query,true)) }.map { mapOf("label" to it.label,"package" to it.packageName,"component" to it.component) })
                 }

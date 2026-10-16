@@ -21,7 +21,8 @@ class ControlLeaseManager(
         current?.let { return if (it.owner == owner) LeaseDecision.Granted(it) else LeaseDecision.Rejected("CONTROL_BUSY", it.owner) }
         return LeaseDecision.Granted(Lease(owner, UUID.randomUUID().toString(), nowMillis() + ttlMillis, ++generation).also { current = it })
     }
-    @Synchronized fun renew(owner: String, token: String): LeaseDecision {
+    /** Refreshes an active lease for the next idle window. */
+    @Synchronized internal fun touch(owner: String, token: String): LeaseDecision {
         expire()
         val held = current ?: return LeaseDecision.Rejected("LEASE_EXPIRED")
         if (held.owner != owner || held.token != token) return LeaseDecision.Rejected("LEASE_TOKEN_INVALID", held.owner)

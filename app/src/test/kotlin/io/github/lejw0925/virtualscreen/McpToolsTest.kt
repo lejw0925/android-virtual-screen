@@ -43,11 +43,10 @@ class McpToolsTest {
         val sessions=VirtualScreenSessionManager(RuntimeEnvironment.getApplication(),root,FakeBackend(BackendKind.SHIZUKU))
         val registry=McpToolRegistry(sessions)
         val specs=registry.tools.associateBy { it.name }
-        assertEquals(setOf("acquire_control","renew_control","release_control","request_control","get_status","get_request_receipt",
+        assertEquals(setOf("acquire_control","release_control","request_control","get_status","get_request_receipt",
             "create_screen","configure_screen","close_screen","list_apps","launch_app","observe","tap_at","long_press_at","swipe_path","scroll_at",
             "input_text","node_action","press_key","wait"),specs.keys)
         assertFalse(specs.getValue("acquire_control").schema.getJSONObject("properties").has("lease_token"))
-        assertTrue(specs.getValue("renew_control").schema.getJSONArray("required").toString().contains("lease_token"))
         assertTrue(specs.getValue("get_request_receipt").schema.getJSONArray("required").toString().contains("request_id"))
         assertTrue(specs.getValue("list_apps").readOnly)
         assertFalse(specs.getValue("launch_app").readOnly)
@@ -59,6 +58,7 @@ class McpToolsTest {
             if(name in setOf("tap_at","swipe_path")) args.put("observation_id","fixture")
             assertEquals(name,"UNKNOWN_ARGUMENT",registry.call(name,args,"test").getJSONObject("structuredContent").getString("code"))
         }
+        assertEquals("UNKNOWN_TOOL",registry.call("renew_control",JSONObject().put("purpose","Reject manual lease renewal"),"test").getJSONObject("structuredContent").getString("code"))
         assertEquals("UNKNOWN_TOOL",registry.call("pointer",JSONObject().put("purpose","Check removed multiplexed tool"),"test").getJSONObject("structuredContent").getString("code"))
         assertEquals(0,root.inputs)
     }
@@ -182,7 +182,7 @@ class McpToolsTest {
         val sessions=VirtualScreenSessionManager(RuntimeEnvironment.getApplication(),FakeBackend(BackendKind.ROOT),FakeBackend(BackendKind.SHIZUKU))
         var language=UiLanguage.ZH_HANS
         val registry=McpToolRegistry(sessions) { language }
-        val names=registry.tools.map { it.name }; assertEquals(20,names.size)
+        val names=registry.tools.map { it.name }; assertEquals(19,names.size)
         for(l in UiLanguage.entries) {
             language=l
             assertEquals(names,registry.tools.map { it.name })

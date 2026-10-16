@@ -88,6 +88,19 @@ class SessionManagerTest {
         manager.endPhoneSession("viewer")
         assertTrue(manager.acquireLease("remote") is LeaseDecision.Granted)
     }
+    @Test fun leaseAuthenticatedOperationMovesExpiryToFiveMinutesAfterThatOperation() = runBlocking {
+        var clock=0L
+        val manager=VirtualScreenSessionManager(context,FakeBackend(BackendKind.ROOT),FakeBackend(BackendKind.SHIZUKU),ControlLeaseManager(300_000) { clock })
+        val lease=(manager.acquireLease("remote") as LeaseDecision.Granted).lease
+        assertTrue(manager.create(lease.owner,lease.token).ok)
+        clock=299_999
+        assertTrue(manager.observe(lease.owner,lease.token,captureFrame=false).isSuccess)
+        clock=599_998
+        assertEquals("remote",manager.leaseStatus()?.owner)
+        clock=599_999
+        assertNull(manager.leaseStatus())
+        manager.shutdown()
+    }
     @Test fun backendSwitchReleasesActiveDisplayBeforeChanging()=runBlocking {
         val root=FakeBackend(BackendKind.ROOT); val manager=VirtualScreenSessionManager(context,root,FakeBackend(BackendKind.SHIZUKU))
         val lease=(manager.acquireLease("remote") as LeaseDecision.Granted).lease

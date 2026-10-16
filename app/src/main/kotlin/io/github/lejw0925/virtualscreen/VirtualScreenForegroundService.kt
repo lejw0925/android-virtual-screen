@@ -118,7 +118,7 @@ class VirtualScreenForegroundService : Service() {
         scope.launch {
             combine(app.mcp.activity, app.sessions.restartApprovals.pending) { activity, pending ->
                 activity?.takeIf { it.phase == "running" && it.tool !in setOf("get_status", "get_request_receipt", "list_apps",
-                    "acquire_control", "renew_control", "release_control", "request_control") && pending.isEmpty() }?.id
+                    "acquire_control", "release_control", "request_control") && pending.isEmpty() }?.id
             }.distinctUntilChanged().collectLatest { operation ->
                 if (operation != null) try {
                     while (currentCoroutineContext().isActive) {

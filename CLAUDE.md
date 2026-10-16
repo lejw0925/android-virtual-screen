@@ -34,7 +34,7 @@ Top-level files:
 
 The 10 tools expose precise, composable operations:
 
-1. `control` — Acquire, renew, or release exclusive leases
+1. `control` — Acquire or release exclusive leases; lease-authenticated operations renew automatically
 2. `request_control` — Request takeover through phone notification (returns pending immediately; poll for approval)
 3. `service_status` — Query backend capabilities, display state, and controller; fetch receipts by request ID
 4. `screen` — Create, reconfigure, or close the virtual display

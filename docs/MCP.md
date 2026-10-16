@@ -47,7 +47,7 @@ MCP-Protocol-Version: 2025-06-18
 | 工具 | 操作 |
 | --- | --- |
 | `acquire_control` | 申请五分钟独占控制权，不传 Token |
-| `renew_control` / `release_control` | 使用必填 `lease_token` 续租或释放 |
+| `release_control` | 使用必填 `lease_token` 释放当前控制权 |
 | `request_control` | `request` 申请占用接管；`status` 查询审批；`cancel` 取消 |
 | `get_status` | 查看后端、能力、虚拟屏及控制方；无需租约 |
 | `get_request_receipt` | 必填 `request_id` 查询当前会话的请求回执；无需租约 |
@@ -66,14 +66,14 @@ MCP-Protocol-Version: 2025-06-18
 | `press_key` | 显示限定的导航和编辑按键，默认返回键 4 |
 | `wait` | 延迟、帧变化、节点文本、存在 / 不存在、前台应用、稳定状态；最长 30 秒 |
 
-共 20 个工具。原 `control/screen/applications/pointer/service_status` 已拆分，客户端升级后需刷新工具发现。`get_status/get_request_receipt/list_apps/observe/wait` 提供只读提示，启动和输入操作不提供只读提示。
+共 19 个工具。原 `control/screen/applications/pointer/service_status` 已拆分，客户端升级后需刷新工具发现。`get_status/get_request_receipt/list_apps/observe/wait` 提供只读提示，启动和输入操作不提供只读提示。
 
 以 `tools/list` 返回的 schema 为准。不能把其他 action 的参数混入当前操作，不能调用主屏 Home / Power 等全局按键。
 
 ## 调用顺序
 
 1. `initialize` → `notifications/initialized` → `tools/list`。
-2. `acquire_control(purpose=...)`，保存 `lease_token`。租约默认在五分钟无活动后过期，有效操作续租。
+2. `acquire_control(purpose=...)`，保存 `lease_token`。每个带租约的操作会自动把有效期顺延到操作时刻后五分钟；最后一次操作后五分钟租约失效，无需手动续租。
 3. 用 `create_screen` 创建屏幕，或先查询现有状态。默认使用手机可用显示区域的像素分辨率和 DPI，保持应用实际密度；只指定分辨率时同比缩放 DPI，显式 `density` 则覆盖自动计算。设置中可保留自定义参数。
 4. 发现并启动应用。跨屏冲突时，`launch_app(component=...,lease_token=...,purpose=...)` 保持等待，手机显示原生悬浮审批通知；用户允许后继续启动并返回最终结果，客户端不能自动强制重启。
 5. `observe(mode=tree)` 返回节点和 `observation_id`，省去截图；需要视觉信息时用 `both`。节点不可用时，`both` 仍可返回截图和 `nodes_error`。`screenshot` 无节点；旧 `include_nodes` 参数保留，不能与 `mode` 同时传入。
