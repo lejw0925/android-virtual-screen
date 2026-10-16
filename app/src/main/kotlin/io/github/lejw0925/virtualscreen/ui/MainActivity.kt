@@ -350,12 +350,19 @@ internal suspend fun phoneInput(app: VirtualScreenApplication,operation: Backend
     val running=phase=="running"
     val accent=when { phase=="failed" -> MaterialTheme.colorScheme.error; running || mcpRunning -> MaterialTheme.colorScheme.primary; else -> MaterialTheme.colorScheme.onSurfaceVariant }
     val status=when { state.lease?.owner == VirtualScreenSessionManager.PHONE_CLIENT -> l.text("手机接管中","Phone control","手機接管中"); running -> l.text("正在执行","Working","正在執行"); state.lease?.owner != null -> l.text("远程控制中","Remote control active","遠端控制中"); mcpRunning -> l.text("MCP 已就绪","MCP ready","MCP 已就緒"); else -> l.text("本地控制","Local control","本機控制") }
+    LaunchedEffect(pip) {
+        if(pip) {
+            hidden=false
+            drag=null
+            onExpanded(false)
+        }
+    }
     LaunchedEffect(expanded,drag,hidden,pip) { if(!pip && !expanded && drag==null && !hidden) { delay(4000); hidden=true } }
     DisposableEffect(host) { onDispose { host.systemGestureExclusionRects=emptyList() } }
     BoxWithConstraints(Modifier.fillMaxSize().imePadding()) {
         val density=LocalDensity.current
         val w=with(density) { maxWidth.toPx() }; val h=with(density) { maxHeight.toPx() }
-        val controlWidth=if(hidden && !pip) 44.dp else if(pip) (maxWidth-8.dp).coerceAtLeast(1.dp) else minOf(maxWidth-24.dp,284.dp)
+        val controlWidth=if(hidden) 44.dp else minOf(maxWidth-24.dp,284.dp)
         val cw=with(density) { controlWidth.toPx() }; val ch=measured.height.takeIf { it>0 }?.toFloat() ?: with(density) { 70.dp.toPx() }
         val top=with(density) { 12.dp.toPx() }
         val bottom=maxOf(WindowInsets.displayCutout.getBottom(density),WindowInsets.navigationBarsIgnoringVisibility.getBottom(density))+with(density) { 12.dp.toPx() }
@@ -367,13 +374,7 @@ internal suspend fun phoneInput(app: VirtualScreenApplication,operation: Backend
         Box(Modifier.offset { IntOffset(position.x.roundToInt(),position.y.roundToInt()) }.width(controlWidth).onSizeChanged { measured=it }.onGloballyPositioned { layout ->
             val p=layout.positionInWindow(); host.systemGestureExclusionRects=listOf(android.graphics.Rect(p.x.roundToInt(),p.y.roundToInt(),(p.x+layout.size.width).roundToInt(),(p.y+layout.size.height).roundToInt()))
         }) {
-            if(pip) androidx.compose.material3.Card(Modifier.padding(horizontal=4.dp),shape=RoundedCornerShape(14.dp)) {
-                Row(Modifier.padding(horizontal=10.dp,vertical=6.dp),verticalAlignment=Alignment.CenterVertically) {
-                    StatusIndicator(running,accent,Modifier.size(10.dp))
-                    Spacer(Modifier.width(4.dp))
-                    Text(if(running && !purpose.isNullOrBlank()) purpose else status,modifier=Modifier.weight(1f),style=MaterialTheme.typography.labelSmall,maxLines=2,overflow=TextOverflow.Ellipsis,color=MaterialTheme.colorScheme.onSurface)
-                }
-            } else if(hidden) androidx.compose.material3.Card(Modifier.then(dragModifier),shape=RoundedCornerShape(18.dp)) {
+            if(hidden) androidx.compose.material3.Card(Modifier.then(dragModifier),shape=RoundedCornerShape(18.dp)) {
                 IconButton(onClick={ hidden=false },modifier=Modifier.size(44.dp).semantics { contentDescription=status }) {
                     StatusIndicator(running,accent,Modifier.size(22.dp))
                 }
