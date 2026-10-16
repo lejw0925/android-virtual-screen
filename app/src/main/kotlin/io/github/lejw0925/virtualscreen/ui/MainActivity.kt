@@ -25,6 +25,7 @@ import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.basicMarquee
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.background
@@ -362,19 +363,27 @@ internal suspend fun phoneInput(app: VirtualScreenApplication,operation: Backend
     BoxWithConstraints(Modifier.fillMaxSize().imePadding()) {
         val density=LocalDensity.current
         val w=with(density) { maxWidth.toPx() }; val h=with(density) { maxHeight.toPx() }
-        val controlWidth=if(hidden) 44.dp else minOf(maxWidth-24.dp,284.dp)
+        val controlWidth=if(pip) minOf(maxWidth-16.dp,240.dp).coerceAtLeast(1.dp) else if(hidden) 44.dp else minOf(maxWidth-24.dp,284.dp)
         val cw=with(density) { controlWidth.toPx() }; val ch=measured.height.takeIf { it>0 }?.toFloat() ?: with(density) { 70.dp.toPx() }
         val top=with(density) { 12.dp.toPx() }
         val bottom=maxOf(WindowInsets.displayCutout.getBottom(density),WindowInsets.navigationBarsIgnoringVisibility.getBottom(density))+with(density) { 12.dp.toPx() }
-        val maxY=(h-bottom-ch).coerceAtLeast(top); val x=if(right) (w-cw).coerceAtLeast(0f) else 0f
-        val y=if(pip) top else (h*fraction).coerceIn(top,maxY)
+        val maxY=(h-bottom-ch).coerceAtLeast(top); val x=if(pip) ((w-cw)/2f).coerceAtLeast(0f) else if(right) (w-cw).coerceAtLeast(0f) else 0f
+        val y=if(pip) maxY else (h*fraction).coerceIn(top,maxY)
         fun save() { val p=drag ?: return; right=p.x+cw/2>w/2; fraction=if(h>0) (p.y/h).coerceIn(0f,1f) else 0f; prefs.edit().putBoolean("right",right).putFloat("anchor_y",fraction).apply(); drag=null; onExpanded(false); hidden=true }
         val dragModifier=Modifier.pointerInput(w,h,cw,ch,top,maxY) { detectDragGestures(onDragStart={ drag=Offset(x,y) },onDragEnd={ save() },onDragCancel={ save() },onDrag={ change,amount -> change.consume(); val p=drag ?: Offset(x,y); drag=Offset((p.x+amount.x).coerceIn(0f,(w-cw).coerceAtLeast(0f)),(p.y+amount.y).coerceIn(top,maxY)) }) }
         val position=drag ?: Offset(x,y)
         Box(Modifier.offset { IntOffset(position.x.roundToInt(),position.y.roundToInt()) }.width(controlWidth).onSizeChanged { measured=it }.onGloballyPositioned { layout ->
             val p=layout.positionInWindow(); host.systemGestureExclusionRects=listOf(android.graphics.Rect(p.x.roundToInt(),p.y.roundToInt(),(p.x+layout.size.width).roundToInt(),(p.y+layout.size.height).roundToInt()))
         }) {
-            if(hidden) androidx.compose.material3.Card(Modifier.then(dragModifier),shape=RoundedCornerShape(18.dp)) {
+            if(pip) androidx.compose.material3.Card(Modifier.padding(horizontal=6.dp).shadow(6.dp,RoundedCornerShape(14.dp)),shape=RoundedCornerShape(14.dp)) {
+                Row(Modifier.fillMaxWidth().padding(horizontal=8.dp,vertical=3.dp),verticalAlignment=Alignment.CenterVertically) {
+                    StatusIndicator(running,accent,Modifier.size(10.dp))
+                    Spacer(Modifier.width(5.dp))
+                    Text(if(running && !purpose.isNullOrBlank()) purpose else status,
+                        modifier=Modifier.weight(1f).basicMarquee(iterations=Int.MAX_VALUE),
+                        style=MaterialTheme.typography.labelSmall,maxLines=1,softWrap=false,overflow=TextOverflow.Clip,color=MaterialTheme.colorScheme.onSurface)
+                }
+            } else if(hidden) androidx.compose.material3.Card(Modifier.then(dragModifier),shape=RoundedCornerShape(18.dp)) {
                 IconButton(onClick={ hidden=false },modifier=Modifier.size(44.dp).semantics { contentDescription=status }) {
                     StatusIndicator(running,accent,Modifier.size(22.dp))
                 }
