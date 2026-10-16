@@ -33,8 +33,6 @@ import androidx.compose.animation.togetherWith
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.basicMarquee
-import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.background
 import androidx.compose.foundation.gestures.detectDragGestures
 import androidx.compose.foundation.layout.*
@@ -61,10 +59,7 @@ import androidx.compose.ui.layout.positionInWindow
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalView
-import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.style.TextOverflow
-import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.dp
@@ -337,42 +332,17 @@ internal suspend fun phoneInput(app: VirtualScreenApplication,operation: Backend
             val frame=state.frame
             renderer.setTarget(state.sessionId,app.sessions.liveChannel,LiveGeometry(frame?.width ?: state.config.width,frame?.height ?: state.config.height,state.frameRotation),frame)
         }) else {
-            val accent=MaterialTheme.colorScheme.primary
-            Column(Modifier.align(Alignment.Center).fillMaxWidth().verticalScroll(rememberScrollState()).padding(horizontal=36.dp,vertical=24.dp),horizontalAlignment=Alignment.CenterHorizontally,verticalArrangement=Arrangement.spacedBy(18.dp)) {
-                ScreenMark(Modifier.size(if(androidx.compose.ui.platform.LocalConfiguration.current.screenHeightDp<500) 80.dp else 148.dp),enabled=server.running)
-                Row(verticalAlignment=Alignment.CenterVertically,horizontalArrangement=Arrangement.spacedBy(20.dp)) {
-                    Text(l.text("MCP 服务","MCP server","MCP 服務"),style=MaterialTheme.typography.titleMedium,color=MaterialTheme.colorScheme.onSurface)
-                    Box(Modifier.size(width=104.dp,height=56.dp),contentAlignment=Alignment.Center) {
-                        Switch(checked=server.running || (mcpChanging && app.mcpWanted),onCheckedChange=toggleMcp,enabled=!mcpChanging,
-                            modifier=Modifier.semantics {
-                                contentDescription=l.text("MCP 服务开关","MCP server switch","MCP 服務開關")
-                            })
-                    }
-                }
-                Text(l.text("Agent 的独立屏幕，你的手机照常使用。","A separate screen for your agent. Your phone stays yours.","Agent 的獨立螢幕，你的手機照常使用。"),style=MaterialTheme.typography.bodyMedium,color=MaterialTheme.colorScheme.onSurfaceVariant,textAlign=TextAlign.Center)
-                if(server.running) {
-                    Card(modifier=Modifier.fillMaxWidth(),shape=RoundedCornerShape(24.dp),colors=CardDefaults.cardColors(containerColor=MaterialTheme.colorScheme.surfaceContainerLow)) {
-                        Column(Modifier.padding(16.dp),verticalArrangement=Arrangement.spacedBy(8.dp)) {
-                            Text(l.text("服务器地址","Server address","伺服器位址"),style=MaterialTheme.typography.labelMedium,color=MaterialTheme.colorScheme.onSurfaceVariant)
-                            Text(connectionAddress(app),style=MaterialTheme.typography.bodyMedium,fontFamily=FontFamily.Monospace,color=MaterialTheme.colorScheme.onSurface)
-                            if(server.clients.isNotEmpty()) {
-                                HorizontalDivider(Modifier.padding(vertical=4.dp))
-                                Text(l.text("已连接客户端","Connected clients","已連線用戶端"),style=MaterialTheme.typography.labelMedium,color=MaterialTheme.colorScheme.onSurfaceVariant)
-                                server.clients.forEach { client ->
-                                    Row(horizontalArrangement=Arrangement.spacedBy(8.dp),verticalAlignment=Alignment.CenterVertically) {
-                                        Box(Modifier.size(8.dp).background(if(client.initialized) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outline,androidx.compose.foundation.shape.CircleShape))
-                                        Text(client.name,style=MaterialTheme.typography.bodyMedium,color=MaterialTheme.colorScheme.onSurface)
-                                    }
-                                }
-                            }
-                        }
-                    }
-                }
-                Button(onClick=onConnect,modifier=Modifier.fillMaxWidth(),shape=RoundedCornerShape(16.dp)) { Text(if(server.running) l.text("连接设置","Connection settings","連線設定") else l.text("接入 Agent","Connect an agent","接入 Agent")) }
-                Action(l.text("权限与设置","Permissions and settings","權限與設定"),onClick=onSettings)
-                server.lastError?.let { Text(localizedError(l,it),style=MaterialTheme.typography.labelLarge,color=MaterialTheme.colorScheme.error) }
-                state.errorCode?.let { Text(localizedError(l,it),style=MaterialTheme.typography.labelLarge,color=MaterialTheme.colorScheme.error) }
-            }
+            McpHome(
+                server = server,
+                changing = mcpChanging,
+                wanted = app.mcpWanted,
+                address = connectionAddress(app),
+                onToggle = toggleMcp,
+                onConnect = onConnect,
+                onSettings = onSettings,
+                onCopy = { copy(app, app.mcp.clientConfiguration(connectionAddress(app))) },
+                error = (server.lastError ?: state.errorCode)?.let { localizedError(l, it) },
+            )
         }
         if(state.displayId!=null) FloatingControls(state,server.running,expanded,{ expanded=it },tool?.purpose,tool?.phase,live,pip,
             onSettings=onSettings,onKeyboard={ expanded=false; keyboard=true },onApps={ task { applications=app.sessions.discoverApplications(includeIcons=true).filter { it.exported && it.packageName!=app.packageName }; chooseApp=true }; expanded=false },
@@ -393,7 +363,7 @@ internal suspend fun phoneInput(app: VirtualScreenApplication,operation: Backend
     if(keyboard) Dialog(onDismissRequest={ keyboard=false }) { Card(shape=RoundedCornerShape(28.dp)) { Column(Modifier.padding(24.dp).imePadding(),verticalArrangement=Arrangement.spacedBy(16.dp)) {
         var draft by remember { mutableStateOf("") }; var replace by remember { mutableStateOf(false) }
         Text(l.text("输入文字","Type text","輸入文字"),style=MaterialTheme.typography.headlineSmall,color=MaterialTheme.colorScheme.onSurface)
-        Field(l.text("支持中文和 Unicode","Chinese and Unicode supported","支援中文和 Unicode"),draft,multiline=true) { draft=it }
+        Field(l.text("文字","Text","文字"),draft,multiline=true) { draft=it }
         SwitchPreference(checked=replace,onCheckedChange={ replace=it },title=l.text("替换全部","Replace all","取代全部"))
         Button(onClick={ localInput(BackendOperation.Text(draft,replace)); keyboard=false },enabled=draft.isNotEmpty() || replace,shape=RoundedCornerShape(12.dp)) { Text(l.text("发送到虚拟屏","Send to virtual screen","傳送到虛擬螢幕")) }
     } } }

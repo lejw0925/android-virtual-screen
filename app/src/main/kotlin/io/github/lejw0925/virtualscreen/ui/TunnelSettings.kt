@@ -90,9 +90,6 @@ import androidx.compose.material3.*
             Text(phaseLabel(l, tunnel.phase), style = MaterialTheme.typography.bodyMedium,
                 color = if(tunnel.phase == "connected") MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant)
             error?.let { Text(localizedError(l, it), color = MaterialTheme.colorScheme.error) }
-            if(!server.running) TunnelHint(l.text("先开启 MCP 服务，再连接公网隧道。","Enable MCP before connecting the public tunnel.","先開啟 MCP 服務，再連線公網通道。"))
-            else if(!configurationReady && !tunnel.running && !loggingIn) TunnelHint(l.text(
-                "补全下方连接配置后即可连接。","Complete the connection settings below to connect.","補全下方連線設定後即可連線。"))
             TunnelButton(
                 text = when {
                     tunnel.running -> l.text("停止隧道","Stop tunnel","停止通道")
@@ -124,16 +121,12 @@ import androidx.compose.material3.*
             ArrowPreference(title = l.text("复制 MCP 连接配置","Copy MCP configuration","複製 MCP 連線設定"),
                 onClick = { copy(app, app.mcp.clientConfiguration(address.replaceFirst("tcp://", "http://"))) })
             ArrowPreference(title = l.text("检查公网连接","Check public connection","檢查公網連線"),
-                summary = l.text("打开连接说明页","Open the connection page","開啟連線說明頁"),
                 onClick = { app.startActivity(Intent(Intent.ACTION_VIEW, address.replaceFirst("tcp://", "http://").substringBefore("/mcp").toUri()).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)) })
         }
     }
 
     when(mode) {
-        TunnelMode.CLOUDFLARE_QUICK -> Column(Modifier.padding(horizontal=16.dp)) { TunnelHint(l.text(
-            "无需账号。每次连接会分配随机地址，连接成功后可复制。",
-            "No account needed. Each connection gets a random address you can copy once connected.",
-            "無需帳號。每次連線會分配隨機位址，連線成功後可複製。")) }
+        TunnelMode.CLOUDFLARE_QUICK -> Unit
         TunnelMode.CLOUDFLARE_NAMED -> Section(l.text("连接配置","Connection settings","連線設定")) {
             WindowDropdownPreference(
                 title = l.text("授权方式","Authorization","授權方式"),
@@ -145,17 +138,14 @@ import androidx.compose.material3.*
                 Field(l.text("公网域名","Public hostname","公網網域"), cfHost, enabled = editable) { cfHost = it }
                 if(useToken) {
                     Field("Tunnel Token", cfToken, secret = true, enabled = editable) { cfToken = it }
-                    TunnelHint(l.text("在 Cloudflare 中将该域名的服务地址设为 http://127.0.0.1:8732。",
-                        "Set this hostname's origin to http://127.0.0.1:8732 in Cloudflare.",
-                        "在 Cloudflare 中將該網域的服務位址設為 http://127.0.0.1:8732。"))
                 } else {
-                    TunnelHint(availableTunnels.firstOrNull { it.id == tunnelId }?.name ?: tunnelId.takeIf(String::isNotBlank)
-                        ?: l.text("配置账号、隧道和域名后即可连接。","Configure your account, tunnel and hostname to connect.","設定帳號、通道和網域後即可連線。"))
+                    (availableTunnels.firstOrNull { it.id == tunnelId }?.name ?: tunnelId.takeIf(String::isNotBlank))
+                        ?.let { TunnelStatus(it) }
                 }
             }
             if(!useToken) ArrowPreference(title = l.text("Cloudflare 账号与域名","Cloudflare account and hostname","Cloudflare 帳號與網域"),
-                summary = if(certificateReady) l.text("已授权 · 选择隧道、绑定域名","Authorized · select tunnel and bind hostname","已授權 · 選擇通道、繫結網域")
-                    else l.text("官方浏览器授权与隧道配置","Official browser authorization and tunnel setup","官方瀏覽器授權與通道設定"),
+                summary = if(certificateReady) l.text("已授权","Authorized","已授權")
+                    else l.text("未授权","Not authorized","未授權"),
                 enabled = !tunnel.running, onClick = { showCloudflare = true })
         }
         TunnelMode.FRPC -> Section(l.text("连接配置","Connection settings","連線設定")) {
@@ -183,7 +173,7 @@ import androidx.compose.material3.*
     }
     Section(l.text("隧道日志", "Tunnel logs", "通道日誌")) {
         Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-            if(tunnel.logs.isEmpty()) TunnelHint(l.text("连接后会在这里显示实时日志。", "Live logs appear here when you connect.", "連線後會在這裡顯示即時日誌。"))
+            if(tunnel.logs.isEmpty()) TunnelStatus(l.text("暂无日志", "No logs", "尚無日誌"))
             else {
                 LazyColumn(Modifier.fillMaxWidth().height(220.dp), reverseLayout = true,
                     verticalArrangement = Arrangement.spacedBy(6.dp)) {
@@ -200,13 +190,10 @@ import androidx.compose.material3.*
     }
 
     if(showCloudflare) TunnelDialog(l.text("Cloudflare 配置","Cloudflare setup","Cloudflare 設定"), { showCloudflare = false }) {
-        if(busy) TunnelHint(phaseLabel(l, tunnel.phase))
+        if(busy) TunnelStatus(phaseLabel(l, tunnel.phase))
         error?.let { Text(localizedError(l, it), color = MaterialTheme.colorScheme.error) }
         TunnelStep(l.text("1. 授权账号","1. Authorize account","1. 授權帳號"))
         if(!certificateReady) {
-            TunnelHint(l.text("通过 Cloudflare 官方页面选择你的域名，完成后自动取得授权证书。",
-                "Select your zone on the official Cloudflare page. The authorization certificate is received automatically.",
-                "透過 Cloudflare 官方頁面選擇你的網域，完成後自動取得授權憑證。"))
             TunnelButton(if(tunnel.loginUrl != null) l.text("打开授权页面","Open authorization page","開啟授權頁面")
                 else if(loggingIn) l.text("正在生成授权链接…","Preparing authorization link…","正在產生授權連結…")
                 else l.text("官方浏览器授权","Authorize with Cloudflare","官方瀏覽器授權"),
@@ -216,7 +203,7 @@ import androidx.compose.material3.*
                 else { foreground(app); runTask { app.tunnels.login() } }
             }
         } else {
-            TunnelHint(l.text("账号已授权","Account authorized","帳號已授權"))
+            TunnelStatus(l.text("账号已授权","Account authorized","帳號已授權"))
             TunnelStep(l.text("2. 选择隧道","2. Select tunnel","2. 選擇通道"))
             var createNew by remember { mutableStateOf(false) }
             var name by remember { mutableStateOf("android-virtual-screen") }
@@ -259,19 +246,18 @@ import androidx.compose.material3.*
             if(tunnelId.isNotBlank()) {
                 TunnelStep(l.text("3. 绑定域名","3. Bind hostname","3. 繫結網域"))
                 Field(l.text("公网域名","Public hostname","公網網域"), cfHost, enabled = !busy) { cfHost = it }
-                if(domains.isNotEmpty()) TunnelHint(l.text("可用域名：","Available zone: ","可用網域：") + domains.joinToString(", "))
-                TunnelHint(l.text("已有 DNS 路由时可直接关闭此窗口并连接。","If the DNS route already exists, close this dialog and connect.","已有 DNS 路由時可直接關閉此視窗並連線。"))
+                if(domains.isNotEmpty()) TunnelStatus(l.text("可用域名：","Available zone: ","可用網域：") + domains.joinToString(", "))
                 TunnelButton(l.text("绑定域名","Bind hostname","繫結網域"), !busy && cfHost.isNotBlank()) {
                     val id = tunnelId
                     val hostname = cfHost
                     runTask { app.tunnels.bindDns(id, hostname) }
                 }
-                if(tunnel.phase == "dns_ready") TunnelHint(phaseLabel(l, tunnel.phase))
+                if(tunnel.phase == "dns_ready") TunnelStatus(phaseLabel(l, tunnel.phase))
             }
         }
     }
     if(showAdvanced) TunnelDialog(l.text("端口与 HTTPS 证书","Ports and HTTPS certificate","連接埠與 HTTPS 憑證"), { showAdvanced = false }) {
-        Field(l.text("公网 HTTP/HTTPS 端口（空为默认）","Public HTTP/HTTPS port (blank uses default)","公網 HTTP/HTTPS 連接埠（空為預設）"),
+        Field(l.text("公网 HTTP/HTTPS 端口","Public HTTP/HTTPS port","公網 HTTP/HTTPS 連接埠"),
             frpc.publicPort, enabled = editable) { frpc.publicPort = it }
         if(frpc.protocol == "https" || frpc.advanced) {
             Field(l.text("HTTPS 证书 PEM","HTTPS certificate PEM","HTTPS 憑證 PEM"), frpc.certificate, multiline = true, enabled = editable) { frpc.certificate = it }
@@ -304,7 +290,7 @@ private class FrpcForm(config: FrpcConfig?) {
         privateKeyPem = privateKey.takeIf(String::isNotBlank))
 }
 
-@Composable private fun TunnelHint(text: String) {
+@Composable private fun TunnelStatus(text: String) {
     Text(text, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
 }
 

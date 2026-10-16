@@ -31,10 +31,6 @@ internal fun ActivityLogs(app: VirtualScreenApplication) {
             items = listOf(l.text("全部", "All", "全部"), "MCP", l.text("隧道", "Tunnels", "通道")), selectedIndex = category,
             onSelectedIndexChange = { category = it })
         Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-            Text(l.text("日志仅保存在此设备，自动轮转。记录时间、连接方 IP 和操作结果，不记录认证凭据或输入内容。",
-                "Logs stay on this device and rotate automatically. They contain times, connection IPs and operation results, without credentials or entered text.",
-                "日誌僅儲存在此裝置，自動輪替。記錄時間、連線方 IP 和操作結果，不記錄驗證憑證或輸入內容。"),
-                style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
             if (writeError) Text(l.text("日志文件暂时无法写入，仍可查看本次运行记录。", "Log storage is unavailable; current session entries remain visible.",
                 "日誌檔案暫時無法寫入，仍可檢視本次執行記錄。"), color = MaterialTheme.colorScheme.error)
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {

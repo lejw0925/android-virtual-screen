@@ -1,5 +1,7 @@
 # 0.0.1 实机迭代与发行验证
 
+2026-10-16 首页更新见 [MCP 首页与动效验证](MCP_HOME_VALIDATION.md)。
+
 设备：vivo V2419A，Android 16 / API 36，arm64-v8a；Root 与已授权 Shizuku Plus；日期：2026-10-13。自动输入仅操作本项目的 disposable fixture，主屏界面检查使用本应用。
 
 ## 三轮迭代

@@ -56,12 +56,6 @@ private fun missingMcpPermissions(app: VirtualScreenApplication): List<McpPermis
                     style = MaterialTheme.typography.headlineSmall,
                     color = MaterialTheme.colorScheme.onSurface
                 )
-                Text(
-                    text = l.text("授权后返回，重新检查即可开启。Root 或 Shizuku 授权后会自动启用节点服务。","Return after granting access and check again. Root or Shizuku automatically enables the node service.","授權後返回，重新檢查即可開啟。Root 或 Shizuku 授權後會自動啟用節點服務。"),
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    lineHeight = MaterialTheme.typography.bodyMedium.lineHeight
-                )
                 Column(Modifier.padding(vertical=8.dp)) {
                     missing.forEach { permission -> ArrowPreference(title=when(permission) {
                         McpPermission.BACKEND -> l.text("授权 Root 或 Shizuku","Authorize Root or Shizuku","授權 Root 或 Shizuku")

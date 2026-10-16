@@ -110,53 +110,38 @@ private fun pageTitle(l: UiLanguage,page: SettingsPage)=when(page) {
     SettingsPage.LICENSES -> l.text("开源许可与构建来源","Licenses and build sources","開源授權與建置來源")
     SettingsPage.GUIDE -> l.text("使用指南","Getting started","使用指南")
 }
-@Composable internal fun Section(label: String, description: String? = null, content: @Composable () -> Unit) {
-    PreferenceGroup(title = label, description = description) { content() }
+@Composable internal fun Section(label: String, content: @Composable () -> Unit) {
+    PreferenceGroup(title = label) { content() }
 }
 @Composable private fun SettingsHome(app: VirtualScreenApplication,go: (SettingsPage) -> Unit) {
     val l=LocalLanguage.current; val s by app.sessions.state.collectAsState(); val server by app.mcp.flow.collectAsState(); val tunnel by app.tunnels.flow.collectAsState()
-    Section(
-        label = l.text("虚拟屏","Virtual screen","虛擬螢幕"),
-        description = l.text("配置系统权限和显示参数","Configure system permissions and display settings","設定系統權限和顯示參數")
-    ) {
+    Section(l.text("虚拟屏","Virtual screen","虛擬螢幕")) {
         ArrowPreference(title=pageTitle(l,SettingsPage.BACKEND),summary=s.backend.wireName.uppercase(),onClick={ go(SettingsPage.BACKEND) })
-        ArrowPreference(title=pageTitle(l,SettingsPage.DISPLAY),summary=l.text("分辨率、DPI、旋转和控制权","Resolution, DPI, rotation and control","解析度、DPI、旋轉和控制權"),onClick={ go(SettingsPage.DISPLAY) })
+        ArrowPreference(title=pageTitle(l,SettingsPage.DISPLAY),onClick={ go(SettingsPage.DISPLAY) })
     }
-    Section(
-        label = l.text("连接","Connections","連線"),
-        description = l.text("管理 MCP 服务器和公网访问","Manage MCP server and public access","管理 MCP 伺服器和公網存取")
-    ) {
-        ArrowPreference(title=pageTitle(l,SettingsPage.MCP),summary=if(server.running) l.text("运行中 · ${server.sessionCount} 个客户端","Running · ${server.sessionCount} clients","執行中 · ${server.sessionCount} 個用戶端") else l.text("本机与局域网访问","Local and LAN access","本機與區域網路存取"),onClick={ go(SettingsPage.MCP) })
+    Section(l.text("连接","Connections","連線")) {
+        ArrowPreference(title=pageTitle(l,SettingsPage.MCP),summary=if(server.running) l.text("运行中 · ${server.sessionCount} 个客户端","Running · ${server.sessionCount} clients","執行中 · ${server.sessionCount} 個用戶端") else l.text("已关闭","Off","已關閉"),onClick={ go(SettingsPage.MCP) })
         ArrowPreference(title=pageTitle(l,SettingsPage.TUNNEL),summary=tunnelLabel(l,tunnel.mode)+" · "+phaseLabel(l,tunnel.phase),onClick={ go(SettingsPage.TUNNEL) })
     }
-    Section(
-        label = l.text("应用","Application","應用程式"),
-        description = l.text("个性化和系统行为设置","Personalization and system behavior","個人化和系統行為設定")
-    ) {
-        ArrowPreference(title=pageTitle(l,SettingsPage.APPEARANCE),summary=l.text("主题、动态配色和语言","Theme, dynamic colors and language","主題、動態配色和語言"),onClick={ go(SettingsPage.APPEARANCE) })
-        ArrowPreference(title=pageTitle(l,SettingsPage.BACKGROUND),summary=l.text("空闲释放与电池设置","Idle release and battery settings","閒置釋放與電池設定"),onClick={ go(SettingsPage.BACKGROUND) })
-        ArrowPreference(title=pageTitle(l,SettingsPage.LOGS),summary=l.text("连接 IP、时间、操作和隧道事件","Connection IPs, times, operations and tunnel events","連線 IP、時間、操作和通道事件"),onClick={ go(SettingsPage.LOGS) })
+    Section(l.text("应用","Application","應用程式")) {
+        ArrowPreference(title=pageTitle(l,SettingsPage.APPEARANCE),onClick={ go(SettingsPage.APPEARANCE) })
+        ArrowPreference(title=pageTitle(l,SettingsPage.BACKGROUND),onClick={ go(SettingsPage.BACKGROUND) })
+        ArrowPreference(title=pageTitle(l,SettingsPage.LOGS),onClick={ go(SettingsPage.LOGS) })
         ArrowPreference(title=pageTitle(l,SettingsPage.ABOUT),summary=BuildConfig.VERSION_NAME,onClick={ go(SettingsPage.ABOUT) })
-        ArrowPreference(title=pageTitle(l,SettingsPage.GUIDE),summary=l.text("授权、连接与接管","Access, connection and takeover","授權、連線與接管"),onClick={ go(SettingsPage.GUIDE) })
+        ArrowPreference(title=pageTitle(l,SettingsPage.GUIDE),onClick={ go(SettingsPage.GUIDE) })
     }
 }
 @Composable private fun BackendPreferences(app: VirtualScreenApplication,task: (suspend () -> Unit) -> Unit) {
     val l=LocalLanguage.current; val state by app.sessions.state.collectAsState()
-    Section(
-        label = l.text("授权","Authorization","授權"),
-        description = l.text("选择权限后端并授予虚拟屏创建权限","Select backend and grant virtual display permissions","選擇權限後端並授予虛擬螢幕建立權限")
-    ) {
+    Section(l.text("授权","Authorization","授權")) {
         WindowDropdownPreference(items=listOf("Root","Shizuku"),selectedIndex=state.backend.ordinal,title=l.text("权限后端","Backend","權限後端"),onSelectedIndexChange={ index -> task { val backend=BackendKind.entries[index]; app.sessions.selectBackend(backend); app.settings.update { it.copy(backend=backend) } } })
-        ArrowPreference(title=l.text("授权并检测","Authorize and probe","授權並檢測"),summary=l.text("授权后自动启用虚拟屏节点服务","Authorization automatically enables virtual-display nodes","授權後自動啟用虛擬螢幕節點服務"),onClick={ task { app.sessions.requestAuthorization() } })
-        ArrowPreference(title=l.text("画中画预览","Picture-in-picture preview","子母畫面預覽"),summary=l.text("允许 Agent 创建屏幕后自动展示进度","Allow automatic previews when your agent starts a display","允許 Agent 建立螢幕後自動顯示進度"),onClick={
+        ArrowPreference(title=l.text("授权并检测","Authorize and probe","授權並檢測"),onClick={ task { app.sessions.requestAuthorization() } })
+        ArrowPreference(title=l.text("画中画预览","Picture-in-picture preview","子母畫面預覽"),onClick={
             val intent=Intent("android.settings.PICTURE_IN_PICTURE_SETTINGS",android.net.Uri.parse("package:${app.packageName}")).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
             if(intent.resolveActivity(app.packageManager)!=null) app.startActivity(intent) else app.startActivity(Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS,android.net.Uri.parse("package:${app.packageName}")).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
         })
     }
-    Section(
-        label = l.text("检测结果","Probed capabilities","檢測結果"),
-        description = l.text("当前后端支持的功能列表","Available features with current backend","目前後端支援的功能列表")
-    ) {
+    Section(l.text("检测结果","Probed capabilities","檢測結果")) {
         Column(Modifier.padding(20.dp),verticalArrangement=Arrangement.spacedBy(12.dp)) {
             val c=state.capabilities
             listOf(l.text("显示创建","Display creation","顯示建立") to c.displayCreation,l.text("截图","Capture","截圖") to c.frameCapture,l.text("输入","Input","輸入") to c.inputInjection,l.text("节点","Nodes","節點") to c.accessibilityNodes,l.text("熄屏运行","Screen-off operation","熄屏執行") to c.screenOff).forEach { (name,value) ->
@@ -168,7 +153,6 @@ private fun pageTitle(l: UiLanguage,page: SettingsPage)=when(page) {
         }
         ArrowPreference(title=l.text("重新检测","Probe again","重新檢測"),onClick={ task { app.sessions.refreshCapabilities() } })
     }
-    Hint(l.text("节点不可用时仍可使用截图和坐标。熄屏能力在实际操作后确认。","Use screenshots and coordinates when nodes are unavailable. Screen-off capability is confirmed by actual operation.","節點不可用時仍可使用截圖和座標。熄屏能力在實際操作後確認。"))
 }
 private fun capabilityLabel(l: UiLanguage,c: CapabilityStatus)=when(c) {
     CapabilityStatus.AVAILABLE -> l.text("可用","Available","可用")
@@ -179,22 +163,15 @@ private fun capabilityLabel(l: UiLanguage,c: CapabilityStatus)=when(c) {
 @Composable private fun DisplayPreferences(app: VirtualScreenApplication,task: (suspend () -> Unit) -> Unit) {
     val l=LocalLanguage.current; val settings by app.settings.flow.collectAsState(); val state by app.sessions.state.collectAsState()
     var edit by remember { mutableStateOf(false) }; var restart by remember { mutableStateOf(false) }
-    Section(
-        label = l.text("显示","Display","顯示"),
-        description = l.text("调整虚拟屏的分辨率、密度和初始方向","Adjust virtual screen resolution, density and initial orientation","調整虛擬螢幕的解析度、密度和初始方向")
-    ) {
-        SwitchPreference(checked=settings.fitViewer,onCheckedChange={ value -> app.settings.update { it.copy(fitViewer=value,matchHostDensity=value) } },title=l.text("贴合手机显示区域","Fit the phone viewport","貼合手機顯示區域"),summary=l.text("按手机分辨率和 DPI 保持实际显示密度","Match the phone resolution and DPI for consistent app density","按手機解析度和 DPI 保持實際顯示密度"))
+    Section(l.text("显示","Display","顯示")) {
+        SwitchPreference(checked=settings.fitViewer,onCheckedChange={ value -> app.settings.update { it.copy(fitViewer=value,matchHostDensity=value) } },title=l.text("贴合手机显示区域","Fit the phone viewport","貼合手機顯示區域"))
         ArrowPreference(title=l.text("分辨率与 DPI","Resolution and DPI","解析度與 DPI"),summary=app.settings.configForViewer().let { "${it.width} × ${it.height} · ${it.density} dpi" },onClick={ edit=true })
         WindowDropdownPreference(items=listOf("0°","90°","180°","270°"),selectedIndex=settings.config.rotation,title=l.text("初始旋转","Initial rotation","初始旋轉"),onSelectedIndexChange={ index -> app.settings.update { it.copy(config=it.config.copy(rotation=index)) } })
-        SwitchPreference(checked=settings.restoreApp,onCheckedChange={ value -> app.settings.update { it.copy(restoreApp=value) } },title=l.text("恢复上次应用","Restore last app","恢復上次應用程式"),summary=l.text("启动时自动打开上次使用的应用","Automatically open last used app on start","啟動時自動開啟上次使用的應用程式"))
+        SwitchPreference(checked=settings.restoreApp,onCheckedChange={ value -> app.settings.update { it.copy(restoreApp=value) } },title=l.text("恢复上次应用","Restore last app","恢復上次應用程式"))
     }
-    if(state.displayId!=null) Section(
-        label = l.text("控制","Control","控制"),
-        description = l.text("应用更改后的设置到运行中的虚拟屏","Apply modified settings to running virtual screen","套用修改後的設定到執行中的虛擬螢幕")
-    ) {
-        ArrowPreference(title=l.text("应用新的显示参数","Apply new display settings","套用新的顯示參數"),summary=l.text("重建屏幕后需重新观察","Recreation requires fresh observations","重建螢幕後需重新觀察"),onClick={ restart=true })
+    if(state.displayId!=null) Section(l.text("控制","Control","控制")) {
+        ArrowPreference(title=l.text("应用新的显示参数","Apply new display settings","套用新的顯示參數"),onClick={ restart=true })
     }
-    Hint(l.text("显示参数在下次启动或重建屏幕时生效。","Display settings apply at the next start or recreation.","顯示參數在下次啟動或重建螢幕時生效。"))
     if(edit) Dialog(onDismissRequest={ edit=false }) { Card(shape=RoundedCornerShape(28.dp)) { Column(Modifier.padding(24.dp),verticalArrangement=Arrangement.spacedBy(16.dp)) {
         val effective=app.settings.configForViewer()
         var width by remember { mutableStateOf(effective.width.toString()) }; var height by remember { mutableStateOf(effective.height.toString()) }; var dpi by remember { mutableStateOf(effective.density.toString()) }
@@ -218,20 +195,19 @@ private fun capabilityLabel(l: UiLanguage,c: CapabilityStatus)=when(c) {
     val alwaysAllow by app.mcp.approvals.alwaysAllow.collectAsState()
     var rotate by remember { mutableStateOf(false) }
     Section(l.text("服务","Server","服務")) {
-        SwitchPreference(checked=server.running,onCheckedChange=toggleMcp,title=l.text("MCP 服务","MCP server","MCP 服務"),summary=if(server.running) l.text("已就绪 · ${server.sessionCount} 个客户端","Ready · ${server.sessionCount} clients","已就緒 · ${server.sessionCount} 個用戶端") else l.text("开启后允许 Agent 连接","Enable to connect your agent","開啟後允許 Agent 連線"))
-        if(alwaysAllow) ArrowPreference(title=l.text("撤销始终允许接管","Revoke always-allow control","撤銷始終允許接管"),summary=l.text("当前 Token 的 Agent 申请接管手机占用时自动批准","Agents using the current token can request phone-held control automatically","目前 Token 的 Agent 申請接管手機佔用時自動批准"),onClick={ app.mcp.approvals.setAlwaysAllow(false) })
-        SwitchPreference(checked=settings.lan,onCheckedChange={ value -> task { app.settings.update { it.copy(lan=value) }; if(server.running) { app.tunnels.stop(); app.mcp.stop(); app.mcp.start(value).getOrThrow() } } },title=l.text("局域网访问","LAN access","區域網路存取"),summary=l.text("所有连接都需要 Bearer Token","Every connection requires a bearer token","所有連線都需要 Bearer Token"))
+        SwitchPreference(checked=server.running,onCheckedChange=toggleMcp,title=l.text("MCP 服务","MCP server","MCP 服務"),summary=if(server.running) l.text("已就绪 · ${server.sessionCount} 个客户端","Ready · ${server.sessionCount} clients","已就緒 · ${server.sessionCount} 個用戶端") else l.text("已关闭","Off","已關閉"))
+        if(alwaysAllow) ArrowPreference(title=l.text("撤销始终允许接管","Revoke always-allow control","撤銷始終允許接管"),onClick={ app.mcp.approvals.setAlwaysAllow(false) })
+        SwitchPreference(checked=settings.lan,onCheckedChange={ value -> task { app.settings.update { it.copy(lan=value) }; if(server.running) { app.tunnels.stop(); app.mcp.stop(); app.mcp.start(value).getOrThrow() } } },title=l.text("局域网访问","LAN access","區域網路存取"))
     }
     Section(l.text("客户端配置","Client configuration","用戶端設定")) {
         ArrowPreference(title=l.text("复制客户端配置","Copy client configuration","複製用戶端設定"),onClick={ copy(app,app.mcp.clientConfiguration(connectionAddress(app))) })
         ArrowPreference(title=l.text("复制 Token","Copy token","複製 Token"),summary="••••••••",onClick={ copy(app,server.token) })
-        ArrowPreference(title=l.text("轮换 Token","Rotate token","輪換 Token"),summary=l.text("断开已连接客户端","Disconnect connected clients","中斷已連線用戶端"),onClick={ rotate=true })
+        ArrowPreference(title=l.text("轮换 Token","Rotate token","輪換 Token"),onClick={ rotate=true })
         if(server.host=="0.0.0.0") lanAddresses(server.port).forEach { address -> ArrowPreference(title=l.text("局域网地址","LAN address","區域網路位址"),summary=address,onClick={ copy(app,address) }) }
     }
     if(server.clients.isNotEmpty()) Section(l.text("已连接客户端","Connected clients","已連線用戶端")) {
-        server.clients.forEach { client -> ArrowPreference(title=client.name,summary=l.text("点按断开会话","Tap to disconnect","點按中斷工作階段"),onClick={ app.mcp.disconnectSession(client.id) }) }
+        server.clients.forEach { client -> ArrowPreference(title=client.name,onClick={ app.mcp.disconnectSession(client.id) }) }
     }
-    Hint(l.text("每次工具调用必须说明操作目的，并使用手机系统语言。","Every tool call must explain its purpose in the phone’s system language.","每次工具呼叫必須說明操作目的，並使用手機系統語言。"))
     if(rotate) Confirm(l.text("轮换 Token","Rotate token","輪換 Token"),l.text("旧 Token 将立即失效，当前客户端会断开。","The old token becomes invalid and connected clients will disconnect.","舊 Token 將立即失效，目前用戶端會中斷。"),onDismiss={ rotate=false }) { rotate=false; app.mcp.rotateToken() }
 }
 @Composable private fun AppearancePreferences(app: VirtualScreenApplication) {
@@ -244,18 +220,17 @@ private fun capabilityLabel(l: UiLanguage,c: CapabilityStatus)=when(c) {
         val languages=listOf("system","zh-Hans","zh-Hant","en")
         WindowDropdownPreference(items=listOf(l.text("跟随系统","System","跟隨系統"),"简体中文","繁體中文","English"),selectedIndex=languages.indexOf(settings.language).coerceAtLeast(0),title=l.text("界面语言","Interface language","介面語言"),onSelectedIndexChange={ i -> val code=languages[i]; app.settings.update { it.copy(language=code) }; app.getSystemService(LocaleManager::class.java).applicationLocales=LocaleList.forLanguageTags(if(code=="system") "" else code) })
     }
-    Hint(l.text("MCP 工具说明和操作目的跟随手机系统语言。","MCP descriptions and operation purposes follow the phone’s system language.","MCP 工具說明和操作目的跟隨手機系統語言。"))
 }
 @Composable private fun BackgroundPreferences(app: VirtualScreenApplication,task: (suspend () -> Unit) -> Unit) {
     val l=LocalLanguage.current; val settings by app.settings.flow.collectAsState(); var stop by remember { mutableStateOf(false) }
     Section(l.text("生命周期","Lifecycle","生命週期")) {
         val minutes=(listOf(0,5,10,20,30,60,120,240)+settings.config.idleTimeoutMinutes).distinct().sorted()
         WindowDropdownPreference(items=minutes.map { if(it==0) l.text("不自动释放","Do not release automatically","不自動釋放") else l.text("$it 分钟","$it minutes","$it 分鐘") },selectedIndex=minutes.indexOf(settings.config.idleTimeoutMinutes),title=l.text("空闲释放","Idle release","閒置釋放"),onSelectedIndexChange={ i -> app.settings.update { it.copy(config=it.config.copy(idleTimeoutMinutes=minutes[i])) } })
-        SwitchPreference(checked=settings.config.allowScreenOff,onCheckedChange={ value -> app.settings.update { it.copy(config=it.config.copy(allowScreenOff=value)) } },title=l.text("尝试熄屏运行","Try screen-off operation","嘗試熄屏執行"),summary=l.text("支持情况取决于设备和 ROM","Support depends on the device and ROM","支援情況取決於裝置和 ROM"))
+        SwitchPreference(checked=settings.config.allowScreenOff,onCheckedChange={ value -> app.settings.update { it.copy(config=it.config.copy(allowScreenOff=value)) } },title=l.text("尝试熄屏运行","Try screen-off operation","嘗試熄屏執行"))
     }
     Section(l.text("系统设置","System settings","系統設定")) {
-        ArrowPreference(title=l.text("电池优化","Battery optimization","電池最佳化"),summary=l.text("为持续运行选择不限制","Choose unrestricted for continuous operation","為持續執行選擇不限制"),onClick={ app.startActivity(Intent(Settings.ACTION_IGNORE_BATTERY_OPTIMIZATION_SETTINGS).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)) })
-        ArrowPreference(title=l.text("应用后台权限","App background permissions","應用程式背景權限"),summary=l.text("部分设备还需允许后台与自启动","Some devices require background and auto-start permission","部分裝置還需允許背景與自動啟動"),onClick={ app.startActivity(Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS,android.net.Uri.parse("package:${app.packageName}")).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)) })
+        ArrowPreference(title=l.text("电池优化","Battery optimization","電池最佳化"),onClick={ app.startActivity(Intent(Settings.ACTION_IGNORE_BATTERY_OPTIMIZATION_SETTINGS).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)) })
+        ArrowPreference(title=l.text("应用后台权限","App background permissions","應用程式背景權限"),onClick={ app.startActivity(Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS,android.net.Uri.parse("package:${app.packageName}")).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)) })
         ArrowPreference(title=l.text("停止全部服务","Stop all services","停止所有服務"),onClick={ stop=true })
     }
     if(stop) Confirm(l.text("停止全部服务","Stop all services","停止所有服務"),l.text("关闭虚拟屏、MCP 与隧道。","Close the virtual screen, MCP and tunnel.","關閉虛擬螢幕、MCP 與通道。"),onDismiss={ stop=false }) { stop=false; task { app.stopRuntime(); app.awaitShutdown(); app.stopService(Intent(app,VirtualScreenForegroundService::class.java)) } }
@@ -263,7 +238,7 @@ private fun capabilityLabel(l: UiLanguage,c: CapabilityStatus)=when(c) {
 @Composable private fun AboutPreferences(app: VirtualScreenApplication,onLicenses: () -> Unit) {
     val l=LocalLanguage.current
     Section(l.text("虚拟屏","Virtual Screen","虛擬屏")) {
-        Column(Modifier.padding(22.dp),verticalArrangement=Arrangement.spacedBy(8.dp)) { Text(BuildConfig.VERSION_NAME,style=MaterialTheme.typography.titleLarge,color=MaterialTheme.colorScheme.onSurface); Text(l.text("一个由你控制的独立 Android 屏幕","An independent Android screen under your control","一個由你控制的獨立 Android 螢幕"),color=MaterialTheme.colorScheme.onSurfaceVariant) }
+        Column(Modifier.padding(22.dp),verticalArrangement=Arrangement.spacedBy(8.dp)) { Text(BuildConfig.VERSION_NAME,style=MaterialTheme.typography.titleLarge,color=MaterialTheme.colorScheme.onSurface) }
         ArrowPreference(title=l.text("开源许可与构建来源","Licenses and build sources","開源授權與建置來源"),summary="ETA · Material 3 · frpc 0.65.0 · cloudflared 2025.8.1",onClick=onLicenses)
     }
 }
@@ -271,17 +246,6 @@ private fun capabilityLabel(l: UiLanguage,c: CapabilityStatus)=when(c) {
     var text by remember { mutableStateOf("") }
     LaunchedEffect(app) { text=withContext(Dispatchers.IO) { app.assets.list("licenses").orEmpty().joinToString("\n\n") { name -> name.removeSuffix(".txt")+"\n\n"+app.assets.open("licenses/$name").bufferedReader().use { it.readText() } } } }
     Text(text,style=MaterialTheme.typography.bodyMedium,color=MaterialTheme.colorScheme.onSurface,modifier=Modifier.padding(16.dp))
-}
-@Composable private fun Hint(text: String) {
-    Text(
-        text = text,
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(horizontal = 16.dp, vertical = 8.dp),
-        style = MaterialTheme.typography.bodySmall,
-        color = MaterialTheme.colorScheme.onSurfaceVariant,
-        lineHeight = MaterialTheme.typography.bodyMedium.lineHeight
-    )
 }
 @Composable private fun Confirm(title: String,message: String,onDismiss: () -> Unit,onConfirm: () -> Unit) {
     val l=LocalLanguage.current
