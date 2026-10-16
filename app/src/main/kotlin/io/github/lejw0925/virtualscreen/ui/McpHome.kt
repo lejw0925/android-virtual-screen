@@ -2,8 +2,13 @@ package io.github.lejw0925.virtualscreen.ui
 
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.LinearEasing
+import androidx.compose.animation.core.animateFloat
 import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.infiniteRepeatable
+import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.spring
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.interaction.MutableInteractionSource
@@ -31,8 +36,8 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.geometry.CornerRadius
-import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.TransformOrigin
+import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.drawscope.withTransform
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.platform.LocalDensity
@@ -233,14 +238,10 @@ private fun ScreenPowerScene(
         interactionSource = interaction, indication = null, onValueChange = onToggle)
         .semantics { contentDescription = l.text("MCP 服务开关", "MCP server switch", "MCP 服務開關"); stateDescription = status },
         contentAlignment = Alignment.Center) {
+        RunningScreenBackdrop(enabled, Modifier.fillMaxSize())
         Canvas(Modifier.fillMaxSize().clearAndSetSemantics {}) {
             val p = power.value
-            val upright = p.coerceIn(0f, 1f)
             val rebound = if(!enabled) abs(p).coerceAtMost(.35f) else 0f
-            val shadowWidth = 208.dp.toPx() - 112.dp.toPx() * upright + 24.dp.toPx() * rebound
-            drawOval(colors.scrim.copy(alpha = (.08f + .04f * (1f - light.value)) / (1f + 3f * rebound)),
-                topLeft = Offset(center.x - shadowWidth / 2, center.y + 32.dp.toPx() + 78.dp.toPx() * upright),
-                size = Size(shadowWidth, 8.dp.toPx() + 12.dp.toPx() * rebound))
             drawLine(colors.outlineVariant.copy(alpha = .45f * (1f - light.value)),
                 Offset(center.x - 116.dp.toPx(), center.y + 38.dp.toPx()),
                 Offset(center.x + 116.dp.toPx(), center.y + 38.dp.toPx()), strokeWidth = 1.dp.toPx())
@@ -256,8 +257,7 @@ private fun ScreenPowerScene(
                     pivot = Offset(center.x, edgeTop + edgeHeight / 2))
             }) {
                 drawRoundRect(
-                    brush = Brush.verticalGradient(listOf(colors.outlineVariant, colors.onSurfaceVariant, colors.outline),
-                        startY = edgeTop, endY = edgeTop + edgeHeight),
+                    color = colors.outline,
                     topLeft = Offset(edgeLeft, edgeTop), size = Size(208.dp.toPx(), edgeHeight),
                     cornerRadius = CornerRadius(6.dp.toPx()), alpha = edgeAlpha,
                 )
@@ -270,8 +270,6 @@ private fun ScreenPowerScene(
                         Offset(edgeLeft + x.dp.toPx(), edgeTop + edgeHeight - 1.dp.toPx()), strokeWidth = 1.dp.toPx())
                 }
             }
-            drawCircle(colors.primary.copy(alpha = .06f * light.value),
-                radius = 96.dp.toPx() * (.7f + .3f * p), center = center)
         }
         Box(
             modifier = Modifier.size(width = 128.dp, height = 224.dp).clearAndSetSemantics {}.graphicsLayer {
@@ -286,8 +284,8 @@ private fun ScreenPowerScene(
                 translationY = 30.dp.toPx() * (1f - p)
             },
         ) {
-            Box(Modifier.align(Alignment.CenterEnd).offset(x = 1.dp, y = (-32).dp).size(width = 5.dp, height = 30.dp)
-                .background(colors.onSurfaceVariant, RoundedCornerShape(2.dp)))
+            Box(Modifier.align(Alignment.CenterEnd).offset(x = (-2).dp, y = (-32).dp).size(width = 3.dp, height = 26.dp)
+                .background(colors.onSurfaceVariant, RoundedCornerShape(1.5.dp)))
             Surface(Modifier.fillMaxSize().padding(horizontal = 4.dp), shape = RoundedCornerShape(26.dp),
                 color = colors.outline) {
                 Box(Modifier.padding(4.dp).clip(RoundedCornerShape(22.dp)).background(screenColor), contentAlignment = Alignment.Center) {
@@ -299,6 +297,40 @@ private fun ScreenPowerScene(
                     Box(Modifier.align(Alignment.BottomCenter).padding(bottom = 10.dp).size(width = 36.dp, height = 4.dp)
                         .background(colors.onPrimaryContainer.copy(alpha = .2f * light.value), CircleShape))
                 }
+            }
+        }
+    }
+}
+
+@OptIn(ExperimentalMaterial3ExpressiveApi::class)
+@Composable
+private fun RunningScreenBackdrop(enabled: Boolean, modifier: Modifier = Modifier) {
+    val color = MaterialTheme.colorScheme.primary
+    val opacity = animateFloatAsState(if(enabled) 1f else 0f,
+        MaterialTheme.motionScheme.defaultEffectsSpec(), label = "screen ripple visibility")
+    // Dispose the repeating animation once the stopped screen has faded out.
+    if(enabled || opacity.value > .001f) {
+        val transition = rememberInfiniteTransition(label = "running screen ripples")
+        val phase = transition.animateFloat(
+            initialValue = 0f,
+            targetValue = 1f,
+            animationSpec = infiniteRepeatable(tween(3000, easing = LinearEasing)),
+            label = "screen ripple expansion",
+        )
+        Canvas(modifier.clearAndSetSemantics {}) {
+            val alpha = opacity.value.coerceIn(0f, 1f)
+            val radius = 96.dp.toPx()
+            drawCircle(color.copy(alpha = .06f * alpha), radius = radius, center = center)
+            repeat(3) { index ->
+                val progress = (phase.value + index / 3f) % 1f
+                val arrival = (progress * 6f).coerceAtMost(1f)
+                val fade = (1f - progress) * (1f - progress)
+                drawCircle(
+                    color = color.copy(alpha = .2f * arrival * fade * alpha),
+                    radius = radius * (.65f + .95f * progress),
+                    center = center,
+                    style = Stroke(width = 1.5.dp.toPx()),
+                )
             }
         }
     }
