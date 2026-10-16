@@ -44,7 +44,7 @@ class DeviceCheckReceiver: BroadcastReceiver() {
                         val notification=app.getSystemService(android.app.NotificationManager::class.java).activeNotifications.firstOrNull { it.id==8732 }?.notification
                         JSONObject().put("ok",true).put("display",state.displayId).put("state",state.status.name)
                             .put("preview",state.previewStatus.name).put("mcp_running",app.mcp.state().running)
-                            .put("notification_icon_matches",notification?.smallIcon?.resId==R.drawable.ic_notification)
+                            .put("notification_icon_matches",notification?.smallIcon?.resId==R.drawable.ic_launcher)
                             .put("notification_title",notification?.extras?.getString(android.app.Notification.EXTRA_TITLE))
                             .put("notification_text",notification?.extras?.getString(android.app.Notification.EXTRA_TEXT))
                     }
