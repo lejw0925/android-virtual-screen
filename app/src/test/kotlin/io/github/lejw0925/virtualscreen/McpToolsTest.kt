@@ -111,6 +111,59 @@ class McpToolsTest {
         assertEquals(1,root.inputs)
         sessions.shutdown()
     }
+    @Test fun acceptedInputReturnsFreshObservationByDefault() = runBlocking {
+        val root=FakeBackend(BackendKind.ROOT)
+        val sessions=VirtualScreenSessionManager(RuntimeEnvironment.getApplication(),root,FakeBackend(BackendKind.SHIZUKU))
+        val registry=McpToolRegistry(sessions)
+        val lease=(sessions.acquireLease("test") as LeaseDecision.Granted).lease
+        sessions.create("test",lease.token)
+        val initial=sessions.observe("test",lease.token).getOrThrow().values.getValue("observation_id") as String
+        val args=JSONObject().put("purpose","Click and continue from the new state").put("lease_token",lease.token)
+            .put("observation_id",initial).put("x",10).put("y",20)
+        val result=registry.call("tap_at",args,"test").getJSONObject("structuredContent")
+        assertEquals("available",result.getString("observation_status"))
+        assertFalse(result.getBoolean("requires_observation"))
+        val next=result.getString("observation_id")
+        assertNotEquals(initial,next)
+        assertEquals(2,root.frames)
+        args.put("observation_id",next)
+        assertTrue(registry.call("tap_at",args,"test").getJSONObject("structuredContent").getBoolean("ok"))
+        assertEquals(2,root.inputs)
+        sessions.shutdown()
+    }
+    @Test fun launchReturnsFreshObservationByDefaultAndCanOptOut() = runBlocking {
+        val root=FakeBackend(BackendKind.ROOT)
+        val sessions=VirtualScreenSessionManager(RuntimeEnvironment.getApplication(),root,FakeBackend(BackendKind.SHIZUKU))
+        val registry=McpToolRegistry(sessions)
+        val lease=(sessions.acquireLease("test") as LeaseDecision.Granted).lease
+        sessions.create("test",lease.token)
+        val launch=JSONObject().put("purpose","Open the fixture app").put("lease_token",lease.token)
+            .put("component","io.github.lejw0925.virtualscreen.fixture/.FixtureActivity")
+        val result=registry.call("launch_app",launch,"test").getJSONObject("structuredContent")
+        assertEquals("available",result.getString("observation_status"))
+        assertFalse(result.getBoolean("requires_observation"))
+        assertTrue(result.has("observation_id"))
+        launch.put("observe_after","none")
+        val optedOut=registry.call("launch_app",launch,"test").getJSONObject("structuredContent")
+        assertFalse(optedOut.has("observation_status"))
+        assertTrue(optedOut.getBoolean("requires_observation"))
+        assertTrue(optedOut.getBoolean("ok"))
+        sessions.shutdown()
+    }
+    @Test fun reconfigureReturnsFreshObservationAfterRebuildingDisplay() = runBlocking {
+        val root=FakeBackend(BackendKind.ROOT)
+        val sessions=VirtualScreenSessionManager(RuntimeEnvironment.getApplication(),root,FakeBackend(BackendKind.SHIZUKU))
+        val registry=McpToolRegistry(sessions)
+        val lease=(sessions.acquireLease("test") as LeaseDecision.Granted).lease
+        sessions.create("test",lease.token)
+        val result=registry.call("configure_screen",JSONObject().put("purpose","Rebuild the display").put("lease_token",lease.token),"test")
+            .getJSONObject("structuredContent")
+        assertEquals("available",result.getString("observation_status"))
+        assertFalse(result.getBoolean("requires_observation"))
+        assertTrue(result.has("observation_id"))
+        assertEquals(1,root.closed)
+        sessions.shutdown()
+    }
     @Test fun malformedSwipeAndMissingCoordinatesPreserveObservation() = runBlocking {
         val root=FakeBackend(BackendKind.ROOT)
         val sessions=VirtualScreenSessionManager(RuntimeEnvironment.getApplication(),root,FakeBackend(BackendKind.SHIZUKU))

@@ -77,7 +77,7 @@ MCP-Protocol-Version: 2025-06-18
 3. 用 `create_screen` 创建屏幕，或先查询现有状态。默认使用手机可用显示区域的像素分辨率和 DPI，保持应用实际密度；只指定分辨率时同比缩放 DPI，显式 `density` 则覆盖自动计算。设置中可保留自定义参数。
 4. 发现并启动应用。跨屏冲突时，`launch_app(component=...,lease_token=...,purpose=...)` 保持等待，手机显示原生悬浮审批通知；用户允许后继续启动并返回最终结果，客户端不能自动强制重启。
 5. `observe(mode=tree)` 返回节点和 `observation_id`，省去截图；需要视觉信息时用 `both`。节点不可用时，`both` 仍可返回截图和 `nodes_error`。`screenshot` 无节点；旧 `include_nodes` 参数保留，不能与 `mode` 同时传入。
-6. 每次输入携带租约与当前观察标识，输入后重新 `observe`，或指定 `observe_after=tree/screenshot/both` 返回新观察。重新配置显示、手机接管、取消或租约变化都会使旧观察失效。
+6. 每次输入携带租约与当前观察标识；会使观察失效的输入、启动应用和重配置显示操作默认在结果中附带 `both` 模式的新观察，也可指定 `observe_after=tree/screenshot/both`，或用 `observe_after=none` 关闭。手机接管、取消、释放控制权或后端丢失时没有可用的新观察，需按错误中的恢复工具重新申请和观察。
 7. 完成后 `release_control(lease_token=...,purpose=...)`，再 DELETE 当前 MCP 会话。
 
 手机系统语言为简体中文时，一次点击的参数示例：
@@ -138,7 +138,7 @@ MCP-Protocol-Version: 2025-06-18
 
 ## 输入结果与条件等待
 
-tap_at、long_press_at、swipe_path、scroll_at、input_text、node_action、press_key 支持 `observe_after=none/tree/screenshot/both`，默认 none。结果中 `execution_status=accepted` 表示后端接受输入；`effect_status=verified/unconfirmed` 区分已读回效果与尚未确认。超时或传输不确定可能是 unknown，不能盲目重试。
+tap_at、long_press_at、swipe_path、scroll_at、input_text、node_action、press_key、`launch_app` 和 `configure_screen` 支持 `observe_after=none/tree/screenshot/both`，默认 `both`。结果中 `execution_status=accepted` 表示后端接受输入；`effect_status=verified/unconfirmed` 区分已读回效果与尚未确认。超时或传输不确定可能是 unknown，不能盲目重试。
 
 输入接受后若新观察失败，仍保留 `ok=true` 与 accepted，同时返回 `observation_status=failed`、`observation_error`。输入不会重放；重新观察并用业务状态决定下一步。操作被拒绝时先处理租约 / 观察 / 参数问题。
 

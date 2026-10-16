@@ -25,13 +25,14 @@ class McpToolRegistry(private val sessions: VirtualScreenSessionManager,
     private val approvals: ControlApprovalManager = ControlApprovalManager(sessions),
     private val clientName: (String) -> String = { "MCP client" },
     private val language: () -> UiLanguage = { sessions.systemLanguage }) {
+    private val defaultOperationObservation = "both"
     private val current=MutableStateFlow<ToolActivity?>(null)
     val activity=current.asStateFlow()
     private val receipts=RequestReceipts()
     fun forgetClient(owner: String) { receipts.forget(owner); approvals.forgetClient(owner) }
     private val lease=mapOf("lease_token" to string())
     private val observed=lease+("observation_id" to string())
-    private val after=mapOf("observe_after" to choice("none","tree","screenshot","both"),"max_image_width" to integer(320,2048))
+    private val after=mapOf("observe_after" to choice("none","tree","screenshot","both").put("default",defaultOperationObservation),"max_image_width" to integer(320,2048))
     private val selector=JSONObject().put("type","object").put("minProperties",1).put("additionalProperties",false)
         .put("properties",JSONObject(mapOf("resource_id" to string(),"text" to string(),"description" to string(),"class" to string())))
     private val display=mapOf("width" to integer(320,4096),"height" to integer(480,4096),"density" to integer(120,640),"rotation" to integer(0,3),
@@ -51,10 +52,10 @@ class McpToolRegistry(private val sessions: VirtualScreenSessionManager,
             tool(l,"get_status",t("查看状态、后端能力和当前控制方，无需租约。","Read status, backend capabilities and the current controller without a lease.","檢視狀態、後端能力和目前控制方，無需租約。"),readOnly=true),
             tool(l,"get_request_receipt",t("用原 JSON-RPC id 字符串查询当前 MCP 会话最近 32 个请求的回执，无需租约。查询不会重发输入。","Look up one of this MCP session's last 32 request receipts by the original JSON-RPC id string. No lease required; never replays input.","用原 JSON-RPC id 字串查詢目前 MCP 工作階段最近 32 個請求的回執，無需租約。查詢不會重播輸入。"),mapOf("request_id" to string(128).put("minLength",1)),setOf("request_id"),readOnly=true),
             tool(l,"create_screen",t("创建唯一虚拟屏，默认匹配手机可用分辨率和 DPI。只指定宽或高时按比例计算另一边及 DPI。需要控制租约。","Create the isolated display using the phone viewport and DPI by default. A width or height override scales the other dimension and density. Requires control.","建立唯一虛擬螢幕，預設符合手機可用解析度和 DPI。只指定寬或高時按比例計算另一邊及 DPI。需要控制租約。"),lease+display,lease.keys),
-            tool(l,"configure_screen",t("重新配置已有虚拟屏。保留未指定参数；重建显示并使旧观察失效。","Reconfigure an existing display, retaining unspecified settings. Rebuilds the display and invalidates old observations.","重新設定現有虛擬螢幕。保留未指定參數；重建顯示並使舊觀察失效。"),lease+display,lease.keys),
+            tool(l,"configure_screen",t("重新配置已有虚拟屏。保留未指定参数；重建显示并使旧观察失效，默认返回重建后的新观察。","Reconfigure an existing display, retaining unspecified settings. Rebuilds the display, invalidates old observations, and returns a fresh post-rebuild observation by default.","重新設定現有虛擬螢幕。保留未指定參數；重建顯示並使舊觀察失效，預設傳回重建後的新觀察。"),lease+display+after,lease.keys),
             tool(l,"close_screen",t("关闭虚拟屏并使旧观察失效。需要当前控制租约。","Close the isolated display and invalidate its observations. Requires the current control lease.","關閉虛擬螢幕並使舊觀察失效。需要目前控制租約。"),lease,lease.keys),
             tool(l,"list_apps",t("查询可启动应用，可按 query 或 package 过滤。需要控制租约，不会启动应用。","List launchable apps, optionally filtering by query or package. Requires control; does not launch apps.","查詢可啟動應用程式，可按 query 或 package 篩選。需要控制租約，不會啟動應用程式。"),lease+mapOf("query" to string(),"package" to string()),lease.keys,readOnly=true),
-            tool(l,"launch_app",t("在虚拟屏启动 component，可传 uri。跨屏冲突时等待手机通知确认重启，最长两分钟；客户端超时应至少150秒。","Launch component on the isolated display with an optional uri. Cross-display conflicts await phone restart approval for up to two minutes. Use a client timeout of at least 150 seconds.","在虛擬螢幕啟動 component，可傳 uri。跨螢幕衝突時等待手機通知確認重新啟動，最長兩分鐘；用戶端逾時應至少150秒。"),lease+mapOf("component" to string().put("minLength",1),"uri" to string()),lease.keys+"component"),
+            tool(l,"launch_app",t("在虚拟屏启动 component，可传 uri。启动会使旧观察失效，默认直接返回启动后的新观察；跨屏冲突时等待手机通知确认重启，最长两分钟。","Launch component on the isolated display with an optional uri. Launching invalidates the old observation and returns a fresh post-launch observation by default. Cross-display conflicts await phone restart approval for up to two minutes.","在虛擬螢幕啟動 component，可傳 uri。啟動會使舊觀察失效，預設直接傳回啟動後的新觀察；跨螢幕衝突時等待手機通知確認重新啟動，最長兩分鐘。"),lease+after+mapOf("component" to string().put("minLength",1),"uri" to string()),lease.keys+"component"),
             tool(l,"observe",t("取得新观察。mode=tree 省去截图；screenshot 或 both 返回图像。format=compact 只返回可见的有用节点，full 保留层级。坐标始终以 width/height 的显示像素计，缩图须按 image_to_display_scale 换算。输入消耗观察。","Get a fresh observation. mode=tree avoids image capture; screenshot/both add an image. compact returns useful visible nodes; full preserves hierarchy. Coordinates use display width/height, so map scaled images with image_to_display_scale. Input consumes the observation.","取得新觀察。mode=tree 省去截圖；screenshot 或 both 傳回影像。compact 只傳回可見的有用節點，full 保留階層。座標以 width/height 的顯示像素計，縮圖須按 image_to_display_scale 換算。輸入消耗觀察。"),
                 lease+mapOf("include_nodes" to boolean(),"mode" to choice("tree","screenshot","both"),"format" to choice("compact","full"),"max_image_width" to integer(320,2048)),lease.keys,readOnly=true),
             tool(l,"tap_at",t("使用最新未消耗观察，在虚拟屏像素坐标 x/y 点击。","Tap display pixel coordinates x/y using a fresh unconsumed observation.","使用最新未消耗觀察，在虛擬螢幕像素座標 x/y 點按。"),observed+after+xy,observed.keys+xy.keys),
@@ -144,10 +145,12 @@ class McpToolRegistry(private val sessions: VirtualScreenSessionManager,
                 "create_screen" -> sessions.create(owner,token,config(args))
                 "configure_screen" -> {
                     check(sessions.state.value.displayId != null) { "NO_VIRTUAL_SCREEN" }
-                    sessions.configure(owner,token,config(args))
+                    withPostObservation(owner,token,sessions.configure(owner,token,config(args)),args.optString("observe_after",defaultOperationObservation))
                 }
                 "close_screen" -> sessions.close(owner,token)
-                "launch_app" -> sessions.launch(owner,token,args.getString("component"),args.optString("uri").takeIf(String::isNotBlank),purpose,clientName(owner))
+                    "launch_app" -> withPostObservation(owner,token,
+                        sessions.launch(owner,token,args.getString("component"),args.optString("uri").takeIf(String::isNotBlank),purpose,clientName(owner)),
+                        args.optString("observe_after",defaultOperationObservation))
                 "list_apps" -> {
                     check(sessions.renewLease(owner,token) is LeaseDecision.Granted) { "LEASE_REQUIRED" }
                     val query=args.optString("query")
@@ -166,14 +169,7 @@ class McpToolRegistry(private val sessions: VirtualScreenSessionManager,
                     }
                     val action=sessions.operate(owner,token,observation,operation(name,operationArgs))
                     val outcome=action.copy(values=action.values+mapOf("execution_status" to if(action.ok) "accepted" else if(action.code in setOf("UI_INPUT_TIMEOUT","UI_MANUAL_CONTROL","INPUT_DISPATCH_UNCONFIRMED")) "unknown" else "rejected","effect_status" to if(action.values["verified"]==true) "verified" else "unconfirmed","requires_observation" to true))
-                    if(!action.ok || args.optString("observe_after","none")=="none") outcome else {
-                        // Never replay an accepted input if the subsequent observation fails.
-                        try {
-                            val next=observe(owner,token,args.getString("observe_after"),"compact")
-                            outcome.copy(values=outcome.values+next.values+mapOf("observation_status" to "available","requires_observation" to false))
-                        } catch(c: CancellationException) { throw c }
-                          catch(e: Exception) { outcome.copy(values=outcome.values+mapOf("observation_status" to "failed","observation_error" to e.code())) }
-                    }
+                    withPostObservation(owner,token,outcome,args.optString("observe_after",defaultOperationObservation))
                 }
             }
             complete(activity,if(result.ok) "completed" else "failed",result.code)
@@ -197,6 +193,19 @@ class McpToolRegistry(private val sessions: VirtualScreenSessionManager,
         if(mode=="tree") nodes.getOrThrow()
         return frame.copy(values=frame.values+nodes.fold({ snapshot -> nodeValues(snapshot,format) },{ failure ->
             mapOf("nodes" to emptyList<Any>(),"nodes_error" to failure.code(),"nodes_message" to localizedError(language(),failure.code())) }))
+    }
+    private suspend fun withPostObservation(owner: String,token: String,result: OperationEnvelope,mode: String): OperationEnvelope {
+        if(!result.ok) return result
+        if(mode=="none") {
+            return if(result.values.containsKey("requires_observation")) result
+            else result.copy(values=result.values+mapOf("requires_observation" to true))
+        }
+        // Never replay an accepted input if the subsequent observation fails.
+        return try {
+            val next=observe(owner,token,mode,"compact")
+            result.copy(values=result.values+next.values+mapOf("observation_status" to "available","requires_observation" to false))
+        } catch(c: CancellationException) { throw c }
+          catch(e: Exception) { result.copy(values=result.values+mapOf("observation_status" to "failed","observation_error" to e.code(),"requires_observation" to true)) }
     }
     private fun matches(n: NodeInfo,s: JSONObject): Boolean = n.visible &&
         (!s.has("resource_id") || n.resourceId==s.getString("resource_id")) &&
