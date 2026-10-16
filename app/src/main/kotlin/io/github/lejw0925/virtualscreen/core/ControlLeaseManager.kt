@@ -38,6 +38,11 @@ class ControlLeaseManager(
     @Synchronized fun takeover(owner: String): Lease = Lease(owner, UUID.randomUUID().toString(), nowMillis() + ttlMillis, ++generation).also { current = it }
     @Synchronized fun check(owner: String, token: String): Boolean { expire(); return current?.let { it.owner == owner && it.token == token } == true }
     @Synchronized fun snapshot(): Lease? { expire(); return current }
+    @Synchronized internal fun remainingMillis(owner: String, token: String): Long? {
+        expire()
+        return current?.takeIf { it.owner == owner && it.token == token }
+            ?.let { (it.expiresAtMillis - nowMillis()).coerceAtLeast(0) }
+    }
     @Synchronized fun clear() { current = null; generation++ }
     private fun expire() { if (current?.expiresAtMillis?.let { it <= nowMillis() } == true) { current = null; generation++ } }
 }

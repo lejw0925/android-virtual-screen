@@ -43,8 +43,8 @@ class McpToolRegistry(private val sessions: VirtualScreenSessionManager,
         val l=language()
         fun t(h: String,e: String,z: String)=l.text(h,e,z)
         return listOf(
-            tool(l,"acquire_control",t("申请五分钟独占控制权，无需 lease_token。身份绑定当前 MCP 会话。","Acquire five-minute exclusive control for this MCP session. No lease_token is needed.","申請五分鐘獨佔控制權，無需 lease_token。身分繫結目前 MCP 工作階段。")),
-            tool(l,"release_control",t("释放当前会话的控制权，使旧租约和观察失效。","Release this session's control and invalidate its lease and observations.","釋放目前工作階段的控制權，使舊租約和觀察失效。"),lease,lease.keys),
+            tool(l,"acquire_control",t("申请独占控制权，无需 lease_token。每个带租约的操作自动续期，闲置五分钟释放控制并收起远程画中画。身份绑定当前 MCP 会话。","Acquire exclusive control for this MCP session. No lease_token is needed. Each lease-authenticated operation refreshes the five-minute idle deadline; expiry releases control and hides the remote PiP.","申請獨佔控制權，無需 lease_token。每個帶租約的操作自動續期，閒置五分鐘釋放控制並收起遠端子母畫面。身分繫結目前 MCP 工作階段。")),
+            tool(l,"release_control",t("释放当前会话的控制权并收起远程画中画，使旧租约和观察失效。","Release this session's control, hide the remote PiP, and invalidate its lease and observations.","釋放目前工作階段的控制權並收起遠端子母畫面，使舊租約和觀察失效。"),lease,lease.keys),
             tool(l,"request_control",t("控制权被手机或其他 Agent 占用时，发送通知申请接管。用户可允许一次或始终允许；立即返回 pending，不阻塞服务。用 action=status 和 approval_id 每秒查询，获批后使用新 lease_token 并重新观察。始终允许仅自动接管手机占用，不能绕过其他 Agent 的审批。","Request occupied control through a phone notification. The user can allow once or always. Returns pending immediately; poll action=status with approval_id once per second. Approval returns a new lease_token; observe again. Always allow applies only to phone occupancy; competing agents still require approval.","控制權被手機或其他 Agent 佔用時，傳送通知申請接管。使用者可允許一次或始終允許；立即傳回 pending。用 action=status 和 approval_id 每秒查詢，獲批後使用新 lease_token 並重新觀察。始終允許僅自動接管手機佔用，其他 Agent 仍需審批。"),
                 mapOf("action" to choice("request","status","cancel"),"approval_id" to string(128)),setOf("action"),
                 branches=mapOf("status" to setOf("approval_id"),"cancel" to setOf("approval_id"))),

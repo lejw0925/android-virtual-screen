@@ -101,11 +101,13 @@ open class MainActivity : ComponentActivity() {
     private var openingSettings = false
     private val phoneViewer = java.util.UUID.randomUUID().toString()
     private var previewDismissed = false
+    private var remotePreview = false
     private var launchingPreview by mutableStateOf(false)
     override fun onCreate(savedInstanceState: Bundle?) {
         prepareWindowTheme(app)
         super.onCreate(savedInstanceState); enableEdgeToEdge()
         pip = isInPictureInPictureMode
+        remotePreview = savedInstanceState?.getBoolean("remote_preview") ?: (this is ViewerActivity && intent.getBooleanExtra("pip",false))
         launchingPreview = this is ViewerActivity && intent.getBooleanExtra("pip",false) && !pip && savedInstanceState==null
         intent.removeExtra("pip")
         if(launchingPreview) window.decorView.alpha=0f
@@ -129,6 +131,18 @@ open class MainActivity : ComponentActivity() {
             if(this@MainActivity is ViewerActivity && geometry.first==null) finish()
             else setPictureInPictureParams(pipParams())
         } }
+        lifecycleScope.launch {
+            app.sessions.state.map { it.lease?.owner }.distinctUntilChanged().collect { owner ->
+                when {
+                    owner == VirtualScreenSessionManager.PHONE_CLIENT -> remotePreview = false
+                    owner != null -> remotePreview = true
+                    remotePreview -> {
+                        remotePreview = false
+                        if(pip || launchingPreview) dismissPreview()
+                    }
+                }
+            }
+        }
     }
     override fun onResume() {
         super.onResume()
@@ -167,11 +181,16 @@ open class MainActivity : ComponentActivity() {
         endPhoneSession()
     }
     override fun onDestroy() { endPhoneSession(); super.onDestroy() }
+    override fun onSaveInstanceState(outState: Bundle) {
+        outState.putBoolean("remote_preview",remotePreview)
+        super.onSaveInstanceState(outState)
+    }
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
         val requestPreview=intent.getBooleanExtra("pip",false)
         intent.removeExtra("pip")
         setIntent(intent)
+        if(requestPreview) remotePreview=true
         if(requestPreview && !pip) {
             launchingPreview=true
             window.decorView.alpha=0f
@@ -216,12 +235,18 @@ open class MainActivity : ComponentActivity() {
     }
     private fun beginPhoneSession() {
         if(pip || previewDismissed || launchingPreview) return
+        remotePreview=false
         app.sessions.beginPhoneSession(phoneViewer)
     }
     private fun endPhoneSession() {
         app.sessions.endPhoneSession(phoneViewer)
     }
-    internal fun dismissPreview() { previewDismissed = true; endPhoneSession(); finish() }
+    internal fun dismissPreview() {
+        previewDismissed = true
+        if(pip || launchingPreview) app.sessions.previewVisibility(false)
+        endPhoneSession()
+        finish()
+    }
 }
 
 @Composable internal fun VirtualScreenTheme(app: VirtualScreenApplication,content: @Composable () -> Unit) {

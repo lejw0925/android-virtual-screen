@@ -15,6 +15,7 @@ import org.robolectric.annotation.Config
 internal class FakeBackend(override val kind: BackendKind): VirtualScreenBackend {
     var closed=0; var inputs=0; var cancelled=0
     var frames=0; var inspections=0
+    var previews=0
     var observationFailure: String?=null
     var testNodes: List<NodeInfo> = emptyList()
     var truncated=false
@@ -31,6 +32,7 @@ internal class FakeBackend(override val kind: BackendKind): VirtualScreenBackend
         return observationFailure?.let { Result.failure(IllegalStateException(it)) } ?: Result.success(ScreenObservation("backend-id",handle.id,0,720,1600,0))
     }
     override suspend fun inspect(handle: VirtualScreenHandle)=Result.success(ScreenObservation("backend-id",handle.id,0,720,1600,0)).also { inspections++ }
+    override suspend fun showPreview(handle: VirtualScreenHandle)=BackendResult.success("preview_requested" to true).also { previews++ }
     override suspend fun nodes(handle: VirtualScreenHandle,observationId: String)=Result.success(NodeSnapshot(observationId,handle.displayId,"fixture",testNodes,truncated))
     override suspend fun operate(handle: VirtualScreenHandle,operation: BackendOperation)=BackendResult.success().also { inputs++ }
     override fun cancelActive() { cancelled++ }

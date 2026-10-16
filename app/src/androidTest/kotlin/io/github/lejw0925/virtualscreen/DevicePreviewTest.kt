@@ -7,6 +7,7 @@ import android.content.Intent
 import android.graphics.Bitmap
 import android.graphics.Rect
 import android.os.SystemClock
+import android.os.PowerManager
 import android.view.InputDevice
 import android.view.MotionEvent
 import android.view.accessibility.AccessibilityNodeInfo
@@ -38,7 +39,7 @@ class DevicePreviewTest {
     private val instrumentation get() = InstrumentationRegistry.getInstrumentation()
     private val context: Context get() = instrumentation.targetContext
 
-    @Test fun mcpPreviewSystemExpandSurvivesRecreationAndReturnsControlAfterHome() = runBlocking {
+    @Test fun mcpPreviewSystemExpandSurvivesRecreationAndReturnsControlAfterHome() = runBlocking<Unit> {
         val authorized = ShizukuBackend(context).probe().displayCreation != CapabilityStatus.REQUIRES_AUTHORIZATION
         if (InstrumentationRegistry.getArguments().getString("require_shizuku") == "true") {
             assertTrue("Shizuku is required", authorized)
@@ -111,7 +112,66 @@ class DevicePreviewTest {
                 client.tool("tap_at", "lease_token" to lease, "observation_id" to observed.getString("observation_id"),
                     "x" to 350, "y" to 160, "observe_after" to "screenshot")
             }
+            client.tool("release_control", "lease_token" to lease)
+            await { viewer() == null }
+            assertEquals(display, manager.state.value.displayId)
+            assertEquals(session, manager.state.value.sessionId)
+            lease = client.tool("acquire_control").getString("lease_token")
+            awaitPip()
+            client.tool("observe", "lease_token" to lease, "mode" to "screenshot")
         } finally {
+            manager.shutdown()
+            client.close()
+        }
+    }
+
+    @Suppress("DEPRECATION")
+    @Test fun mcpPreviewClosesAtIdleLeaseDeadlineWithoutReleaseOrStatusPolling() = runBlocking<Unit> {
+        val authorized = ShizukuBackend(context).probe().displayCreation != CapabilityStatus.REQUIRES_AUTHORIZATION
+        if (InstrumentationRegistry.getArguments().getString("require_shizuku") == "true") {
+            assertTrue("Shizuku is required", authorized)
+        } else assumeTrue("Grant Shizuku before validating PiP expiry", authorized)
+        val app = context.applicationContext as VirtualScreenApplication
+        val manager = app.sessions
+        assertNull("Run with no existing display", manager.state.value.displayId)
+        instrumentation.runOnMainSync {
+            context.startForegroundService(Intent(context, VirtualScreenForegroundService::class.java))
+        }
+        manager.selectBackend(BackendKind.SHIZUKU)
+        app.mcp.start().getOrThrow()
+        val client = PreviewMcpClient("http://127.0.0.1:${app.mcp.state().port}/mcp", app.mcp.state().token)
+        val wakeLock = context.getSystemService(PowerManager::class.java)
+            .newWakeLock(PowerManager.SCREEN_BRIGHT_WAKE_LOCK, "VirtualScreen:preview-expiry-test")
+        try {
+            wakeLock.acquire(330_000)
+            val lease = client.tool("acquire_control").getString("lease_token")
+            client.tool("create_screen", "lease_token" to lease, "width" to 720, "height" to 1600,
+                "density" to 320, "idle_timeout_minutes" to 0)
+            client.tool("launch_app", "lease_token" to lease,
+                "component" to "io.github.lejw0925.virtualscreen.fixture/.FixtureActivity", "observe_after" to "screenshot")
+            awaitPip()
+            val display = manager.state.value.displayId
+            val deadline = manager.state.value.lease!!.expiresAtMillis
+            // Read StateFlow only: the client makes no further calls until after expiry.
+            while (deadline - System.nanoTime() / 1_000_000 > 1000) {
+                assertNotNull(manager.state.value.lease)
+                assertNotNull(viewer())
+                val remaining = deadline - System.nanoTime() / 1_000_000
+                println("Waiting for idle PiP expiry: ${remaining / 1000}s remaining")
+                delay(minOf(30_000, remaining - 1000))
+            }
+            await { manager.state.value.lease == null && viewer() == null }
+            assertEquals(display, manager.state.value.displayId)
+            // The transport session also expires after five idle minutes.
+            client.reconnect()
+            assertEquals("hidden", client.tool("get_status").getString("preview_status"))
+            assertEquals("LEASE_REQUIRED", client.tool("observe", "lease_token" to lease,
+                "mode" to "screenshot", ok = false).getString("code"))
+            val next = client.tool("acquire_control").getString("lease_token")
+            awaitPip()
+            client.tool("observe", "lease_token" to next, "mode" to "screenshot")
+        } finally {
+            if (wakeLock.isHeld) wakeLock.release()
             manager.shutdown()
             client.close()
         }
@@ -178,7 +238,10 @@ class DevicePreviewTest {
         private var session: String? = null
         private var id = 0
 
-        init {
+        init { reconnect() }
+
+        fun reconnect() {
+            session = null
             request("initialize", JSONObject().put("protocolVersion", "2025-11-25")
                 .put("capabilities", JSONObject()).put("clientInfo", JSONObject().put("name", "pip-device-test").put("version", "1")))
             request("notifications/initialized", notification = true)

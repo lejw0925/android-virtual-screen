@@ -36,7 +36,6 @@ class VirtualScreenForegroundService : Service() {
     private data class Indicator(val title: String, val detail: String, val active: Boolean)
     private val app get() = application as VirtualScreenApplication
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
-    private var previewedSession: String? = null
     private var wakeLock: PowerManager.WakeLock? = null
     private val approvalNotifications = mutableMapOf<String,Int>()
     private val restartNotifications = mutableMapOf<String,Int>()
@@ -51,6 +50,7 @@ class VirtualScreenForegroundService : Service() {
         startForeground(ID, notification(Indicator(getString(R.string.notification_ready), getString(R.string.notification_running), false)))
         wakeLock = getSystemService(PowerManager::class.java).newWakeLock(PowerManager.PARTIAL_WAKE_LOCK,"VirtualScreen:MCP").apply { setReferenceCounted(false) }
         app.restoreMcp()
+        scope.launch { app.sessions.monitorLeaseExpiry() }
         scope.launch {
             app.mcp.approvals.pending.collect { requests ->
                 val ids = requests.map { it.id }.toSet()
@@ -104,11 +104,13 @@ class VirtualScreenForegroundService : Service() {
             }.distinctUntilChanged().collect { manager.notify(ID, notification(it)) }
         }
         scope.launch {
-            app.sessions.state.map { state -> state.sessionId?.takeIf {
-                state.status == SessionStatus.RUNNING && state.lease?.owner != null && state.lease.owner != VirtualScreenSessionManager.PHONE_CLIENT
-            } }.distinctUntilChanged().collect { session ->
-                if(session != null && session != previewedSession) {
-                    previewedSession = session
+            app.sessions.state.map { state ->
+                state.sessionId?.let { session ->
+                    state.lease?.takeIf { state.status == SessionStatus.RUNNING && it.owner != VirtualScreenSessionManager.PHONE_CLIENT }
+                        ?.let { session to it.generation }
+                }
+            }.distinctUntilChanged().collect { control ->
+                if(control != null && app.sessions.state.value.previewStatus != PreviewStatus.VISIBLE) {
                     // Fixed viewer starts directly into PiP without a full-screen task switch.
                     runCatching { app.sessions.showRemotePreview() }
                 }

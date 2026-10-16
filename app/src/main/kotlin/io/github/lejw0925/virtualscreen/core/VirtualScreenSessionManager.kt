@@ -10,9 +10,13 @@ import java.util.UUID
 import java.util.concurrent.atomic.AtomicLong
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.NonCancellable
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.collectLatest
+import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
@@ -131,6 +135,17 @@ class VirtualScreenSessionManager(
         if (current?.generation != state.value.lease?.generation) fence()
         update { it.copy(lease = current) }
         return current
+    }
+    /** Publishes remote lease expiry even when the client stops making requests. */
+    suspend fun monitorLeaseExpiry() {
+        state.map { it.lease }.distinctUntilChanged().collectLatest { held ->
+            if (held == null || held.owner == PHONE_CLIENT) return@collectLatest
+            while (true) {
+                val remaining = leases.remainingMillis(held.owner, held.token) ?: break
+                delay(remaining.coerceAtLeast(1))
+            }
+            leaseStatus()
+        }
     }
     @Synchronized fun acquireLease(clientId: String): LeaseDecision {
         retainPhoneViewerLease()
@@ -324,7 +339,10 @@ class VirtualScreenSessionManager(
         }
     }
     suspend fun showRemotePreview(): BackendResult = mutex.withLock {
-        if (phoneViewerActive) return@withLock BackendResult.success("preview_requested" to false)
+        val controller = leaseStatus()
+        if (phoneViewerActive || controller == null || controller.owner == PHONE_CLIENT) {
+            return@withLock BackendResult.success("preview_requested" to false)
+        }
         val result=backend().showPreview(requireHandle())
         update { it.copy(previewStatus=if(!result.ok) PreviewStatus.UNAVAILABLE else if(it.previewStatus==PreviewStatus.VISIBLE) PreviewStatus.VISIBLE else PreviewStatus.REQUESTED) }
         result
