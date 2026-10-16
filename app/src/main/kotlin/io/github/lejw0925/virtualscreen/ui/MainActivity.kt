@@ -13,18 +13,26 @@ import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.core.animateFloat
+import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.animation.core.infiniteRepeatable
 import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.LinearEasing
 import androidx.compose.animation.core.RepeatMode
+import androidx.compose.animation.core.Spring
+import androidx.compose.animation.core.spring
 import androidx.compose.animation.expandVertically
 import androidx.compose.animation.shrinkVertically
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
+import androidx.compose.animation.scaleIn
+import androidx.compose.animation.scaleOut
+import androidx.compose.animation.togetherWith
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.basicMarquee
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.background
@@ -60,6 +68,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.compose.ui.window.Dialog
 import androidx.core.view.WindowCompat
@@ -92,12 +101,13 @@ open class MainActivity : ComponentActivity() {
     private var openingSettings = false
     private val phoneViewer = java.util.UUID.randomUUID().toString()
     private var previewDismissed = false
-    private var launchingPreview = false
+    private var launchingPreview by mutableStateOf(false)
     override fun onCreate(savedInstanceState: Bundle?) {
         prepareWindowTheme(app)
         super.onCreate(savedInstanceState); enableEdgeToEdge()
         pip = isInPictureInPictureMode
         launchingPreview = this is ViewerActivity && intent.getBooleanExtra("pip",false) && !pip
+        if(launchingPreview) window.decorView.alpha=0f
         if(BuildConfig.DEBUG && intent.getBooleanExtra("device_test",false)) window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
         window.attributes=window.attributes.apply { preferredRefreshRate=120f }
         WindowCompat.getInsetsController(window,window.decorView).apply {
@@ -105,12 +115,13 @@ open class MainActivity : ComponentActivity() {
         }
         setContent { VirtualScreenTheme(app) {
             val guideDone by app.settings.guideCompleted.collectAsState()
-            if(!guideDone && this !is ViewerActivity && !pip) Box(Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).statusBarsPadding()) {
+            if(launchingPreview && !pip) Box(Modifier.fillMaxSize().background(Color.Transparent)) {
+                WindowAppearance(Color.Transparent)
+            } else if(!guideDone && this !is ViewerActivity && !pip) Box(Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).statusBarsPadding()) {
                 WindowAppearance(MaterialTheme.colorScheme.background)
                 SetupGuide(app,{ notifications.launch(Manifest.permission.POST_NOTIFICATIONS) }) {}
             } else ViewerScreen(app,pip,{ notifications.launch(Manifest.permission.POST_NOTIFICATIONS) },{ enterPreviewPictureInPicture() },{ openSettings() },{ openSettings("MCP") })
         } }
-        if(launchingPreview) window.decorView.post { if(!isFinishing && !pip) enterPreviewPictureInPicture() }
         lifecycleScope.launch { app.sessions.state.map { Triple(it.displayId,it.frame?.width,it.frame?.height) }.distinctUntilChanged().collect { geometry ->
             if(geometry.first==null) endPhoneSession()
             else if(lifecycle.currentState.isAtLeast(Lifecycle.State.RESUMED) && hasWindowFocus()) beginPhoneSession()
@@ -121,6 +132,7 @@ open class MainActivity : ComponentActivity() {
     override fun onResume() {
         super.onResume()
         if(app.mcpWanted && !app.mcp.state().running) { foreground(app); app.restoreMcp() }
+        if(launchingPreview && !pip) requestPreviewPictureInPicture()
         if(!pip && !launchingPreview && !previewDismissed && app.sessions.state.value.displayId!=null) {
             openingSettings = false
             if(this !is ViewerActivity) ViewerActivity.dismissPreview()
@@ -133,16 +145,20 @@ open class MainActivity : ComponentActivity() {
         super.onPictureInPictureModeChanged(isInPictureInPictureMode,newConfig)
         pip=isInPictureInPictureMode
         app.sessions.previewVisibility(pip)
-        if(pip) { launchingPreview = false; endPhoneSession() }
+        if(pip) {
+            launchingPreview = false
+            window.decorView.alpha=1f
+            endPhoneSession()
+        }
         else if(!isFinishing && !previewDismissed && lifecycle.currentState.isAtLeast(Lifecycle.State.RESUMED) && hasWindowFocus() && app.sessions.state.value.displayId!=null) { launchingPreview = false; beginPhoneSession() }
     }
     override fun onWindowFocusChanged(hasFocus: Boolean) {
         super.onWindowFocusChanged(hasFocus)
-        if(hasFocus && !isInPictureInPictureMode && lifecycle.currentState.isAtLeast(Lifecycle.State.RESUMED) && app.sessions.state.value.displayId!=null) beginPhoneSession()
+        if(hasFocus && !isInPictureInPictureMode && !launchingPreview && lifecycle.currentState.isAtLeast(Lifecycle.State.RESUMED) && app.sessions.state.value.displayId!=null) beginPhoneSession()
     }
     override fun onUserLeaveHint() {
         super.onUserLeaveHint()
-        if(!previewDismissed && !pip && !openingSettings && app.sessions.state.value.displayId!=null) {
+        if(!previewDismissed && !pip && !launchingPreview && !openingSettings && app.sessions.state.value.displayId!=null) {
             enterPreviewPictureInPicture()
         }
     }
@@ -151,14 +167,41 @@ open class MainActivity : ComponentActivity() {
         endPhoneSession()
     }
     override fun onDestroy() { endPhoneSession(); super.onDestroy() }
-    override fun onNewIntent(intent: Intent) { super.onNewIntent(intent); setIntent(intent); if(intent.getBooleanExtra("pip",false)) window.decorView.post { enterPreviewPictureInPicture() } }
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent); setIntent(intent)
+        if(intent.getBooleanExtra("pip",false) && !pip) {
+            launchingPreview=true
+            window.decorView.alpha=0f
+            window.decorView.postOnAnimation { if(!isFinishing && !pip) requestPreviewPictureInPicture() }
+        }
+    }
     private fun pipParams(): PictureInPictureParams {
         val state=app.sessions.state.value
         val ratio=(state.frame?.let { it.width.toFloat()/it.height } ?: state.config.width.toFloat()/state.config.height).coerceIn(0.42f,2.38f)
         return PictureInPictureParams.Builder().setAspectRatio(Rational((ratio*1000).roundToInt(),1000))
             .setSourceRectHint(android.graphics.Rect(0,0,window.decorView.width,window.decorView.height)).setAutoEnterEnabled(state.displayId!=null && !openingSettings && !previewDismissed).setSeamlessResizeEnabled(true).build()
     }
-    fun enterPreviewPictureInPicture() { if(app.sessions.state.value.displayId!=null) enterPictureInPictureMode(pipParams()) }
+    fun enterPreviewPictureInPicture(): Boolean = requestPreviewPictureInPicture()
+    private fun requestPreviewPictureInPicture(): Boolean {
+        if(isFinishing || pip) return pip
+        if(app.sessions.state.value.displayId==null) {
+            revealPreviewWindow()
+            return false
+        }
+        val entered=runCatching { enterPictureInPictureMode(pipParams()) }.getOrDefault(false)
+        if(entered) return true
+        window.decorView.postOnAnimation {
+            if(!isFinishing && !pip && launchingPreview) {
+                val retried=runCatching { enterPictureInPictureMode(pipParams()) }.getOrDefault(false)
+                if(!retried) revealPreviewWindow()
+            }
+        }
+        return false
+    }
+    private fun revealPreviewWindow() {
+        launchingPreview=false
+        window.decorView.alpha=1f
+    }
     private fun openSettings(page: String = "HOME") {
         openingSettings = true
         setPictureInPictureParams(PictureInPictureParams.Builder().setAutoEnterEnabled(false).build())
@@ -340,7 +383,7 @@ internal suspend fun phoneInput(app: VirtualScreenApplication,operation: Backend
     } } }
 }
 
-@OptIn(ExperimentalLayoutApi::class)
+@OptIn(ExperimentalLayoutApi::class, ExperimentalMaterial3ExpressiveApi::class)
 @Composable private fun FloatingControls(state: SessionState,mcpRunning: Boolean,expanded: Boolean,onExpanded: (Boolean) -> Unit,purpose: String?,phase: String?,live: Boolean,pip: Boolean,
     onSettings: () -> Unit,onKeyboard: () -> Unit,onApps: () -> Unit,onPip: () -> Unit) {
     val l=LocalLanguage.current; val context=LocalContext.current; val host=LocalView.current
@@ -362,11 +405,17 @@ internal suspend fun phoneInput(app: VirtualScreenApplication,operation: Backend
     BoxWithConstraints(Modifier.fillMaxSize().imePadding()) {
         val density=LocalDensity.current
         val w=with(density) { maxWidth.toPx() }; val h=with(density) { maxHeight.toPx() }
-        val controlWidth=if(pip) 24.dp else if(hidden) 44.dp else minOf(maxWidth-24.dp,284.dp)
+        val targetControlWidth=if(pip) maxOf(0.dp,minOf(maxWidth-20.dp,300.dp)) else if(hidden) 44.dp else minOf(maxWidth-24.dp,284.dp)
+        val animatedControlWidth by animateDpAsState(
+            targetValue=targetControlWidth,
+            animationSpec=spring(dampingRatio=.78f,stiffness=Spring.StiffnessMediumLow),
+            label="floating control width"
+        )
+        val controlWidth=if(pip) targetControlWidth else animatedControlWidth
         val cw=with(density) { controlWidth.toPx() }
-        val ch=if(pip) with(density) { 18.dp.toPx() } else measured.height.takeIf { it>0 }?.toFloat() ?: with(density) { 70.dp.toPx() }
+        val ch=if(pip) with(density) { 32.dp.toPx() } else measured.height.takeIf { it>0 }?.toFloat() ?: with(density) { 70.dp.toPx() }
         val top=with(density) { 12.dp.toPx() }
-        val bottom=maxOf(WindowInsets.displayCutout.getBottom(density),WindowInsets.navigationBarsIgnoringVisibility.getBottom(density))+with(density) { 12.dp.toPx() }
+        val bottom=maxOf(WindowInsets.displayCutout.getBottom(density),WindowInsets.navigationBarsIgnoringVisibility.getBottom(density))+with(density) { (if(pip) 10.dp else 12.dp).toPx() }
         val maxY=(h-bottom-ch).coerceAtLeast(top); val x=if(pip) ((w-cw)/2f).coerceAtLeast(0f) else if(right) (w-cw).coerceAtLeast(0f) else 0f
         val y=if(pip) maxY else (h*fraction).coerceIn(top,maxY)
         fun save() { val p=drag ?: return; right=p.x+cw/2>w/2; fraction=if(h>0) (p.y/h).coerceIn(0f,1f) else 0f; prefs.edit().putBoolean("right",right).putFloat("anchor_y",fraction).apply(); drag=null; onExpanded(false); hidden=true }
@@ -375,37 +424,67 @@ internal suspend fun phoneInput(app: VirtualScreenApplication,operation: Backend
         Box(Modifier.offset { IntOffset(position.x.roundToInt(),position.y.roundToInt()) }.width(controlWidth).onSizeChanged { measured=it }.onGloballyPositioned { layout ->
             val p=layout.positionInWindow(); host.systemGestureExclusionRects=listOf(android.graphics.Rect(p.x.roundToInt(),p.y.roundToInt(),(p.x+layout.size.width).roundToInt(),(p.y+layout.size.height).roundToInt()))
         }) {
-            if(pip) Box(
-                Modifier.fillMaxWidth().padding(vertical=2.dp).semantics { contentDescription=status },
-                contentAlignment=Alignment.Center
-            ) {
-                StatusIndicator(running,accent,Modifier.size(14.dp))
-            } else if(hidden) androidx.compose.material3.Card(Modifier.then(dragModifier),shape=RoundedCornerShape(18.dp)) {
-                IconButton(onClick={ hidden=false },modifier=Modifier.size(44.dp).semantics { contentDescription=status }) {
-                    StatusIndicator(running,accent,Modifier.size(22.dp))
-                }
-            } else androidx.compose.material3.Card(Modifier.padding(horizontal=8.dp).shadow(8.dp,RoundedCornerShape(20.dp)),shape=RoundedCornerShape(20.dp)) { Column(Modifier.padding(horizontal=12.dp,vertical=6.dp)) {
-                Row(Modifier.fillMaxWidth().then(dragModifier),verticalAlignment=Alignment.CenterVertically) {
-                    StatusIndicator(running,accent,Modifier.size(16.dp))
-                    Spacer(Modifier.width(8.dp))
-                    Text(if(!expanded && running && !purpose.isNullOrBlank()) purpose else status,modifier=Modifier.weight(1f),style=MaterialTheme.typography.bodyMedium,maxLines=if(expanded) 1 else 2,overflow=TextOverflow.Ellipsis,color=MaterialTheme.colorScheme.onSurface)
-                    IconButton(onClick={ onExpanded(!expanded) },modifier=Modifier.size(36.dp)) { Icon(Icons.AutoMirrored.Filled.ArrowForward,if(expanded) l.text("折叠操作","Collapse actions","摺疊操作") else l.text("展开操作","Expand actions","展開操作"),Modifier.size(18.dp).graphicsLayer { rotationZ=if(expanded) -90f else 90f }) }
-                }
-                purpose?.takeIf { expanded && it.isNotBlank() && phase=="running" }?.let { Text(it,modifier=Modifier.padding(top=4.dp),style=MaterialTheme.typography.bodyMedium,maxLines=3,overflow=TextOverflow.Ellipsis,color=MaterialTheme.colorScheme.onSurface) }
-                AnimatedVisibility(expanded,
-                    enter=expandVertically(tween(160),expandFrom=Alignment.Top)+fadeIn(tween(100)),
-                    exit=shrinkVertically(tween(140),shrinkTowards=Alignment.Top)+fadeOut(tween(90))) {
-                    Column(Modifier.padding(top=10.dp),verticalArrangement=Arrangement.spacedBy(10.dp)) {
-                        Row(Modifier.fillMaxWidth(),horizontalArrangement=Arrangement.SpaceBetween) {
-                            FloatingAction(Icons.Default.Apps,l.text("应用","Apps","應用"),onApps)
-                            FloatingAction(Icons.Default.Edit,l.text("输入","Type","輸入"),onKeyboard)
-                            FloatingAction(Icons.Default.PictureInPicture,l.text("画中画","PiP","子母畫面"),onPip)
-                            FloatingAction(Icons.Default.Settings,l.text("设置","Settings","設定"),onSettings)
-                        }
-                        if(!live) Text(l.text("兼容预览","Compatibility preview","相容預覽"),style=MaterialTheme.typography.labelLarge,color=MaterialTheme.colorScheme.onSurfaceVariant)
+            if(pip) {
+                val pipPurpose=purpose?.takeIf { it.isNotBlank() } ?: status
+                Surface(
+                    modifier=Modifier.fillMaxWidth().heightIn(min=30.dp).semantics { contentDescription=pipPurpose },
+                    shape=RoundedCornerShape(50),
+                    color=MaterialTheme.colorScheme.surfaceContainerHigh.copy(alpha=.94f),
+                    tonalElevation=3.dp,
+                    shadowElevation=3.dp
+                ) {
+                    Row(Modifier.padding(horizontal=10.dp,vertical=5.dp),verticalAlignment=Alignment.CenterVertically) {
+                        StatusIndicator(running,accent,Modifier.size(11.dp))
+                        Spacer(Modifier.width(7.dp))
+                        Text(
+                            pipPurpose,
+                            modifier=Modifier.weight(1f).basicMarquee(iterations=Int.MAX_VALUE,repeatDelayMillis=700),
+                            style=MaterialTheme.typography.labelSmall.copy(fontSize=10.sp),
+                            maxLines=1,
+                            softWrap=false,
+                            color=MaterialTheme.colorScheme.onSurface
+                        )
                     }
                 }
-            } }
+            } else AnimatedContent(
+                targetState=hidden,
+                transitionSpec={
+                    (fadeIn(tween(150))+scaleIn(initialScale=.88f,animationSpec=spring(dampingRatio=.78f,stiffness=Spring.StiffnessMedium)))
+                        .togetherWith(fadeOut(tween(90))+scaleOut(targetScale=.88f,animationSpec=spring(dampingRatio=.82f,stiffness=Spring.StiffnessMedium)))
+                },
+                label="floating control fold"
+            ) { folded ->
+                if(folded) Box(Modifier.then(dragModifier).size(44.dp)) {
+                    FilledTonalIconButton(
+                        onClick={ hidden=false },
+                        shapes=IconButtonShapes(RoundedCornerShape(18.dp),RoundedCornerShape(14.dp)),
+                        modifier=Modifier.fillMaxSize().semantics { contentDescription=status }
+                    ) {
+                        StatusIndicator(running,accent,Modifier.size(22.dp))
+                    }
+                } else androidx.compose.material3.Card(Modifier.padding(horizontal=8.dp).shadow(8.dp,RoundedCornerShape(20.dp)),shape=RoundedCornerShape(20.dp)) { Column(Modifier.padding(horizontal=12.dp,vertical=6.dp)) {
+                    Row(Modifier.fillMaxWidth().then(dragModifier),verticalAlignment=Alignment.CenterVertically) {
+                        StatusIndicator(running,accent,Modifier.size(16.dp))
+                        Spacer(Modifier.width(8.dp))
+                        Text(if(!expanded && running && !purpose.isNullOrBlank()) purpose else status,modifier=Modifier.weight(1f),style=MaterialTheme.typography.bodyMedium,maxLines=if(expanded) 1 else 2,overflow=TextOverflow.Ellipsis,color=MaterialTheme.colorScheme.onSurface)
+                        IconButton(onClick={ onExpanded(!expanded) },modifier=Modifier.size(36.dp)) { Icon(Icons.AutoMirrored.Filled.ArrowForward,if(expanded) l.text("折叠操作","Collapse actions","摺疊操作") else l.text("展开操作","Expand actions","展開操作"),Modifier.size(18.dp).graphicsLayer { rotationZ=if(expanded) -90f else 90f }) }
+                    }
+                    purpose?.takeIf { expanded && it.isNotBlank() && phase=="running" }?.let { Text(it,modifier=Modifier.padding(top=4.dp),style=MaterialTheme.typography.bodyMedium,maxLines=3,overflow=TextOverflow.Ellipsis,color=MaterialTheme.colorScheme.onSurface) }
+                    AnimatedVisibility(expanded,
+                        enter=expandVertically(tween(160),expandFrom=Alignment.Top)+fadeIn(tween(100)),
+                        exit=shrinkVertically(tween(140),shrinkTowards=Alignment.Top)+fadeOut(tween(90))) {
+                        Column(Modifier.padding(top=10.dp),verticalArrangement=Arrangement.spacedBy(10.dp)) {
+                            Row(Modifier.fillMaxWidth(),horizontalArrangement=Arrangement.SpaceBetween) {
+                                FloatingAction(Icons.Default.Apps,l.text("应用","Apps","應用"),onApps)
+                                FloatingAction(Icons.Default.Edit,l.text("输入","Type","輸入"),onKeyboard)
+                                FloatingAction(Icons.Default.PictureInPicture,l.text("画中画","PiP","子母畫面"),onPip)
+                                FloatingAction(Icons.Default.Settings,l.text("设置","Settings","設定"),onSettings)
+                            }
+                            if(!live) Text(l.text("兼容预览","Compatibility preview","相容預覽"),style=MaterialTheme.typography.labelLarge,color=MaterialTheme.colorScheme.onSurfaceVariant)
+                        }
+                    }
+                } }
+            }
         }
     }
 }

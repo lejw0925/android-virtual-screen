@@ -135,7 +135,8 @@ internal class PrivilegedDisplayEngine : AutoCloseable {
                 .setAspectRatio(android.util.Rational((ratio*1000).toInt(),1000)).setSeamlessResizeEnabled(true).build()
             val intent=android.content.Intent().setClassName(io.github.lejw0925.virtualscreen.BuildConfig.APPLICATION_ID,
                 io.github.lejw0925.virtualscreen.BuildConfig.APPLICATION_ID+".ui.ViewerActivity")
-                .addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK).putExtra("pip",true)
+                .addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK or android.content.Intent.FLAG_ACTIVITY_NO_ANIMATION)
+                .putExtra("pip",true)
             val activityManager=ActivityManager::class.java.getDeclaredMethod("getService").invoke(null)
             // app_process has no registered ApplicationThread. A null caller uses
             // the real Binder root/shell identity instead of the synthetic system context.
