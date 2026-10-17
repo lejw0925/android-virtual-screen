@@ -106,7 +106,13 @@ def main():
         assert first.request('ping', token='invalid')[2] == 401
         assert first.request(http_method='GET')[2] == 405
         tools = first.request('tools/list')[0]['result']['tools']
-        assert len(tools) == 20 and all('purpose' in t['inputSchema']['required'] for t in tools)
+        expected_tools = {
+            'acquire_control', 'release_control', 'request_control', 'get_status', 'get_request_receipt',
+            'create_screen', 'configure_screen', 'close_screen', 'list_apps', 'launch_app', 'observe',
+            'tap_at', 'long_press_at', 'swipe_path', 'scroll_at', 'input_text', 'node_action', 'press_key', 'wait',
+        }
+        assert {t['name'] for t in tools} == expected_tools and len(tools) == len(expected_tools)
+        assert all('purpose' in t['inputSchema']['required'] for t in tools)
         missing = first.request('tools/call', {'name': 'get_status', 'arguments': {}})[0]['result']
         assert data(missing, False)['code'] == 'PURPOSE_REQUIRED'
         lease = data(first.tool('acquire_control', '申请测试应用的独占控制权'))['lease_token']
@@ -114,7 +120,7 @@ def main():
         assert busy['code'] == 'CONTROL_BUSY'
         status = data(second.tool('get_status', '查看当前控制方与设备能力'))
         assert status['controller'] == first.session
-        print('Authentication, twenty tools, required purpose and exclusive lease verified.', flush=True)
+        print(f'Authentication, {len(tools)} tools, required purpose and exclusive lease verified.', flush=True)
 
         frame = observe(first, lease)
         button = next(n for n in frame['nodes'] if n.get('clickable') and 'tap counter' in (n.get('text') or '').lower())

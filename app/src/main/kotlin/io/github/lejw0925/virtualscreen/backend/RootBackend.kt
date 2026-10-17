@@ -23,6 +23,13 @@ class RootBackend(context: Context) : CommandBackend(context) {
     private var output: BufferedReader? = null
     private val deadlines = Executors.newSingleThreadScheduledExecutor { Thread(it, "display-deadlines").apply { isDaemon = true } }
 
+    /**
+     * Magisk-style su accepts `su -c command`, while the AOSP userdebug su
+     * shipped by the emulator accepts `su 0 command`. Probe once and keep the
+     * working form for the lifetime of this backend.
+     */
+    @Volatile private var suMode: SuCommandMode? = null
+
     override suspend fun probe(): BackendCapabilities = withContext(Dispatchers.IO) {
         // Noninteractive capability display only. A real probe is initiated by the user's authorize button.
         val granted = context.getSharedPreferences("settings", Context.MODE_PRIVATE).getBoolean("rootGranted", false)
@@ -35,17 +42,22 @@ class RootBackend(context: Context) : CommandBackend(context) {
     }
 
     suspend fun requestPermission(): Boolean = withContext(Dispatchers.IO) {
-        val p = runCatching { ProcessBuilder("su", "-c", "id -u").start() }.getOrNull() ?: return@withContext false
-        val timeout = deadlines.schedule({ p.destroyForcibly() }, 30, TimeUnit.SECONDS)
-        val granted = try { p.inputStream.bufferedReader().readText().trim() == "0" && p.waitFor(1, TimeUnit.SECONDS) && p.exitValue() == 0 }
-        finally { timeout.cancel(false); p.destroy() }
+        val granted = runCatching {
+            if (suMode == null) {
+                detectSuMode()
+                true
+            } else {
+                probeUid(startRoot("id -u"))
+            }
+        }.getOrDefault(false)
+        if (!granted) suMode = null
         context.getSharedPreferences("settings", Context.MODE_PRIVATE).edit().putBoolean("rootGranted", granted).apply()
         granted
     }
 
     suspend fun enableAccessibility(rebind: Boolean = false) = withContext(Dispatchers.IO) {
         val command = "CLASSPATH=${quote(context.applicationInfo.sourceDir)} app_process /system/bin ${AccessibilityAuthorization::class.java.name} ${android.os.Process.myUid()/100000} $rebind"
-        val child = ProcessBuilder("su", "-c", command).redirectErrorStream(true).start()
+        val child = startRoot(command, redirectErrorStream = true)
         val timeout = deadlines.schedule({ child.destroyForcibly() }, 15, TimeUnit.SECONDS)
         try {
             val result = child.inputStream.bufferedReader().readText()
@@ -57,7 +69,7 @@ class RootBackend(context: Context) : CommandBackend(context) {
 
     override suspend fun connect(config: VirtualScreenConfig): JSONObject = withContext(Dispatchers.IO) {
         val command = "CLASSPATH=${quote(context.applicationInfo.sourceDir)} app_process /system/bin ${RootDisplayCommandMain::class.java.name}"
-        val child = ProcessBuilder("su", "-c", command).start()
+        val child = startRoot(command)
         process = child; input = child.outputStream.bufferedWriter(); output = child.inputStream.bufferedReader()
         Thread { runCatching { child.errorStream.use { it.copyTo(java.io.OutputStream.nullOutputStream()) } } }.apply { isDaemon = true; start() }
         val nonce=java.util.UUID.randomUUID().toString()
@@ -110,4 +122,58 @@ class RootBackend(context: Context) : CommandBackend(context) {
         Unit
     }
     private fun quote(value: String) = "'" + value.replace("'", "'\\''") + "'"
+
+    private fun startRoot(command: String, redirectErrorStream: Boolean = false): Process {
+        val mode = suMode ?: detectSuMode()
+        val args = mode.arguments(command)
+        return ProcessBuilder(*args).apply { redirectErrorStream(redirectErrorStream) }.start()
+    }
+
+    private fun detectSuMode(): SuCommandMode {
+        synchronized(this) {
+            suMode?.let { return it }
+            val detected = detectSuCommandMode()
+            suMode = detected
+            return detected
+        }
+    }
+}
+
+internal fun probeUid(process: Process, timeoutMillis: Long = 30_000, expectedUid: String = "0"): Boolean {
+    try {
+        // id emits only a few bytes. Wait before reading so an unresolved su
+        // authorization prompt cannot block readText outside the deadline.
+        if (!process.waitFor(timeoutMillis, TimeUnit.MILLISECONDS)) {
+            process.destroyForcibly()
+            process.waitFor(1, TimeUnit.SECONDS)
+            return false
+        }
+        return process.exitValue() == 0 && process.inputStream.bufferedReader().use { it.readText().trim() } == expectedUid
+    } finally {
+        process.destroy()
+        runCatching { process.inputStream.close() }
+        runCatching { process.errorStream.close() }
+        runCatching { process.outputStream.close() }
+    }
+}
+
+internal enum class SuCommandMode {
+    C_FLAG, UID_COMMAND;
+
+    fun arguments(command: String, uid: String = "0"): Array<String> = when (this) {
+        C_FLAG -> if (uid == "0") arrayOf("su", "-c", command) else arrayOf("su", uid, "-c", command)
+        UID_COMMAND -> arrayOf("su", uid, "sh", "-c", command)
+    }
+}
+
+/** Detect with a read-only UID command; never retry an accepted input. */
+internal fun detectSuCommandMode(uid: String = "0", timeoutMillis: Long = 30_000): SuCommandMode {
+    val deadline = System.nanoTime() + TimeUnit.MILLISECONDS.toNanos(timeoutMillis)
+    return SuCommandMode.entries.firstOrNull { mode ->
+        val remaining = TimeUnit.NANOSECONDS.toMillis(deadline - System.nanoTime())
+        remaining > 0 && runCatching {
+            val process = ProcessBuilder(*mode.arguments("id -u", uid)).redirectErrorStream(true).start()
+            probeUid(process, remaining, uid)
+        }.getOrDefault(false)
+    } ?: error(if (uid == "0") "ROOT_PERMISSION_DENIED" else "SHELL_IDENTITY_REQUIRED")
 }

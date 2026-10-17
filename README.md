@@ -1,80 +1,178 @@
 <div align="center">
   <img src="docs/images/logo.svg" width="104" alt="虚拟屏" />
   <h1>虚拟屏 · Virtual Screen</h1>
-  <p><strong>Agent 的独立屏幕，你的手机照常使用。</strong></p>
+  <p><strong>Agent 的独立 Android 屏幕，手机主屏继续由你使用。</strong></p>
   <p>简体中文 · <a href="README.en.md">English</a></p>
   <p>
-    <a href="https://github.com/lejw0925/android-virtual-screen/releases/latest"><img src="https://img.shields.io/github/v/release/lejw0925/android-virtual-screen" alt="Release" /></a>
+    <a href="https://github.com/lejw0925/android-virtual-screen/releases/tag/v0.1.0-beta"><img src="https://img.shields.io/badge/Beta-0.1.0-yellow" alt="Beta 0.1.0" /></a>
     <a href="https://github.com/lejw0925/android-virtual-screen/actions/workflows/build.yml"><img src="https://github.com/lejw0925/android-virtual-screen/actions/workflows/build.yml/badge.svg" alt="Build" /></a>
     <img src="https://img.shields.io/badge/Android-13%2B-3DDC84" alt="Android 13+" />
     <a href="LICENSE"><img src="https://img.shields.io/badge/license-PolyForm_Noncommercial-blue" alt="PolyForm Noncommercial" /></a>
   </p>
 </div>
 
-虚拟屏为 AI Agent 提供一块独立的 Android 显示。Agent 在其中启动和操作应用，你继续使用手机主屏；画中画同步显示进度，通知可随时接管或停止。应用自身提供带认证的 MCP 服务，电脑无需额外安装手机控制服务器。
+虚拟屏是一款 Android 应用，为 AI Agent 建立独立虚拟显示，并在手机上运行经过认证的 MCP 服务。Agent 可以在虚拟屏中发现、启动和操作应用；你可以继续使用手机主屏，并随时查看、接管或停止操作。
 
 <p align="center">
-  <img src="docs/images/home-0.0.1.png" width="240" alt="虚拟屏首页" />
-  <img src="docs/images/automatic-pip-0.0.1.png" width="240" alt="手机正常使用，Agent 在画中画中操作测试应用" />
-  <img src="docs/images/guide-0.0.1.png" width="240" alt="首次使用引导" />
+  <img src="docs/images/material3-home.png" width="240" alt="首页服务状态" />
+  <img src="docs/images/material3-connections-large.png" width="240" alt="连接卡片" />
+  <img src="docs/images/material3-settings.png" width="240" alt="权限和后端设置" />
 </p>
 
-## 为什么使用虚拟屏
+## Beta 0.1.0
 
-- **手机继续由你使用**：所有 Agent 输入限定在本应用创建的显示中；失败时不会回退到主屏。跨屏应用重启需在手机确认。
-- **看得见，也能接管**：远程创建屏幕后自动显示画中画；通知显示运行状态和操作目的。打开本应用的全屏预览后触摸，或点击通知的接管按钮，即可撤销远程租约。
-- **准确而节制的工具**：20 个 MCP 工具覆盖控制、显示、应用、观察、输入和等待。纯节点观察省去截图；精简节点、唯一选择器和新鲜观察标识减少歧义。
-- **网络中断有据可查**：操作后可返回新观察；回执区分输入接受和效果确认。按原请求 ID 查询会话回执，查询不会重发输入。
-- **连接方式可选**：本机、局域网、frpc、Cloudflare Quick 或固定域名；凭据加密保存，服务和隧道默认关闭。
-- **手机上的完整体验**：Root / Shizuku、实时 Surface 预览、首次使用指引、简中 / 繁中 / 英文、深浅色及动态配色。
+从 [GitHub Releases](https://github.com/lejw0925/android-virtual-screen/releases/tag/v0.1.0-beta) 下载 `virtual-screen-0.1.0-beta.apk` 和 `SHA256SUMS`。安装包要求 Android 13（API 33）或更新版本；需要可用的 Root `su` 或已启动并授权的 Shizuku 服务。Beta 版本适合测试，设备兼容性和后台策略可能因 ROM 而异。
+
+## 功能
+
+- **独立虚拟显示**：Agent 的启动和输入只作用于本应用创建的显示；操作失败不会回退到手机主屏。跨屏冲突需要手机确认应用重启。
+- **随时查看和接管**：画中画显示远程进度；画中画是只读预览。展开应用内全屏预览或使用通知接管后可本地操作，接管会撤销远程控制租约。
+- **19 个 MCP 工具**：覆盖控制权、显示、应用、观察、输入和条件等待。树观察可以省略截图；新鲜观察 ID 和会话回执用于拒绝过期操作、查询不确定结果而不重放输入。
+- **Root 与 Shizuku**：两种权限后端共用虚拟显示引擎、MCP 协议和输入约束。
+- **多种连接方式**：回环地址、局域网、frpc 和 Cloudflare Tunnel。MCP 与隧道默认关闭；凭据保存在应用私有加密存储中。
+- **手机端设置**：简体中文、繁体中文和英文；深浅色、动态配色、首次设置引导和本地运行日志。
 
 ## 快速开始
 
-1. 从 [Releases](https://github.com/lejw0925/android-virtual-screen/releases/latest) 下载签名 APK。需要 **Android 13+**，并已安装 Root 或 Shizuku。
-2. 按首次引导选择访问方式并授权；启用无障碍服务可使用节点定位和 Unicode 文字编辑。允许画中画以自动预览。
-3. 开启 MCP，将复制的连接配置粘贴到 Agent 的 MCP 设置。电脑通过同一 Wi-Fi 连接时，开启「局域网访问」并使用手机地址；USB 开发连接见 [MCP 文档](docs/MCP.md)。
-4. 让 Agent 申请控制权、创建屏幕、列出并启动应用，再观察和操作。手机主屏可继续使用。需要人工操作时，从预览或通知接管。
+1. 安装 [Beta 0.1.0 APK](https://github.com/lejw0925/android-virtual-screen/releases/tag/v0.1.0-beta)，并在手机上安装可用的 Root 管理器或 Shizuku。使用 Shizuku 时，先启动其服务。
+2. 打开虚拟屏，在「权限与后端」选择 Root 或 Shizuku 并完成授权。启用系统无障碍服务后，可使用节点定位和 Unicode 文本编辑；允许通知以接收操作审批和接管入口；允许画中画以自动显示预览。
+3. 开启 MCP。USB 调试连接可在电脑运行：
 
-设置中可重新打开「使用指南」。只想本地体验时，点击首页「手动预览」。远程接入不需要额外的“允许控制”开关。
+   ```sh
+   adb forward tcp:8732 tcp:8732
+   ```
 
-## 工作方式
+   默认 MCP 地址为 `http://127.0.0.1:8732/mcp`。局域网连接需在设置中启用局域网访问；公网连接可选 frpc 或 Cloudflare Tunnel。
+
+4. 把手机生成的 Bearer Token 放进 MCP 客户端配置：
+
+   ```json
+   {
+     "mcpServers": {
+       "android-virtual-screen": {
+         "type": "http",
+         "url": "http://127.0.0.1:8732/mcp",
+         "headers": {
+           "Authorization": "Bearer <phone-generated-token>"
+         }
+       }
+     }
+   }
+   ```
+
+5. Agent 申请独占控制权，创建虚拟屏，发现并启动应用，然后获取节点或截图观察并执行操作。结束后释放控制权。完整协议、工具参数和客户端差异见 [MCP 接入文档](docs/MCP.md)。
+
+## 用例图
 
 ```mermaid
 flowchart LR
-    Agent[AI Agent / MCP 客户端] -->|认证 + 独占租约| MCP[手机 MCP 服务]
-    MCP --> Display[独立虚拟屏内的应用]
-    Display --> Preview[同步画中画 / 本地预览]
-    User[你] --> Phone[手机主屏]
-    User -->|随时接管| Preview
+    owner[手机使用者]
+    agent[AI Agent / MCP 客户端]
+    subgraph app[Virtual Screen Android 应用]
+        authorize([选择并授权 Root / Shizuku])
+        configure([配置 MCP 与网络连接])
+        approve([审批控制请求与应用重启])
+        takeover([查看预览、接管或停止])
+        authenticate([Bearer 认证并发现工具])
+        lease([申请 / 释放独占控制权])
+        manage([创建显示并启动应用])
+        observe([获取节点 / 截图观察])
+        operate([执行限定范围内的输入])
+    end
+    owner --> authorize
+    owner --> configure
+    owner --> approve
+    owner --> takeover
+    agent --> authenticate
+    agent --> lease
+    agent --> manage
+    agent --> observe
+    agent --> operate
+    configure -. 可选 .-> tunnel[frpc / Cloudflare Tunnel]
+    takeover --> display[虚拟显示中的应用]
+    manage --> display
+    observe --> display
+    operate --> display
 ```
 
-输入消耗一次观察；旧观察、过期租约和不唯一的选择器会被拒绝。应用多屏适配、Root / Shizuku 实现及后台策略因 ROM 而异。画中画本身用于查看，本应用的全屏预览支持本地触摸。
+## 架构图
 
-当前开发分支已迁移到 Material 3，并将 MCP 拆分为 20 个工具。客户端升级后请刷新工具列表；本轮 vivo、模拟器 Shizuku、Cloudflare 与功耗验证见 [迁移记录](docs/MIGRATION_VALIDATION.md)。公开 0.0.1 Release 仍是此前的发行包。
+```mermaid
+flowchart TB
+    client[AI Agent / MCP 客户端]
+    subgraph phone[Android 手机]
+        subgraph app[Virtual Screen 应用]
+            ui[Compose 首页、设置与预览]
+            service[前台服务与运行协调]
+            mcp[Ktor Streamable HTTP MCP]
+            auth[Bearer 认证、会话与请求回执]
+            lease[控制租约、审批与观察校验]
+            tools[19 个 MCP 工具注册表]
+            session[VirtualScreenSessionManager]
+            backend[VirtualScreenBackend 接口]
+            root[RootBackend / su 子进程]
+            shizuku[ShizukuBackend / UserService]
+            engine[共享 PrivilegedDisplayEngine]
+            display[Android 虚拟显示与目标应用]
+            access[无障碍节点服务]
+            preview[Surface 镜像与 PiP / 全屏预览]
+            tunnel[TunnelManager]
+            frpc[内置 frpc / cloudflared]
+        end
+    end
+    client -->|HTTP + Bearer Token| mcp
+    mcp --> auth --> tools --> lease --> session
+    ui --> service
+    service --> mcp
+    service --> tunnel --> frpc
+    session --> backend
+    backend --> root --> engine
+    backend --> shizuku --> engine
+    engine --> display
+    access --> session
+    display --> preview
+    owner[手机使用者] --> ui
+    owner -->|本地接管| preview
+    frpc -. 连接隧道 .-> client
+```
 
-## 验证与开发
+## 安全与行为边界
 
-在 vivo V2419A / Android 16 上完成三轮界面与真实 MCP 工作流迭代。测试夹具的 10 次采样中，纯节点观察相比旧截图加节点路径降低了响应时间和数据量；完整原始数据、签名发行验证及网络限制见 [0.0.1 验证记录](docs/RELEASE_VALIDATION.md)。这些结果不代表所有应用或设备。
+- 所有远程 MCP 请求都需要 Bearer Token；Token 轮换会使旧 Token 失效。不要把 Token 提交到仓库、日志或公开聊天中。
+- 设备操作需要当前会话持有的独占租约。每次有效操作延长五分钟空闲期限；过期租约、旧观察和不唯一选择器会被拒绝。
+- 输入严格限定在虚拟显示。远程画中画只展示画面；手机触摸或通知接管会撤销远程租约。Agent 不能代替用户点击手机主屏中的权限对话框。
+- MCP 和隧道默认关闭。LAN 与公网隧道会扩大网络可达范围，应只在需要时启用并保护客户端 Token。
+- 无障碍服务用于读取节点及辅助文本输入；不启用时可用的节点功能会减少。应用和 ROM 的多屏、画中画及后台行为存在差异。
 
-使用 JDK 25 和 Android SDK 37：
+## 开发与验证
+
+使用 JDK 25 和 Android SDK 37（`platforms;android-37.0`、`build-tools;37.0.0`）：
 
 ```sh
 ./gradlew :app:testDebugUnitTest :app:lintDebug :app:assembleDebug
 ```
 
-GitHub Actions 对提交和 PR 执行检查、提供 Debug 产物；版本标签 `v0.0.1` 通过检查后自动签名并发布 APK 和 SHA-256。发行密钥不进入仓库。
+与 GitHub Actions 相同的完整构建命令：
+
+```sh
+./gradlew --no-daemon :app:testDebugUnitTest :app:lintDebug :app:assembleDebug :app:assembleRelease :device-fixture:assembleDebug :app:assembleDebugAndroidTest
+```
+
+Actions 对 `main`、Pull Request 和手动运行执行 JVM 测试、Lint、Debug / unsigned Release、夹具和 instrumentation APK 构建。推送匹配的 `vX.Y.Z` 或 `vX.Y.Z-beta[.N]` 标签会验证、签名并发布 APK 与 `SHA256SUMS`；Beta 自动标记为 GitHub 预发布版本。签名资料只保存在仓库 Secrets。原生 frpc / cloudflared 的固定来源、校验和及构建方法见 [构建与发布](docs/BUILD.md)。
+
+当前设备验证见 [Beta 后端对照](docs/BACKEND_EMULATOR_VALIDATION.md)、[首页适配记录](docs/MCP_HOME_VALIDATION.md) 和 [发行验证](docs/RELEASE_VALIDATION.md)。Shizuku 在 Android 15 模拟器上完成 19/19 工具检测；该模拟器不允许普通应用执行其 AOSP `su`，因此 Root 的应用授权流程尚需在已授权 Root 的设备上验证。熄屏能力和所有 ROM 组合均未覆盖。
 
 | 文档 | 内容 |
 | --- | --- |
-| [构建与签名](docs/BUILD.md) | 环境、原生构建、发行签名及 Actions |
-| [MCP 接入](docs/MCP.md) | 客户端配置、工具参数、观察和回执 |
-| [隧道连接](docs/TUNNELS.md) | frpc、Cloudflare 与网络要求 |
-| [设备验证](docs/RELEASE_VALIDATION.md) | 三轮迭代、效率数据、设备和限制 |
-| [工具调研](docs/TOOL_RESEARCH.md) | 固定源码版本的工具对照与设计依据 |
-| [贡献指南](AGENTS.md) | 目录、命名和验证要求 |
+| [MCP 接入](docs/MCP.md) | 认证、客户端配置、工具参数、租约、观察与回执 |
+| [公网隧道](docs/TUNNELS.md) | frpc、Cloudflare、凭据与网络要求 |
+| [构建与发布](docs/BUILD.md) | 工具链、原生程序、签名和 GitHub Actions |
+| [发行验证](docs/RELEASE_VALIDATION.md) | 实机验证范围、数据和已知限制 |
+| [使用指南](docs/VALIDATION.md) | 首次授权和设备验证工作流 |
+| [贡献与仓库规范](AGENTS.md) | 项目结构、风格、测试和安全边界 |
 
 ## 来源与许可
 
-虚拟显示内核部分改编自 [ETA](https://github.com/Mangi-11/Eta)，界面使用 Jetpack Compose Material 3，原生隧道来自 [frp](https://github.com/fatedier/frp) 和 [cloudflared](https://github.com/cloudflare/cloudflared)。工具设计参考 [Mobile Next](https://github.com/mobile-next/mobile-mcp)、[Android-MCP](https://github.com/CursorTouch/Android-MCP)、[android-remote-control-mcp](https://github.com/danielealbano/android-remote-control-mcp) 和 [PhoneUse](https://github.com/nidhoggfgg/PhoneUse) 的调研结果。
+虚拟显示内核部分改编自 [ETA](https://github.com/Mangi-11/Eta)；界面使用 Jetpack Compose Material 3；隧道程序来自 [frp](https://github.com/fatedier/frp) 和 [cloudflared](https://github.com/cloudflare/cloudflared)。工具设计参考 [Mobile Next](https://github.com/mobile-next/mobile-mcp)、[Android-MCP](https://github.com/CursorTouch/Android-MCP)、[android-remote-control-mcp](https://github.com/danielealbano/android-remote-control-mcp) 和 [PhoneUse](https://github.com/nidhoggfgg/PhoneUse)。
 
-项目遵循 **[PolyForm Noncommercial 1.0.0](LICENSE)**，保留上游 Required Notice。组件许可、来源和原生二进制溯源见 [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md)。
+项目使用 **[PolyForm Noncommercial 1.0.0](LICENSE)**，并保留上游 Required Notice。第三方组件许可和原生二进制溯源见 [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md)。

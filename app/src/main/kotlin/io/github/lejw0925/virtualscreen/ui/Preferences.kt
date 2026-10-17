@@ -16,6 +16,7 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.unit.dp
@@ -27,10 +28,18 @@ internal fun ArrowPreference(
     modifier: Modifier = Modifier,
     summary: String? = null,
     enabled: Boolean = true,
+    icon: ImageVector? = null,
+    trailingIcon: ImageVector = Icons.AutoMirrored.Filled.KeyboardArrowRight,
     onClick: () -> Unit,
 ) {
-    PreferenceItem(title, summary, enabled, modifier.clickable(enabled = enabled, role = Role.Button, onClick = onClick)) {
-        Icon(Icons.AutoMirrored.Filled.KeyboardArrowRight, null, tint = MaterialTheme.colorScheme.onSurfaceVariant)
+    PreferenceItem(
+        title,
+        summary,
+        enabled,
+        modifier.clickable(enabled = enabled, role = Role.Button, onClick = onClick),
+        leading = icon?.let { { Icon(it, null, tint = MaterialTheme.colorScheme.primary) } },
+    ) {
+        Icon(trailingIcon, null, tint = MaterialTheme.colorScheme.onSurfaceVariant)
     }
 }
 
@@ -42,9 +51,11 @@ internal fun SwitchPreference(
     modifier: Modifier = Modifier,
     summary: String? = null,
     enabled: Boolean = true,
+    icon: ImageVector? = null,
 ) {
     PreferenceItem(title, summary, enabled,
-        modifier.toggleable(value = checked, enabled = enabled, role = Role.Switch, onValueChange = onCheckedChange)) {
+        modifier.toggleable(value = checked, enabled = enabled, role = Role.Switch, onValueChange = onCheckedChange),
+        leading = icon?.let { { Icon(it, null, tint = MaterialTheme.colorScheme.primary) } }) {
         Switch(checked = checked, onCheckedChange = null, enabled = enabled)
     }
 }
@@ -57,9 +68,10 @@ internal fun WindowDropdownPreference(
     onSelectedIndexChange: (Int) -> Unit,
     modifier: Modifier = Modifier,
     enabled: Boolean = true,
+    icon: ImageVector? = null,
 ) {
     var showDialog by remember { mutableStateOf(false) }
-    ArrowPreference(title, modifier, items.getOrNull(selectedIndex), enabled) { showDialog = true }
+    ArrowPreference(title, modifier, items.getOrNull(selectedIndex), enabled, icon = icon) { showDialog = true }
     if (showDialog) {
         val l = LocalLanguage.current
         AlertDialog(
@@ -105,8 +117,37 @@ internal fun PreferenceGroup(
         Column(Modifier.padding(horizontal = 16.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
             Text(title, style = MaterialTheme.typography.titleSmall, color = MaterialTheme.colorScheme.primary)
         }
-        Surface(shape = RoundedCornerShape(24.dp), color = MaterialTheme.colorScheme.surfaceContainerLow) {
+        Surface(
+            shape = MaterialTheme.shapes.extraLarge,
+            color = MaterialTheme.colorScheme.surfaceContainerLow,
+            tonalElevation = 1.dp,
+        ) {
             Column(Modifier.fillMaxWidth().padding(vertical = 4.dp), content = content)
+        }
+    }
+}
+
+@Composable
+internal fun StatusPill(
+    text: String,
+    positive: Boolean,
+    modifier: Modifier = Modifier,
+) {
+    val container = if (positive) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surfaceContainerHighest
+    val content = if (positive) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onSurfaceVariant
+    Surface(
+        modifier = modifier,
+        shape = MaterialTheme.shapes.large,
+        color = container,
+        contentColor = content,
+    ) {
+        Row(
+            Modifier.padding(horizontal = 12.dp, vertical = 7.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(7.dp),
+        ) {
+            Surface(Modifier.size(7.dp), shape = androidx.compose.foundation.shape.CircleShape, color = content) {}
+            Text(text, style = MaterialTheme.typography.labelLarge)
         }
     }
 }

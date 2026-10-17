@@ -33,9 +33,12 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.drawWithContent
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.geometry.CornerRadius
+import androidx.compose.ui.graphics.BlurEffect
+import androidx.compose.ui.graphics.TileMode
 import androidx.compose.ui.graphics.TransformOrigin
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.drawscope.withTransform
@@ -50,6 +53,7 @@ import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import io.github.lejw0925.virtualscreen.mcp.McpServerState
+import io.github.lejw0925.virtualscreen.backend.BackendKind
 import kotlinx.coroutines.launch
 import kotlin.math.abs
 
@@ -60,6 +64,7 @@ internal fun McpHome(
     changing: Boolean,
     wanted: Boolean,
     address: String,
+    backend: BackendKind,
     onToggle: (Boolean) -> Unit,
     onConnect: () -> Unit,
     onSettings: () -> Unit,
@@ -70,7 +75,7 @@ internal fun McpHome(
     val l = LocalLanguage.current
     val carousel = rememberCarouselState { 2 }
     val scope = rememberCoroutineScope()
-    val progress = rememberMcpProgressMotion(changing, server.running)
+    val progress = rememberMcpProgressMotion(changing, server.running, wanted)
     val snap = spring<Float>(dampingRatio = .72f, stiffness = 240f)
     val titles = listOf(l.text("MCP 服务", "MCP server", "MCP 服務"), l.text("连接", "Connections", "連線"))
     val status = when {
@@ -79,70 +84,95 @@ internal fun McpHome(
         server.running -> l.text("已就绪", "Ready", "已就緒")
         else -> l.text("已关闭", "Off", "已關閉")
     }
-    val statusColor by animateColorAsState(when {
-        changing -> MaterialTheme.colorScheme.tertiary
-        server.running -> MaterialTheme.colorScheme.primary
-        else -> MaterialTheme.colorScheme.outline
-    }, MaterialTheme.motionScheme.defaultEffectsSpec(), label = "MCP status color")
-    val statusScale = animateFloatAsState(if(changing) 1.25f else 1f,
-        MaterialTheme.motionScheme.defaultSpatialSpec(), label = "MCP status scale")
     val buttonColor by animateColorAsState(if(server.running) MaterialTheme.colorScheme.errorContainer
         else MaterialTheme.colorScheme.primary, MaterialTheme.motionScheme.defaultEffectsSpec(), label = "MCP button color")
     val buttonContent by animateColorAsState(if(server.running) MaterialTheme.colorScheme.onErrorContainer
         else MaterialTheme.colorScheme.onPrimary, MaterialTheme.motionScheme.defaultEffectsSpec(), label = "MCP button content")
-    Box(modifier.fillMaxSize()) {
-        Column(
-            Modifier.fillMaxSize().navigationBarsPadding().verticalScroll(rememberScrollState()).padding(vertical = 24.dp),
-            horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.Center,
-        ) {
-            Column(Modifier.widthIn(max = 600.dp).fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(20.dp)) {
-                Row(Modifier.fillMaxWidth().padding(horizontal = 28.dp), verticalAlignment = Alignment.CenterVertically) {
-                    Text(l.text("虚拟屏", "Virtual Screen", "虛擬屏"), style = MaterialTheme.typography.headlineMedium,
-                        modifier = Modifier.weight(1f))
-                    FilledTonalIconButton(onClick = onSettings, modifier = Modifier.size(48.dp)) {
+    BoxWithConstraints(modifier.fillMaxSize().navigationBarsPadding()) {
+        val availableWidth=maxWidth
+        Column(Modifier.widthIn(max = 640.dp).fillMaxWidth().align(Alignment.TopCenter).padding(top = 12.dp),verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                Row(
+                    Modifier.fillMaxWidth().padding(horizontal = 24.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(12.dp),
+                ) {
+                    Text(l.text("虚拟屏", "Virtual screen", "虛擬螢幕"),Modifier.weight(1f),style = MaterialTheme.typography.headlineMedium)
+                    StatusPill(
+                        text = backend.wireName.replaceFirstChar(Char::uppercase),
+                        positive = false,
+                    )
+                    FilledTonalIconButton(
+                        onClick = onSettings,
+                        modifier = Modifier.size(48.dp),
+                    ) {
                         Icon(Icons.Default.Settings, l.text("设置", "Settings", "設定"))
                     }
                 }
-                BoxWithConstraints(Modifier.fillMaxWidth()) {
-                    val cardHeight = 448.dp + 160.dp * (LocalDensity.current.fontScale - 1f).coerceAtLeast(0f)
-                    HorizontalMultiBrowseCarousel(
+                error?.let {
+                    Surface(Modifier.fillMaxWidth().padding(horizontal=20.dp),shape=MaterialTheme.shapes.large,color=MaterialTheme.colorScheme.errorContainer,contentColor=MaterialTheme.colorScheme.onErrorContainer) {
+                        Text(it,Modifier.padding(12.dp),style=MaterialTheme.typography.bodyMedium)
+                    }
+                }
+                HorizontalMultiBrowseCarousel(
                         state = carousel,
-                        preferredItemWidth = (maxWidth - 68.dp).coerceAtMost(440.dp),
-                        modifier = Modifier.fillMaxWidth().height(cardHeight),
-                        itemSpacing = 12.dp,
-                        contentPadding = PaddingValues(horizontal = 24.dp),
+                        preferredItemWidth = (availableWidth - 56.dp).coerceAtMost(480.dp),
+                        modifier = Modifier.fillMaxWidth().weight(1f),
+                        itemSpacing = 10.dp,
+                        contentPadding = PaddingValues(horizontal = 20.dp),
                         flingBehavior = CarouselDefaults.singleAdvanceFlingBehavior(carousel, snapAnimationSpec = snap),
                     ) { index ->
+                        val itemDrawInfo = carouselItemDrawInfo
+                        val maskColor = MaterialTheme.colorScheme.surface
+                        val foldProgress = {
+                            val range = itemDrawInfo.maxSize - itemDrawInfo.minSize
+                            val folded = if (range > 0f) {
+                                ((itemDrawInfo.maxSize - itemDrawInfo.size) / range).coerceIn(0f, 1f)
+                            } else 0f
+                            folded * folded * (3f - 2f * folded)
+                        }
                         Card(
                             modifier = Modifier.fillMaxSize().maskClip(RoundedCornerShape(32.dp)),
                             shape = RoundedCornerShape(32.dp),
                             colors = CardDefaults.cardColors(containerColor = if(index == 0)
                                 MaterialTheme.colorScheme.surfaceContainer else MaterialTheme.colorScheme.secondaryContainer),
                         ) {
-                            Column(Modifier.fillMaxSize().padding(24.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
-                                Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically,
-                                    horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                                    if(index == 0) {
-                                        Spacer(Modifier.weight(1f))
-                                        Box(Modifier.size(32.dp).semantics {
-                                            contentDescription = titles[index]
-                                            stateDescription = status
-                                        }, contentAlignment = Alignment.Center) {
-                                            Box(Modifier.size(10.dp).graphicsLayer {
-                                                scaleX = statusScale.value
-                                                scaleY = statusScale.value
-                                            }.background(statusColor, CircleShape))
-                                        }
+                            BoxWithConstraints(Modifier.fillMaxSize().drawWithContent {
+                                drawContent()
+                                drawRect(maskColor, alpha = foldProgress() * .36f)
+                            }.graphicsLayer {
+                                val progress = foldProgress()
+                                val scale = 1f - .14f * progress
+                                scaleX = scale
+                                scaleY = scale
+                                val radius = 12.dp.toPx() * progress
+                                renderEffect = if (radius > .1f) BlurEffect(radius, radius, TileMode.Clamp) else null
+                            }) {
+                                val cardHeight=maxHeight
+                                Column(Modifier.fillMaxWidth().heightIn(min=cardHeight).verticalScroll(rememberScrollState()).padding(22.dp),verticalArrangement=Arrangement.Center) {
+                                Row(
+                                    Modifier.fillMaxWidth(),
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.spacedBy(10.dp),
+                                ) {
+                                    Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(3.dp)) {
+                                        Text(titles[index], style = MaterialTheme.typography.titleLarge)
+                                    }
+                                    if (index == 0) {
+                                        StatusPill(status, positive = server.running)
                                     } else {
-                                        Text(titles[index], style = MaterialTheme.typography.titleMedium, modifier = Modifier.weight(1f))
-                                        Icon(Icons.Default.Link, null)
+                                        Icon(Icons.Default.Link, l.text("连接", "Connection", "連線"), tint = MaterialTheme.colorScheme.onSecondaryContainer)
                                     }
                                 }
                                 if(index == 0) {
                                     ScreenPowerScene(server.running, changing, status, onToggle,
-                                        Modifier.weight(1f).fillMaxWidth())
-                                    McpProgressBar(progress, changing, Modifier.fillMaxWidth().height(20.dp))
+                                        Modifier.fillMaxWidth().height((cardHeight*.4f).coerceIn(112.dp,300.dp)).semantics {
+                                            contentDescription = l.text("MCP 服务状态", "MCP server status", "MCP 服務狀態")
+                                        })
+                                    if (wanted) {
+                                        McpProgressBar(progress, changing, Modifier.fillMaxWidth().height(6.dp))
+                                    } else {
+                                        Spacer(Modifier.fillMaxWidth().height(1.dp))
+                                    }
                                     Button(
                                         onClick = { onToggle(!server.running) },
                                         enabled = !changing,
@@ -155,39 +185,55 @@ internal fun McpHome(
                                         colors = ButtonDefaults.buttonColors(containerColor = buttonColor, contentColor = buttonContent),
                                     ) {
                                         Icon(Icons.Default.PowerSettingsNew, null, modifier = Modifier.size(26.dp))
+                                        Spacer(Modifier.width(10.dp))
+                                        Text(if (server.running) l.text("关闭服务", "Turn off service", "關閉服務") else l.text("开启服务", "Turn on service", "開啟服務"))
                                     }
                                 } else {
-                                    Column(Modifier.weight(1f).fillMaxWidth().verticalScroll(rememberScrollState()),
-                                        verticalArrangement = Arrangement.spacedBy(16.dp)) {
-                                        Text(if(server.running) address else status,
-                                            style = MaterialTheme.typography.bodyLarge, fontFamily = FontFamily.Monospace)
-                                        Text(l.text("${server.sessionCount} 个客户端", "${server.sessionCount} clients", "${server.sessionCount} 個用戶端"),
-                                            style = MaterialTheme.typography.labelLarge)
-                                        server.clients.forEach { client ->
-                                            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                                                Box(Modifier.size(8.dp).background(if(client.initialized)
-                                                    MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outline, CircleShape))
-                                                Text(client.name, style = MaterialTheme.typography.bodyMedium,
-                                                    maxLines = 1, overflow = TextOverflow.Ellipsis)
+                                    Column(Modifier.fillMaxWidth().heightIn(min=(cardHeight*.36f).coerceIn(120.dp,280.dp)), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                                        Surface(
+                                            Modifier.fillMaxWidth(),
+                                            shape = MaterialTheme.shapes.large,
+                                            color = MaterialTheme.colorScheme.surfaceContainerHighest,
+                                        ) {
+                                            Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                                                Text(l.text("MCP 入口", "MCP endpoint", "MCP 入口"), style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                                Text(
+                                                    if (server.running) address else status,
+                                                    style = MaterialTheme.typography.titleMedium,
+                                                    fontFamily = FontFamily.Monospace,
+                                                    maxLines = 2,
+                                                    overflow = TextOverflow.Ellipsis,
+                                                )
+                                            }
+                                        }
+                                        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                                            McpStat(
+                                                value = server.sessionCount.toString(),
+                                                label = l.text("客户端", "Clients", "用戶端"),
+                                                modifier = Modifier.weight(1f),
+                                            )
+                                            McpStat(
+                                                value = server.clients.count { it.initialized }.toString(),
+                                                label = l.text("已初始化", "Ready", "已初始化"),
+                                                modifier = Modifier.weight(1f),
+                                            )
+                                        }
+                                        if (server.clients.isNotEmpty()) {
+                                            Text(l.text("最近连接", "Recent clients", "最近連線"), style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                            server.clients.take(2).forEach { client ->
+                                                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                                    Box(Modifier.size(8.dp).background(if(client.initialized) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outline, CircleShape))
+                                                    Text(client.name, style = MaterialTheme.typography.bodyMedium, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                                                }
                                             }
                                         }
                                     }
-                                    FilledTonalButton(onClick = onCopy, enabled = server.running,
-                                        modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp)) {
-                                        Icon(Icons.Default.ContentCopy, null, Modifier.size(18.dp))
-                                        Spacer(Modifier.width(8.dp))
-                                        Text(l.text("复制配置", "Copy configuration", "複製設定"))
-                                    }
-                                    TextButton(onClick = onConnect, modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp)) {
-                                        Text(l.text("连接设置", "Connection settings", "連線設定"))
-                                        Spacer(Modifier.width(8.dp))
-                                        Icon(Icons.AutoMirrored.Filled.ArrowForward, null, Modifier.size(18.dp))
-                                    }
+                                    McpConnectionActions(server.running, onCopy, onConnect)
+                                }
                                 }
                             }
                         }
                     }
-                }
                 Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.Center) {
                     titles.forEachIndexed { index, title ->
                         val width by androidx.compose.animation.core.animateDpAsState(
@@ -201,11 +247,52 @@ internal fun McpHome(
                         }
                     }
                 }
-                error?.let { Text(it, modifier = Modifier.padding(horizontal = 28.dp),
-                    style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.error) }
-            }
         }
-        McpProgressExit(progress, Modifier.matchParentSize())
+        if (wanted) McpProgressExit(progress, Modifier.matchParentSize())
+    }
+}
+
+@Composable
+private fun McpConnectionActions(running: Boolean, onCopy: () -> Unit, onConnect: () -> Unit) {
+    val l = LocalLanguage.current
+    val copy: @Composable (Modifier) -> Unit = { modifier ->
+        FilledTonalButton(onClick = onCopy, enabled = running, modifier = modifier.heightIn(min = 48.dp)) {
+            Icon(Icons.Default.ContentCopy, null, Modifier.size(18.dp))
+            Spacer(Modifier.width(8.dp))
+            Text(l.text("复制配置", "Copy config", "複製設定"))
+        }
+    }
+    val connect: @Composable (Modifier) -> Unit = { modifier ->
+        OutlinedButton(onClick = onConnect, modifier = modifier.heightIn(min = 48.dp)) {
+            Text(l.text("连接设置", "Connection", "連線設定"))
+            Spacer(Modifier.width(6.dp))
+            Icon(Icons.AutoMirrored.Filled.ArrowForward, null, Modifier.size(18.dp))
+        }
+    }
+    if (LocalDensity.current.fontScale > 1.15f) {
+        Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            copy(Modifier.fillMaxWidth())
+            connect(Modifier.fillMaxWidth())
+        }
+    } else {
+        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+            copy(Modifier.weight(1f))
+            connect(Modifier.weight(1f))
+        }
+    }
+}
+
+@Composable
+private fun McpStat(value: String, label: String, modifier: Modifier = Modifier) {
+    Surface(
+        modifier,
+        shape = MaterialTheme.shapes.large,
+        color = MaterialTheme.colorScheme.surfaceContainer,
+    ) {
+        Column(Modifier.padding(horizontal = 14.dp, vertical = 12.dp), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+            Text(value, style = MaterialTheme.typography.titleLarge)
+            Text(label, style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        }
     }
 }
 

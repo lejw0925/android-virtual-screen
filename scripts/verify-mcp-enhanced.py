@@ -37,6 +37,11 @@ def main():
             assert state.get('package') == base.FIXTURE, 'Only the disposable fixture can be tested'
             assert not state['truncated']
             return state, result
+        # Use a known geometry and a fresh fixture task. Reconfiguration replaces
+        # the display; accessibility windows can lag until the task settles.
+        base.data(call('configure_screen', width=720, height=1600, density=320, observe_after='none'))
+        base.data(call('launch_app', component=base.FIXTURE+'/.FixtureActivity', observe_after='none'))
+        base.observe(client, lease)
         for mode, fmt in [('both', 'full'), ('both', 'compact'), ('tree', 'compact')]:
             rows = []
             for _ in range(args.samples):

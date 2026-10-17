@@ -9,7 +9,7 @@
 | Android Gradle Plugin | 9.4.1 |
 | Kotlin / Compose compiler plugin | 2.4.20 |
 | Android SDK | compile / target 37，min 33 |
-| Compose Material 3 | 1.3.1 |
+| Compose Material 3 | 1.5.0-alpha29 |
 | Ktor CIO | 3.3.3 |
 | Shizuku API | 13.1.5 |
 | Android NDK | 28.2.13676358 |
@@ -84,4 +84,4 @@ Debug 独有的 `DeviceCheckReceiver` 受 `android.permission.DUMP` 限制，只
 
 私钥、密码和签名历史只保存在维护者私有目录 / Actions Secrets。标签构建将其恢复到临时目录，签名完成后清除。最低版本为 API 33，发布只使用 v3 签名，无需把旧开发私钥交给 CI。`apksigner` 禁止签名 debuggable APK。
 
-将 `versionName` 与 `docs/RELEASE_NOTES_<version>.md` 更新后推送匹配标签，例如 `v0.0.1`。检查通过才发布 `virtual-screen-<version>.apk` 和 `SHA256SUMS`；签名或版本不匹配会使发布失败。维护者应下载发布资产，检查哈希与证书，并做实机升级及 MCP 验证后宣布发行。
+将 `versionName` 与 `docs/RELEASE_NOTES_<version>.md` 更新后推送匹配标签。稳定版使用 `vX.Y.Z`，Beta 使用 `vX.Y.Z-beta` 或 `vX.Y.Z-beta.N`；Beta 标签会发布为 GitHub prerelease，不会替代 latest stable release。检查通过才发布 `virtual-screen-<version>.apk` 和 `SHA256SUMS`；签名、标签、版本或发行说明不匹配会使发布失败。维护者应下载发布资产，检查哈希与证书，并做实机升级及 MCP 验证后宣布发行。

@@ -18,6 +18,7 @@ import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeoutOrNull
+import kotlinx.coroutines.withTimeout
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.sync.Mutex
@@ -50,7 +51,21 @@ class ShizukuBackend(context: Context) : CommandBackend(context) {
             details = if (ready) "SHIZUKU_READY" else "SHIZUKU_PERMISSION_REQUIRED")
     }
 
-    fun requestPermission() { check(Shizuku.pingBinder()) { "SHIZUKU_NOT_RUNNING" }; Shizuku.requestPermission(8732) }
+    suspend fun requestPermission() = withContext(Dispatchers.Main) {
+        check(Shizuku.pingBinder()) { "SHIZUKU_NOT_RUNNING" }
+        if (Shizuku.checkSelfPermission() == PackageManager.PERMISSION_GRANTED) return@withContext
+        val result = CompletableDeferred<Int>()
+        val listener = Shizuku.OnRequestPermissionResultListener { code, grant ->
+            if (code == 8732) result.complete(grant)
+        }
+        Shizuku.addRequestPermissionResultListener(listener)
+        try {
+            Shizuku.requestPermission(8732)
+            check(withTimeout(120_000) { result.await() } == PackageManager.PERMISSION_GRANTED) { "SHIZUKU_PERMISSION_REQUIRED" }
+        } finally {
+            Shizuku.removeRequestPermissionResultListener(listener)
+        }
+    }
 
     private suspend fun bind() = bindingLock.withLock {
         if (remote?.isBinderAlive == true) return@withLock

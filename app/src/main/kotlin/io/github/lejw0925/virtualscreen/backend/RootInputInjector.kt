@@ -138,6 +138,10 @@ internal class RootInputInjector(
         var released = false
         try {
             var finished = motion(downTime, MotionEvent.ACTION_DOWN, x, y)
+            if (durationMs == 0) {
+                if (!finished || Thread.currentThread().isInterrupted) return false
+                pause(TAP_PRESS_DURATION_MS)
+            }
             if (durationMs > 0) {
                 if (!finished || Thread.currentThread().isInterrupted) return false
                 val lengths = points.zipWithNext { start, end ->
@@ -194,6 +198,10 @@ internal class RootInputInjector(
             if (event is KeyEvent) activeKey = if (event.action == KeyEvent.ACTION_UP) null else KeyEvent(event)
             dispatchEvent(event, wait)
         }
+    }
+
+    private companion object {
+        const val TAP_PRESS_DURATION_MS = 50L
     }
 
     @SuppressLint("BlockedPrivateApi")

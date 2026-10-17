@@ -244,6 +244,7 @@ open class MainActivity : ComponentActivity() {
     }
 }
 
+@OptIn(ExperimentalMaterial3ExpressiveApi::class)
 @Composable internal fun VirtualScreenTheme(app: VirtualScreenApplication,content: @Composable () -> Unit) {
     val settings by app.settings.flow.collectAsState()
     val useDarkTheme = when(settings.theme) {
@@ -262,7 +263,7 @@ open class MainActivity : ComponentActivity() {
     }
     val locale=androidx.compose.ui.platform.LocalConfiguration.current.locales[0]
     val l=when(settings.language) { "zh-Hans" -> UiLanguage.ZH_HANS; "zh-Hant" -> UiLanguage.ZH_HANT; "en" -> UiLanguage.EN; else -> uiLanguage(locale) }
-    MaterialTheme(colorScheme=colorScheme) {
+    MaterialExpressiveTheme(colorScheme=colorScheme) {
         CompositionLocalProvider(LocalLanguage provides l,LocalContentColor provides colorScheme.onSurface,content=content)
     }
 }
@@ -337,6 +338,7 @@ internal suspend fun phoneInput(app: VirtualScreenApplication,operation: Backend
                 changing = mcpChanging,
                 wanted = app.mcpWanted,
                 address = connectionAddress(app),
+                backend = state.backend,
                 onToggle = toggleMcp,
                 onConnect = onConnect,
                 onSettings = onSettings,

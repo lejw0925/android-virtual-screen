@@ -38,6 +38,7 @@ data class SessionState(
     val errorCode: String? = null,
     val detail: String? = null,
     val previewStatus: PreviewStatus = PreviewStatus.HIDDEN,
+    val toolProbe: McpToolProbeReport? = null,
 )
 
 /** Serializes all backend calls; a takeover fences work already in flight. */
@@ -49,7 +50,10 @@ class VirtualScreenSessionManager(
     private val configuredDisplay: (() -> VirtualScreenConfig)? = null,
     val restartApprovals: AppRestartApprovalManager = AppRestartApprovalManager(),
 ) {
-    companion object { const val PHONE_CLIENT = "phone" }
+    companion object {
+        const val PHONE_CLIENT = "phone"
+        const val PROBE_CLIENT_PREFIX = "backend-probe-"
+    }
     private val mutex = Mutex()
     private val launchMutex = Mutex()
     private val stateLock = Any()
@@ -78,21 +82,32 @@ class VirtualScreenSessionManager(
 
     suspend fun initializeBackend(kind: BackendKind) = mutex.withLock {
         if(handle == null && state.value.status == SessionStatus.STOPPED) {
-            update { it.copy(backend=kind) }
+            update { it.copy(backend=kind, toolProbe=it.toolProbe.takeIf { _ -> it.backend == kind }) }
             val caps=backend().probe()
-            update { it.copy(capabilities=caps,detail=caps.details) }
+            updateAuthorization(caps)
         }
     }
     suspend fun selectBackend(kind: BackendKind): BackendCapabilities = mutex.withLock {
-        if (state.value.backend != kind) { fence(); closeInternal(); update { it.copy(backend = kind) } }
+        if (state.value.backend != kind) { fence(); closeInternal(); update { it.copy(backend = kind, toolProbe = null) } }
         val caps = backend().probe()
-        update { it.copy(capabilities = caps, detail = caps.details, errorCode = null) }
+        updateAuthorization(caps)
+        update { it.copy(errorCode = null) }
         caps
     }
     suspend fun refreshCapabilities(): BackendCapabilities = mutex.withLock {
         val caps = backend().probe()
         update { it.copy(capabilities = if (handle != null) it.capabilities.copy(accessibilityNodes = caps.accessibilityNodes) else caps, detail = caps.details) }
         state.value.capabilities
+    }
+
+    fun applyToolProbe(report: McpToolProbeReport) {
+        update { it.copy(capabilities = report.capabilities, detail = report.capabilities.details, toolProbe = report) }
+    }
+    private fun updateAuthorization(caps: BackendCapabilities) {
+        update { current ->
+            val report = current.toolProbe.takeIf { caps.displayCreation != CapabilityStatus.REQUIRES_AUTHORIZATION }
+            current.copy(capabilities = report?.capabilities ?: caps, detail = report?.capabilities?.details ?: caps.details, toolProbe = report)
+        }
     }
     suspend fun requestAuthorization(): BackendCapabilities {
         when (val selected = backend()) {
@@ -126,7 +141,7 @@ class VirtualScreenSessionManager(
             }
             caps = backend().probe()
         }
-        update { it.copy(capabilities = caps, detail = caps.details) }
+        updateAuthorization(caps)
         caps
     }
     @Synchronized fun leaseStatus(): Lease? {
@@ -340,7 +355,7 @@ class VirtualScreenSessionManager(
     }
     suspend fun showRemotePreview(): BackendResult = mutex.withLock {
         val controller = leaseStatus()
-        if (phoneViewerActive || controller == null || controller.owner == PHONE_CLIENT) {
+        if (phoneViewerActive || controller == null || controller.owner == PHONE_CLIENT || controller.owner.startsWith(PROBE_CLIENT_PREFIX)) {
             return@withLock BackendResult.success("preview_requested" to false)
         }
         val result=backend().showPreview(requireHandle())

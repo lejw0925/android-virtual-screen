@@ -19,6 +19,8 @@ import io.github.lejw0925.virtualscreen.core.code
 import io.github.lejw0925.virtualscreen.tunnel.*
 import kotlinx.coroutines.CancellationException
 import androidx.compose.material3.*
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowForward
 
 @Composable internal fun TunnelSettings(
     app: VirtualScreenApplication,
@@ -87,8 +89,10 @@ import androidx.compose.material3.*
             },
         )
         Column(Modifier.padding(start = 16.dp, end = 16.dp, bottom = 16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-            Text(phaseLabel(l, tunnel.phase), style = MaterialTheme.typography.bodyMedium,
-                color = if(tunnel.phase == "connected") MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant)
+            StatusPill(
+                phaseLabel(l, tunnel.phase),
+                positive = tunnel.phase == "connected",
+            )
             error?.let { Text(localizedError(l, it), color = MaterialTheme.colorScheme.error) }
             TunnelButton(
                 text = when {
@@ -299,13 +303,17 @@ private class FrpcForm(config: FrpcConfig?) {
 }
 
 @Composable private fun TunnelButton(text: String, enabled: Boolean = true, onClick: () -> Unit) {
-    Button(onClick = onClick, enabled = enabled, modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(12.dp)) { Text(text) }
+    Button(onClick = onClick, enabled = enabled, modifier = Modifier.fillMaxWidth()) {
+        Icon(Icons.AutoMirrored.Filled.ArrowForward,null)
+        Spacer(Modifier.width(8.dp))
+        Text(text)
+    }
 }
 
 @Composable private fun TunnelDialog(title: String, onDismiss: () -> Unit, content: @Composable ColumnScope.() -> Unit) {
     val l = LocalLanguage.current
     Dialog(onDismissRequest = onDismiss) {
-        Card(Modifier.fillMaxWidth(), shape = RoundedCornerShape(28.dp)) {
+        Card(Modifier.fillMaxWidth(), shape = MaterialTheme.shapes.extraLarge) {
             Column(Modifier.heightIn(max = 640.dp).padding(24.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
                 Text(title, style = MaterialTheme.typography.headlineSmall, color = MaterialTheme.colorScheme.onSurface)
                 Column(Modifier.weight(1f, fill = false).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(12.dp), content = content)

@@ -34,6 +34,18 @@ import io.github.lejw0925.virtualscreen.core.*
 import androidx.compose.material3.*
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.filled.AccountTree
+import androidx.compose.material.icons.filled.Bedtime
+import androidx.compose.material.icons.filled.CameraAlt
+import androidx.compose.material.icons.filled.CheckCircle
+import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.Error
+import androidx.compose.material.icons.automirrored.filled.FactCheck
+import androidx.compose.material.icons.automirrored.filled.HelpOutline
+import androidx.compose.material.icons.filled.PlayArrow
+import androidx.compose.material.icons.filled.Refresh
+import androidx.compose.material.icons.automirrored.filled.ScreenShare
+import androidx.compose.material.icons.filled.TouchApp
 import kotlinx.coroutines.*
 
 class SettingsActivity : ComponentActivity() {
@@ -77,21 +89,38 @@ private enum class SettingsPage { HOME,BACKEND,DISPLAY,MCP,TUNNEL,APPEARANCE,BAC
         val scroll=TopAppBarDefaults.pinnedScrollBehavior()
         Scaffold(containerColor=MaterialTheme.colorScheme.surface,topBar={ TopAppBar(title={ Text(pageTitle(l,page),color=MaterialTheme.colorScheme.onSurface) },colors=TopAppBarDefaults.topAppBarColors(containerColor=MaterialTheme.colorScheme.surface),scrollBehavior=scroll,
             navigationIcon={ IconButton(onClick={ back() },modifier=Modifier.size(48.dp)) { Icon(Icons.AutoMirrored.Filled.ArrowBack,l.text("返回","Back","返回"),modifier=Modifier.size(24.dp),tint=MaterialTheme.colorScheme.onSurface) } }) }) { padding ->
-            Column(Modifier.fillMaxSize().nestedScroll(scroll.nestedScrollConnection).verticalScroll(rememberScrollState()).padding(padding).padding(horizontal=16.dp).padding(top=8.dp,bottom=24.dp).imePadding(),verticalArrangement=Arrangement.spacedBy(24.dp)) {
-                if(busy) Text(l.text("正在处理…","Working…","正在處理…"),style=MaterialTheme.typography.labelMedium,color=MaterialTheme.colorScheme.onSurfaceVariant)
-                error?.let { code -> Card(shape=RoundedCornerShape(20.dp)) { Column(Modifier.padding(18.dp)) { Text(localizedError(l,code),color=MaterialTheme.colorScheme.error); Action(l.text("关闭","Dismiss","關閉")) { error=null } } } }
-                when(page) {
-                    SettingsPage.HOME -> SettingsHome(app,::go)
-                    SettingsPage.BACKEND -> BackendPreferences(app,task)
-                    SettingsPage.DISPLAY -> DisplayPreferences(app,task)
-                    SettingsPage.MCP -> McpPreferences(app,task,notifications)
-                    SettingsPage.TUNNEL -> TunnelSettings(app,task,notifications,busy)
-                    SettingsPage.APPEARANCE -> AppearancePreferences(app)
-                    SettingsPage.BACKGROUND -> BackgroundPreferences(app,task)
-                    SettingsPage.LOGS -> ActivityLogs(app)
-                    SettingsPage.ABOUT -> AboutPreferences(app) { go(SettingsPage.LICENSES) }
-                    SettingsPage.LICENSES -> LicenseText(app)
-                    SettingsPage.GUIDE -> SetupGuide(app,notifications,scrollable=false) { back() }
+            Box(Modifier.fillMaxSize().nestedScroll(scroll.nestedScrollConnection).verticalScroll(rememberScrollState()).padding(padding).imePadding()) {
+                Column(
+                    Modifier.widthIn(max = 720.dp).fillMaxWidth().align(Alignment.TopCenter).padding(horizontal=16.dp).padding(top=12.dp,bottom=32.dp),
+                    verticalArrangement=Arrangement.spacedBy(24.dp),
+                ) {
+                    if(busy) LinearWavyProgressIndicator(Modifier.fillMaxWidth().height(4.dp))
+                    error?.let { code ->
+                        Surface(
+                            Modifier.fillMaxWidth(),
+                            shape = MaterialTheme.shapes.large,
+                            color = MaterialTheme.colorScheme.errorContainer,
+                            contentColor = MaterialTheme.colorScheme.onErrorContainer,
+                        ) {
+                            Row(Modifier.padding(start=16.dp,end=8.dp,top=12.dp,bottom=12.dp),verticalAlignment=Alignment.CenterVertically) {
+                                Text(localizedError(l,code),Modifier.weight(1f))
+                                TextButton(onClick={ error=null }) { Text(l.text("关闭","Dismiss","關閉")) }
+                            }
+                        }
+                    }
+                    when(page) {
+                        SettingsPage.HOME -> SettingsHome(app,::go)
+                        SettingsPage.BACKEND -> BackendPreferences(app,task,busy)
+                        SettingsPage.DISPLAY -> DisplayPreferences(app,task)
+                        SettingsPage.MCP -> McpPreferences(app,task,notifications)
+                        SettingsPage.TUNNEL -> TunnelSettings(app,task,notifications,busy)
+                        SettingsPage.APPEARANCE -> AppearancePreferences(app)
+                        SettingsPage.BACKGROUND -> BackgroundPreferences(app,task)
+                        SettingsPage.LOGS -> ActivityLogs(app)
+                        SettingsPage.ABOUT -> AboutPreferences(app) { go(SettingsPage.LICENSES) }
+                        SettingsPage.LICENSES -> LicenseText(app)
+                        SettingsPage.GUIDE -> SetupGuide(app,notifications,scrollable=false) { back() }
+                    }
                 }
             }
         }
@@ -131,28 +160,88 @@ private fun pageTitle(l: UiLanguage,page: SettingsPage)=when(page) {
         ArrowPreference(title=pageTitle(l,SettingsPage.GUIDE),onClick={ go(SettingsPage.GUIDE) })
     }
 }
-@Composable private fun BackendPreferences(app: VirtualScreenApplication,task: (suspend () -> Unit) -> Unit) {
+@Composable private fun BackendPreferences(app: VirtualScreenApplication,task: (suspend () -> Unit) -> Unit,busy: Boolean) {
     val l=LocalLanguage.current; val state by app.sessions.state.collectAsState()
+    var confirmProbe by remember { mutableStateOf(false) }
+    var probeProgress by remember { mutableIntStateOf(0) }
+    val toolCount=remember(app.sessions,state.backend) { io.github.lejw0925.virtualscreen.mcp.McpToolRegistry(app.sessions).tools.size }
     Section(l.text("授权","Authorization","授權")) {
-        WindowDropdownPreference(items=listOf("Root","Shizuku"),selectedIndex=state.backend.ordinal,title=l.text("权限后端","Backend","權限後端"),onSelectedIndexChange={ index -> task { val backend=BackendKind.entries[index]; app.sessions.selectBackend(backend); app.settings.update { it.copy(backend=backend) } } })
-        ArrowPreference(title=l.text("授权并检测","Authorize and probe","授權並檢測"),onClick={ task { app.sessions.requestAuthorization() } })
+        WindowDropdownPreference(items=listOf("Root","Shizuku"),selectedIndex=state.backend.ordinal,title=l.text("权限后端","Backend","權限後端"),enabled=!busy,onSelectedIndexChange={ index -> task { val backend=BackendKind.entries[index]; app.sessions.selectBackend(backend); app.settings.update { it.copy(backend=backend) } } })
+        ArrowPreference(title=l.text("授权并检测","Authorize and probe","授權並檢測"),icon=Icons.AutoMirrored.Filled.FactCheck,enabled=!busy,onClick={ confirmProbe=true })
         ArrowPreference(title=l.text("画中画预览","Picture-in-picture preview","子母畫面預覽"),onClick={
             val intent=Intent("android.settings.PICTURE_IN_PICTURE_SETTINGS",android.net.Uri.parse("package:${app.packageName}")).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
             if(intent.resolveActivity(app.packageManager)!=null) app.startActivity(intent) else app.startActivity(Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS,android.net.Uri.parse("package:${app.packageName}")).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
         })
     }
-    Section(l.text("检测结果","Probed capabilities","檢測結果")) {
-        Column(Modifier.padding(20.dp),verticalArrangement=Arrangement.spacedBy(12.dp)) {
+    Section(l.text("检测结果","Probe results","檢測結果")) {
+        val report=state.toolProbe
+        Column(Modifier.padding(16.dp),verticalArrangement=Arrangement.spacedBy(4.dp)) {
             val c=state.capabilities
-            listOf(l.text("显示创建","Display creation","顯示建立") to c.displayCreation,l.text("截图","Capture","截圖") to c.frameCapture,l.text("输入","Input","輸入") to c.inputInjection,l.text("节点","Nodes","節點") to c.accessibilityNodes,l.text("熄屏运行","Screen-off operation","熄屏執行") to c.screenOff).forEach { (name,value) ->
-                Row(Modifier.fillMaxWidth(),verticalAlignment=androidx.compose.ui.Alignment.CenterVertically) {
-                    Text(name,modifier=Modifier.weight(.56f).padding(end=12.dp),color=MaterialTheme.colorScheme.onSurface)
-                    Text(capabilityLabel(l,value),modifier=Modifier.weight(.44f),textAlign=androidx.compose.ui.text.style.TextAlign.End,color=MaterialTheme.colorScheme.onSurfaceVariant)
+            listOf(
+                Triple(l.text("显示创建","Display creation","顯示建立"),Icons.AutoMirrored.Filled.ScreenShare,c.displayCreation),
+                Triple(l.text("截图","Capture","截圖"),Icons.Default.CameraAlt,c.frameCapture),
+                Triple(l.text("输入","Input","輸入"),Icons.Default.TouchApp,c.inputInjection),
+                Triple(l.text("节点","Nodes","節點"),Icons.Default.AccountTree,c.accessibilityNodes),
+                Triple(l.text("熄屏运行","Screen-off operation","熄屏執行"),Icons.Default.Bedtime,c.screenOff),
+            ).forEach { (name,icon,value) ->
+                Row(Modifier.fillMaxWidth().padding(horizontal=4.dp,vertical=8.dp),verticalAlignment=Alignment.CenterVertically,horizontalArrangement=Arrangement.spacedBy(12.dp)) {
+                    Icon(icon,null,tint=MaterialTheme.colorScheme.onSurfaceVariant)
+                    Text(name,modifier=Modifier.weight(1f).padding(end=12.dp),color=MaterialTheme.colorScheme.onSurface)
+                    Icon(when(value) { CapabilityStatus.AVAILABLE -> Icons.Default.CheckCircle; CapabilityStatus.UNAVAILABLE -> Icons.Default.Error; CapabilityStatus.REQUIRES_AUTHORIZATION -> Icons.Default.Close; CapabilityStatus.UNKNOWN -> Icons.AutoMirrored.Filled.HelpOutline },capabilityLabel(l,value),tint=when(value) { CapabilityStatus.AVAILABLE -> MaterialTheme.colorScheme.primary; CapabilityStatus.UNAVAILABLE,CapabilityStatus.REQUIRES_AUTHORIZATION -> MaterialTheme.colorScheme.error; CapabilityStatus.UNKNOWN -> MaterialTheme.colorScheme.onSurfaceVariant })
+                    Text(capabilityLabel(l,value),style=MaterialTheme.typography.labelLarge,color=MaterialTheme.colorScheme.onSurfaceVariant)
+                }
+            }
+            if(report!=null) {
+                HorizontalDivider(Modifier.padding(vertical=8.dp))
+                Text(l.text("${report.passedTools}/${report.totalTools} 个工具通过","${report.passedTools}/${report.totalTools} tools passed","${report.passedTools}/${report.totalTools} 個工具通過"),style=MaterialTheme.typography.titleSmall,color=MaterialTheme.colorScheme.onSurface)
+                report.results.forEach { result ->
+                    Row(Modifier.fillMaxWidth().padding(vertical=5.dp),verticalAlignment=Alignment.CenterVertically,horizontalArrangement=Arrangement.spacedBy(10.dp)) {
+                        Icon(when { result.passed -> Icons.Default.CheckCircle; result.attempts == 0 -> Icons.AutoMirrored.Filled.HelpOutline; else -> Icons.Default.Error },null,tint=when { result.passed -> MaterialTheme.colorScheme.primary; result.attempts == 0 -> MaterialTheme.colorScheme.onSurfaceVariant; else -> MaterialTheme.colorScheme.error })
+                        Text(mcpToolLabel(l,result.tool),Modifier.weight(1f),style=MaterialTheme.typography.bodyMedium,color=MaterialTheme.colorScheme.onSurface)
+                        if(!result.passed) Text(result.code ?: l.text("未执行","Skipped","未執行"),style=MaterialTheme.typography.labelSmall,color=MaterialTheme.colorScheme.onSurfaceVariant,maxLines=1)
+                    }
                 }
             }
         }
-        ArrowPreference(title=l.text("重新检测","Probe again","重新檢測"),onClick={ task { app.sessions.refreshCapabilities() } })
+        ArrowPreference(title=l.text("重新检测","Probe again","重新檢測"),icon=Icons.Default.Refresh,enabled=!busy,onClick={ confirmProbe=true })
     }
+    if(busy && probeProgress>0) LinearProgressIndicator({ probeProgress/toolCount.toFloat().coerceAtLeast(1f) },Modifier.fillMaxWidth().padding(horizontal=16.dp))
+    if(confirmProbe) AlertDialog(
+        onDismissRequest={ if(!busy) confirmProbe=false },
+        icon={ Icon(Icons.AutoMirrored.Filled.FactCheck,null) },
+        title={ Text(l.text("运行权限检测","Run backend check","執行權限檢測")) },
+        text={ Text(l.text("将执行全部 $toolCount 个 MCP 工具，并在临时虚拟屏中验证；检测结束后会关闭并清理。","All $toolCount MCP tools will run on a temporary virtual display. The display will be closed and cleaned up when the check finishes.","將執行全部 $toolCount 個 MCP 工具，並在臨時虛擬螢幕中驗證；檢測結束後會關閉並清理。")) },
+        confirmButton={ Button(enabled=!busy,onClick={ confirmProbe=false; probeProgress=0; task {
+            app.sessions.requestAuthorization()
+            val report=io.github.lejw0925.virtualscreen.mcp.McpToolProbe(app.sessions).run { completed,total,_ ->
+                android.os.Handler(android.os.Looper.getMainLooper()).post { probeProgress=completed.coerceIn(0,total) }
+            }
+            app.sessions.applyToolProbe(report)
+        } }) { Icon(Icons.Default.PlayArrow,null); Spacer(Modifier.width(8.dp)); Text(l.text("开始检测","Run check","開始檢測")) } },
+        dismissButton={ TextButton(enabled=!busy,onClick={ confirmProbe=false }) { Text(l.text("取消","Cancel","取消")) } },
+    )
+}
+private fun mcpToolLabel(l: UiLanguage,tool: String)=when(tool) {
+    "acquire_control" -> l.text("申请控制权","Acquire control","申請控制權")
+    "release_control" -> l.text("释放控制权","Release control","釋放控制權")
+    "request_control" -> l.text("请求控制权","Request control","請求控制權")
+    "get_status" -> l.text("读取状态","Read status","讀取狀態")
+    "get_request_receipt" -> l.text("读取请求回执","Read request receipt","讀取請求回執")
+    "create_screen" -> l.text("创建虚拟屏","Create display","建立虛擬螢幕")
+    "configure_screen" -> l.text("配置虚拟屏","Configure display","設定虛擬螢幕")
+    "close_screen" -> l.text("关闭虚拟屏","Close display","關閉虛擬螢幕")
+    "list_apps" -> l.text("列出应用","List apps","列出應用程式")
+    "launch_app" -> l.text("启动应用","Launch app","啟動應用程式")
+    "observe" -> l.text("观察屏幕","Observe display","觀察螢幕")
+    "tap_at" -> l.text("点击","Tap","點按")
+    "long_press_at" -> l.text("长按","Long press","長按")
+    "swipe_path" -> l.text("滑动","Swipe","滑動")
+    "scroll_at" -> l.text("滚动","Scroll","捲動")
+    "input_text" -> l.text("输入文本","Input text","輸入文字")
+    "node_action" -> l.text("节点操作","Node action","節點操作")
+    "press_key" -> l.text("按键","Press key","按鍵")
+    "wait" -> l.text("等待条件","Wait","等待條件")
+    else -> tool
 }
 private fun capabilityLabel(l: UiLanguage,c: CapabilityStatus)=when(c) {
     CapabilityStatus.AVAILABLE -> l.text("可用","Available","可用")
@@ -243,6 +332,7 @@ private fun capabilityLabel(l: UiLanguage,c: CapabilityStatus)=when(c) {
     }
 }
 @Composable private fun LicenseText(app: VirtualScreenApplication) {
+    val l = LocalLanguage.current
     var text by remember { mutableStateOf("") }
     LaunchedEffect(app) { text=withContext(Dispatchers.IO) { app.assets.list("licenses").orEmpty().joinToString("\n\n") { name -> name.removeSuffix(".txt")+"\n\n"+app.assets.open("licenses/$name").bufferedReader().use { it.readText() } } } }
     Text(text,style=MaterialTheme.typography.bodyMedium,color=MaterialTheme.colorScheme.onSurface,modifier=Modifier.padding(16.dp))

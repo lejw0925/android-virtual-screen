@@ -88,9 +88,16 @@ class DeviceCheckReceiver: BroadcastReceiver() {
                         try {
                             check(app.sessions.create(lease.owner,lease.token).ok) { "CREATE_FAILED" }
                             check(app.sessions.launch(lease.owner,lease.token,"io.github.lejw0925.virtualscreen.fixture/.FixtureActivity").ok) { "LAUNCH_FAILED" }
-                            delay(600)
-                            val observed=app.sessions.observe(lease.owner,lease.token).getOrThrow()
-                            val nodes=app.sessions.nodes(lease.owner,lease.token,observed.values["observation_id"] as String).getOrThrow()
+                            val nodes=withTimeout(10_000) {
+                                while (true) {
+                                    val observed=app.sessions.observe(lease.owner,lease.token).getOrThrow()
+                                    val candidate=app.sessions.nodes(lease.owner,lease.token,observed.values["observation_id"] as String).getOrNull()
+                                    if (candidate?.nodes?.any { it.text?.contains("Tap counter",ignoreCase=true)==true && it.clickable } == true)
+                                        return@withTimeout candidate
+                                    delay(150)
+                                }
+                                error("FIXTURE_WINDOW_NOT_READY")
+                            }
                             val target=nodes.nodes.firstOrNull { it.text?.contains("Tap counter",ignoreCase=true) == true && it.clickable } ?: error("CLICKABLE_NODE_MISSING")
                             check(app.sessions.operate(lease.owner,lease.token,nodes.observationId,BackendOperation.NodeAction(target.id,"click")).ok) { "NODE_CLICK_FAILED" }
                             delay(200)

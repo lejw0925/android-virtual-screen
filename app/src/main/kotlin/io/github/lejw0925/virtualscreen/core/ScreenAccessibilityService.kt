@@ -84,8 +84,12 @@ class ScreenAccessibilityService : AccessibilityService() {
     }
 
     private fun signature(node: AccessibilityNodeInfo): String {
-        val bounds = Rect().also { node.getBoundsInScreen(it) }
-        return listOf(node.windowId, node.viewIdResourceName, node.className, node.text, node.contentDescription, bounds, node.isEnabled).joinToString("|")
+        // Insets and display transitions can move a live node by a few pixels
+        // after the tree was captured. Geometry is observation data, not node
+        // identity; keep the stable fields that protect against recycled or
+        // semantically changed nodes.
+        return listOf(node.windowId, node.viewIdResourceName, node.className, node.text, node.contentDescription,
+            node.isEnabled, node.isClickable, node.isEditable, node.isScrollable).joinToString("|")
     }
     fun clear() { saved.values.forEach { it.node.recycle() }; saved.clear() }
     companion object { @Volatile var current: ScreenAccessibilityService? = null; private set }

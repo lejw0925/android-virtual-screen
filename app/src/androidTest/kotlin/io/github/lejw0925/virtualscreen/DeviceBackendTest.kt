@@ -40,12 +40,11 @@ class DeviceBackendTest {
         val instrumentation=InstrumentationRegistry.getInstrumentation()
         instrumentation.getUiAutomation(android.app.UiAutomation.FLAG_DONT_SUPPRESS_ACCESSIBILITY_SERVICES)
         instrumentation.runOnMainSync {
-            context.startActivity(android.content.Intent(context,io.github.lejw0925.virtualscreen.ui.MainActivity::class.java).addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK))
             context.startForegroundService(android.content.Intent(context,VirtualScreenForegroundService::class.java))
         }
         val manager=(context.applicationContext as VirtualScreenApplication).sessions
         manager.selectBackend(BackendKind.SHIZUKU)
-        val lease=manager.phoneTakeover()
+        val lease=(manager.acquireLease("reconfiguration-test") as LeaseDecision.Granted).lease
         try {
             instrumentation.uiAutomation.executeShellCommand("am force-stop io.github.lejw0925.virtualscreen.fixture").use { it.close() }
             assertTrue(manager.create(lease.owner,lease.token,VirtualScreenConfig(720,1600,320,0,false,0)).ok)
@@ -117,7 +116,18 @@ class DeviceBackendTest {
             assertTrue("Create: ${created.code}",created.ok)
             val launched=manager.launch(lease.owner,lease.token,fixture)
             assertTrue("Launch: ${launched.code}",launched.ok)
-            delay(1000)
+            // A successful launch can still be showing Android's splash window.
+            // Wait for the disposable fixture's actual view hierarchy before
+            // issuing input; never retry an input that may have been accepted.
+            withTimeout(10_000) {
+                while (true) {
+                    val dump=android.os.ParcelFileDescriptor.AutoCloseInputStream(
+                        instrumentation.uiAutomation.executeShellCommand("dumpsys activity top")
+                    ).bufferedReader().use { it.readText() }
+                    if (dump.contains("test_counter")) break
+                    delay(150)
+                }
+            }
             suspend fun observe(): OperationEnvelope {
                 var result=manager.observe(lease.owner,lease.token)
                 repeat(10) { if(result.isFailure) { delay(250); result=manager.observe(lease.owner,lease.token) } }
@@ -128,7 +138,8 @@ class DeviceBackendTest {
             assertTrue(frame.width > 0 && frame.height > 0)
             File(context.getExternalFilesDir(null),"${backend.kind.wireName}-preview.jpg").outputStream().use { frame.compress(Bitmap.CompressFormat.JPEG,90,it) }
             val id=observation.values["observation_id"] as String
-            assertTrue(manager.operate(lease.owner,lease.token,id,BackendOperation.Tap(350,160)).ok)
+            val tapped=manager.operate(lease.owner,lease.token,id,BackendOperation.Tap(350,160))
+            assertTrue("Tap: ${tapped.code} ${tapped.values}",tapped.ok)
             assertEquals("STALE_OBSERVATION",runCatching { manager.operate(lease.owner,lease.token,id,BackendOperation.Tap(350,160)) }.exceptionOrNull()?.message)
             var current=observe()
             assertTrue(manager.operate(lease.owner,lease.token,current.values["observation_id"] as String,BackendOperation.Tap(350,280)).ok)

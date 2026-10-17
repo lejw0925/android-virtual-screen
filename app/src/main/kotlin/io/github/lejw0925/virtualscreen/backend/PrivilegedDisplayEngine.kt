@@ -191,11 +191,18 @@ internal class PrivilegedDisplayEngine : AutoCloseable {
         val displayId = display!!.display.displayId
         val target = ComponentName.unflattenFromString(request.getString("component")) ?: error("INVALID_COMPONENT")
         val info = context.packageManager.getActivityInfo(target, 0)
-        require(target.packageName != request.optString("ownerPackage")) { "APP_NOT_LAUNCHABLE" }
+        // The built-in diagnostic has no launcher entry and immediately exits on
+        // the phone display. All other owner-package activities remain blocked.
+        val diagnostic = target.packageName == io.github.lejw0925.virtualscreen.BuildConfig.APPLICATION_ID &&
+            target.className == io.github.lejw0925.virtualscreen.ui.BackendProbeActivity::class.java.name
+        require(target.packageName != request.optString("ownerPackage") || diagnostic) { "APP_NOT_LAUNCHABLE" }
         require(info.enabled && info.exported) { "APP_NOT_LAUNCHABLE" }
         val resizeMode = ActivityInfo::class.java.getField("resizeMode").getInt(info)
         require(ActivityInfo::class.java.getDeclaredMethod("isResizeableMode", Int::class.javaPrimitiveType).invoke(null, resizeMode) == true) { "DISPLAY_APP_UNSUPPORTED" }
-        val elsewhere = runningTasks().any { (it.baseActivity?.packageName == target.packageName || it.topActivity?.packageName == target.packageName) && taskDisplay(it) != displayId }
+        fun matchesTarget(task: ActivityManager.RunningTaskInfo): Boolean = if (diagnostic) {
+            task.baseActivity == target || task.topActivity == target
+        } else task.baseActivity?.packageName == target.packageName || task.topActivity?.packageName == target.packageName
+        val elsewhere = runningTasks().any { matchesTarget(it) && taskDisplay(it) != displayId }
         if (elsewhere) {
             if (!request.optBoolean("restartApproved")) return JSONObject().put("ok", false).put("code", "APP_RESTART_CONFIRMATION_REQUIRED").put("packageName", target.packageName).put("component", target.flattenToString())
             check(info.applicationInfo!!.flags and ApplicationInfo.FLAG_SYSTEM == 0 && target.packageName != request.optString("ownerPackage")) { "APP_RESTART_UNSUPPORTED" }
@@ -210,7 +217,7 @@ internal class PrivilegedDisplayEngine : AutoCloseable {
         val output = command(listOf("/system/bin/am", "start", "--display", displayId.toString(), "-f", "0x18800000", "-n", target.flattenToString()) +
             if (uri.isNotBlank()) listOf("-a", "android.intent.action.VIEW", "-d", uri) else emptyList())
         check("Error:" !in output && "Activity not started" !in output) { "DISPLAY_LAUNCH_REJECTED" }
-        val tasks = runningTasks().filter { it.baseActivity?.packageName == target.packageName || it.topActivity?.packageName == target.packageName }
+        val tasks = runningTasks().filter(::matchesTarget)
         check(tasks.isNotEmpty() && tasks.all { taskDisplay(it) == displayId }) { "DISPLAY_LAUNCH_MISMATCH" }
         hostedTasks.addAll(tasks.map { it.taskId })
         rotation?.apply(info.screenOrientation)

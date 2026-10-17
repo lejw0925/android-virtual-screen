@@ -38,13 +38,20 @@ internal class McpProgressMotion(val layer: GraphicsLayer, var lastRunning: Bool
 }
 
 @Composable
-internal fun rememberMcpProgressMotion(changing: Boolean, running: Boolean): McpProgressMotion {
+internal fun rememberMcpProgressMotion(changing: Boolean, running: Boolean, wanted: Boolean): McpProgressMotion {
     val layer = rememberGraphicsLayer()
     val motion = remember(layer) { McpProgressMotion(layer, running) }
-    LaunchedEffect(changing, running, motion) {
+    LaunchedEffect(changing, running, wanted, motion) {
         val stateChanged = running != motion.lastRunning
         motion.lastRunning = running
-        if(changing || stateChanged) {
+        if (!wanted) {
+            motion.visible = false
+            motion.falling = false
+            motion.rise.snapTo(0f)
+            motion.fall.snapTo(0f)
+            return@LaunchedEffect
+        }
+        if(changing || (stateChanged && running)) {
             motion.falling = false
             motion.visible = true
             motion.fall.snapTo(0f)

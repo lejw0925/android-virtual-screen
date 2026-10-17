@@ -1,82 +1,178 @@
 <div align="center">
   <img src="docs/images/logo.svg" width="104" alt="Virtual Screen" />
   <h1>Virtual Screen · 虚拟屏</h1>
-  <p><strong>A separate screen for your agent. Your phone stays yours.</strong></p>
+  <p><strong>A separate Android display for your agent. Your phone stays yours.</strong></p>
   <p><a href="README.md">简体中文</a> · English</p>
   <p>
-    <a href="https://github.com/lejw0925/android-virtual-screen/releases/latest"><img src="https://img.shields.io/github/v/release/lejw0925/android-virtual-screen" alt="Release" /></a>
+    <a href="https://github.com/lejw0925/android-virtual-screen/releases/tag/v0.1.0-beta"><img src="https://img.shields.io/badge/Beta-0.1.0-yellow" alt="Beta 0.1.0" /></a>
     <a href="https://github.com/lejw0925/android-virtual-screen/actions/workflows/build.yml"><img src="https://github.com/lejw0925/android-virtual-screen/actions/workflows/build.yml/badge.svg" alt="Build" /></a>
     <img src="https://img.shields.io/badge/Android-13%2B-3DDC84" alt="Android 13+" />
     <a href="LICENSE"><img src="https://img.shields.io/badge/license-PolyForm_Noncommercial-blue" alt="PolyForm Noncommercial" /></a>
   </p>
 </div>
 
-Virtual Screen gives an AI agent an independent Android display. Your agent launches and operates apps there while you keep using the phone's main screen. Follow progress in PiP, take over, or stop from the notification. The authenticated MCP server runs on the phone, so a separate desktop phone-control server is unnecessary.
+Virtual Screen is an Android app that gives an AI agent an isolated virtual display and runs an authenticated MCP server on the phone. The agent can discover, launch, and operate apps on that display while you keep using the phone's main screen. You can view, take over, or stop an operation at any time.
 
 <p align="center">
-  <img src="docs/images/home-0.0.1.png" width="240" alt="Virtual Screen home" />
-  <img src="docs/images/automatic-pip-0.0.1.png" width="240" alt="The agent works in PiP while the phone remains usable" />
-  <img src="docs/images/guide-0.0.1.png" width="240" alt="First-run setup guide" />
+  <img src="docs/images/material3-home.png" width="240" alt="Home and service status" />
+  <img src="docs/images/material3-connections-large.png" width="240" alt="Connection card" />
+  <img src="docs/images/material3-settings.png" width="240" alt="Backend and permission settings" />
 </p>
 
-## What makes it different
+## Beta 0.1.0
 
-- **Your phone remains usable.** Agent input stays on the display this app created. Failed operations never fall back to the main display. Restarting an app from another display requires confirmation on the phone.
-- **Visible progress and immediate takeover.** Remote display creation opens PiP automatically. The notification shows runtime state and the operation's purpose. Open the app's full-screen preview and touch it, or use the takeover action to revoke remote control.
-- **Small, precise tool surface.** Twenty MCP tools cover control, displays, apps, observation, input, and waits. Tree-only observations skip image capture; compact nodes, unique selectors, and fresh observation IDs reduce ambiguity.
-- **Receipts for uncertain connections.** Input can return a new observation. Results distinguish accepted input from verified effects. Query a session-owned receipt by the original request ID without repeating the input.
-- **Choice of connections.** Loopback, LAN, frpc, Cloudflare Quick, or named tunnels. Credentials are encrypted; services and tunnels start disabled.
-- **A complete Android app.** Root / Shizuku, live Surface previews, onboarding, English / Simplified Chinese / Traditional Chinese, light and dark themes, and dynamic colors.
+Download `virtual-screen-0.1.0-beta.apk` and `SHA256SUMS` from [GitHub Releases](https://github.com/lejw0925/android-virtual-screen/releases/tag/v0.1.0-beta). The app requires Android 13 (API 33) or later and either a working Root `su` or a running, authorized Shizuku service. This beta is for testing; device compatibility and background behavior can vary by ROM.
 
-## Get started
+## Features
 
-1. Install the signed APK from [Releases](https://github.com/lejw0925/android-virtual-screen/releases/latest). Requires **Android 13+** with Root or Shizuku already installed.
-2. Follow the guide to authorize access. Enable the app's accessibility service for node targeting and Unicode text editing; allow PiP for automatic previews.
-3. Enable MCP and paste the copied configuration into your agent's MCP settings. For a computer on the same Wi-Fi network, enable LAN access and use the phone's address. See [MCP setup](docs/MCP.md) for USB development access.
-4. Have the agent acquire control, create a display, discover and launch an app, then observe and act. Continue using your phone; take over from the app's full-screen preview or notification whenever needed.
+- **Isolated virtual display.** Agent launches and input are scoped to a display created by this app. Failed operations never fall back to the phone's main screen. Cross-display conflicts require phone approval before an app is restarted.
+- **Visible progress and takeover.** PiP shows the remote display; PiP is read-only. Expand the app's full-screen preview or use the notification to take over locally, which revokes the remote control lease.
+- **19 MCP tools.** Control, display, app, observation, input, and wait operations. Tree observations can skip screenshots; fresh observation IDs and session receipts reject stale operations and let clients check uncertain results without replaying input.
+- **Root and Shizuku.** Both privilege backends share the virtual-display engine, MCP protocol, and input constraints.
+- **Flexible connections.** Loopback, LAN, frpc, and Cloudflare Tunnel. MCP and tunnels start disabled; credentials are stored in the app's private encrypted storage.
+- **On-device settings.** English, Simplified Chinese, and Traditional Chinese; light and dark themes, dynamic color, onboarding, and local activity logs.
 
-Reopen “Getting started” in Settings. Choose “Manual preview” to try the display locally. Enabling MCP also enables remote control, without a second permission switch.
+## Get Started
 
-## How it works
+1. Install the [Beta 0.1.0 APK](https://github.com/lejw0925/android-virtual-screen/releases/tag/v0.1.0-beta) and install a compatible Root manager or Shizuku. If using Shizuku, start its service first.
+2. Open Virtual Screen, select Root or Shizuku under **Permissions and backend**, and grant access. Enable the app's accessibility service for node targeting and Unicode text editing. Allow notifications for approval and takeover actions, and PiP for automatic previews.
+3. Enable MCP. For a USB debugging connection, run this on the computer:
+
+   ```sh
+   adb forward tcp:8732 tcp:8732
+   ```
+
+   The default MCP endpoint is `http://127.0.0.1:8732/mcp`. Enable LAN access in settings for a computer on the same network, or configure frpc or Cloudflare Tunnel for public access.
+
+4. Put the phone-generated Bearer Token in your MCP client configuration:
+
+   ```json
+   {
+     "mcpServers": {
+       "android-virtual-screen": {
+         "type": "http",
+         "url": "http://127.0.0.1:8732/mcp",
+         "headers": {
+           "Authorization": "Bearer <phone-generated-token>"
+         }
+       }
+     }
+   }
+   ```
+
+5. The agent acquires exclusive control, creates a virtual display, discovers and launches an app, observes its nodes or screenshot, and performs actions. Release control when finished. See [MCP integration](docs/MCP.md) for protocol details, tool parameters, and client-specific notes.
+
+## Use Case Diagram
 
 ```mermaid
 flowchart LR
-    Agent[AI agent / MCP client] -->|Authentication + exclusive lease| MCP[Phone MCP server]
-    MCP --> Display[App in an isolated virtual display]
-    Display --> Preview[Live PiP / local preview]
-    User[You] --> Phone[Phone main display]
-    User -->|Take over anytime| Preview
+    owner[Phone owner]
+    agent[AI agent / MCP client]
+    subgraph app[Virtual Screen Android app]
+        authorize([Select and authorize Root / Shizuku])
+        configure([Configure MCP and network access])
+        approve([Approve control requests and app restarts])
+        takeover([View preview, take over, or stop])
+        authenticate([Authenticate with Bearer Token and discover tools])
+        lease([Acquire / release exclusive control])
+        manage([Create display and launch apps])
+        observe([Read nodes / capture screenshots])
+        operate([Perform display-scoped input])
+    end
+    owner --> authorize
+    owner --> configure
+    owner --> approve
+    owner --> takeover
+    agent --> authenticate
+    agent --> lease
+    agent --> manage
+    agent --> observe
+    agent --> operate
+    configure -. optional .-> tunnel[frpc / Cloudflare Tunnel]
+    takeover --> display[App on the virtual display]
+    manage --> display
+    observe --> display
+    operate --> display
 ```
 
-Each input consumes one observation. Expired leases, stale observations, and ambiguous selectors are rejected. Multi-display app behavior, privilege implementations, and background policies vary by ROM. PiP is a viewer; the app's full-screen preview supports direct touch input.
+## Architecture
 
-The development branch now uses Material 3 and 20 focused MCP tools. Refresh tool discovery after upgrading. See [migration validation](docs/MIGRATION_VALIDATION.md) for vivo, emulator Shizuku, Cloudflare and power checks. The public 0.0.1 release is the earlier build.
+```mermaid
+flowchart TB
+    client[AI agent / MCP client]
+    subgraph phone[Android phone]
+        subgraph app[Virtual Screen app]
+            ui[Compose home, settings, and preview]
+            service[Foreground service and runtime coordination]
+            mcp[Ktor Streamable HTTP MCP]
+            auth[Bearer auth, sessions, and request receipts]
+            lease[Control leases, approvals, and observation checks]
+            tools[19-tool MCP registry]
+            session[VirtualScreenSessionManager]
+            backend[VirtualScreenBackend interface]
+            root[RootBackend / su process]
+            shizuku[ShizukuBackend / UserService]
+            engine[Shared PrivilegedDisplayEngine]
+            display[Android virtual display and target app]
+            access[Accessibility node service]
+            preview[Surface mirror and PiP / full-screen preview]
+            tunnel[TunnelManager]
+            frpc[Bundled frpc / cloudflared]
+        end
+    end
+    client -->|HTTP + Bearer Token| mcp
+    mcp --> auth --> tools --> lease --> session
+    ui --> service
+    service --> mcp
+    service --> tunnel --> frpc
+    session --> backend
+    backend --> root --> engine
+    backend --> shizuku --> engine
+    engine --> display
+    access --> session
+    display --> preview
+    owner[Phone owner] --> ui
+    owner -->|Local takeover| preview
+    frpc -. tunnel connection .-> client
+```
 
-## Validation and development
+## Security and Behavior Boundaries
 
-Three rounds of physical-device UI and MCP workflow iteration were performed on a vivo V2419A running Android 16. Ten samples from the disposable fixture showed lower latency and payload size for tree-only observation than the original screenshot-plus-nodes path. See [0.0.1 validation](docs/RELEASE_VALIDATION.md) for raw measurements, signed release verification, and network limitations; results do not represent every app or device.
+- All remote MCP requests require a Bearer Token. Rotating it invalidates old tokens. Do not commit tokens or put them in logs or public messages.
+- Device operations require an exclusive lease owned by the current session. Each authorized operation extends its five-minute idle deadline. Expired leases, stale observations, and ambiguous selectors are rejected.
+- Input is restricted to the virtual display. Remote PiP only displays the screen; phone touch or notification takeover revokes the remote lease. An agent cannot approve permission dialogs on the phone's main display.
+- MCP and tunnels start disabled. LAN and public tunnels increase network reachability; enable them only when needed and protect the client token.
+- Accessibility provides node access and assists text entry. Node features are limited without it. Multi-display, PiP, and background behavior varies across apps and ROMs.
 
-Build with JDK 25 and Android SDK 37:
+## Development and Validation
+
+Use JDK 25 and Android SDK 37 (`platforms;android-37.0`, `build-tools;37.0.0`):
 
 ```sh
 ./gradlew :app:testDebugUnitTest :app:lintDebug :app:assembleDebug
 ```
 
-GitHub Actions checks commits and pull requests and uploads Debug artifacts. A matching version tag such as `v0.0.1` publishes a signed APK and SHA-256 after checks pass. Signing keys stay outside the repository.
+Run the same full build used by GitHub Actions:
+
+```sh
+./gradlew --no-daemon :app:testDebugUnitTest :app:lintDebug :app:assembleDebug :app:assembleRelease :device-fixture:assembleDebug :app:assembleDebugAndroidTest
+```
+
+Actions run JVM tests, Lint, Debug / unsigned Release, fixture, and instrumentation APK builds on `main`, pull requests, and manual dispatch. A matching `vX.Y.Z` or `vX.Y.Z-beta[.N]` tag runs signing and publishes the APK with `SHA256SUMS`; beta tags become GitHub prereleases. Signing material stays in repository secrets. See [Build and release](docs/BUILD.md) for the toolchain and the pinned provenance and build steps for frpc / cloudflared.
+
+Current device results are in [Beta backend comparison](docs/BACKEND_EMULATOR_VALIDATION.md), [home layout validation](docs/MCP_HOME_VALIDATION.md), and [release validation](docs/RELEASE_VALIDATION.md). Shizuku passed all 19 tools on an Android 15 emulator. That emulator prevents ordinary apps from executing its AOSP `su`, so the Root app-authorization path still needs validation on a device with Root granted to the app. Screen-off operation and all ROM combinations remain untested.
 
 | Guide | Contents |
 | --- | --- |
-| [Build and signing](docs/BUILD.md) | Toolchain, native binaries, signing, and Actions |
-| [MCP integration](docs/MCP.md) | Configuration, tools, observations, and receipts |
-| [Tunnels](docs/TUNNELS.md) | frpc, Cloudflare, and network requirements |
-| [Device validation](docs/RELEASE_VALIDATION.md) | Iteration, benchmarks, devices, and limitations |
-| [Tool research](docs/TOOL_RESEARCH.md) | Pinned source inventories and design decisions |
-| [Contributing](AGENTS.md) | Structure, conventions, and required validation |
+| [MCP integration](docs/MCP.md) | Authentication, client setup, tools, leases, observations, and receipts |
+| [Public tunnels](docs/TUNNELS.md) | frpc, Cloudflare, credentials, and network requirements |
+| [Build and release](docs/BUILD.md) | Toolchain, native programs, signing, and GitHub Actions |
+| [Release validation](docs/RELEASE_VALIDATION.md) | Device coverage, measurements, and known limits |
+| [Getting started and testing](docs/VALIDATION.md) | Authorization and device validation workflows |
+| [Contributing](AGENTS.md) | Repository structure, conventions, tests, and security boundaries |
 
-The detailed developer documents currently use Chinese; commands and machine-readable schemas are shared across languages.
+## Credits and License
 
-## Credits and license
-
-Parts of the virtual-display engine are adapted from [ETA](https://github.com/Mangi-11/Eta). The UI uses Jetpack Compose Material 3; native tunnels use [frp](https://github.com/fatedier/frp) and [cloudflared](https://github.com/cloudflare/cloudflared). Tool design draws on research into [Mobile Next](https://github.com/mobile-next/mobile-mcp), [Android-MCP](https://github.com/CursorTouch/Android-MCP), [android-remote-control-mcp](https://github.com/danielealbano/android-remote-control-mcp), and [PhoneUse](https://github.com/nidhoggfgg/PhoneUse).
+Parts of the virtual-display engine are adapted from [ETA](https://github.com/Mangi-11/Eta). The UI uses Jetpack Compose Material 3; tunnels use [frp](https://github.com/fatedier/frp) and [cloudflared](https://github.com/cloudflare/cloudflared). Tool design draws on research into [Mobile Next](https://github.com/mobile-next/mobile-mcp), [Android-MCP](https://github.com/CursorTouch/Android-MCP), [android-remote-control-mcp](https://github.com/danielealbano/android-remote-control-mcp), and [PhoneUse](https://github.com/nidhoggfgg/PhoneUse).
 
 Licensed under **[PolyForm Noncommercial 1.0.0](LICENSE)** with upstream Required Notices preserved. See [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md) for component licenses and native provenance.

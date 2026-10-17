@@ -17,8 +17,9 @@ internal class ShellTextInput(private val displayId: Int) {
         require(text.length <= 20_000 && '\u0000' !in text) { "INVALID_TEXT" }
         val apk = sourceApk
         val quotedApk = "'" + apk.replace("'", "'\\''") + "'"
-        val process = ProcessBuilder("su", "2000", "-c",
-            "CLASSPATH=$quotedApk app_process /system/bin ${ShellTextInput::class.java.name}")
+        val mode = detectSuCommandMode(uid = "2000", timeoutMillis = 5000)
+        val process = ProcessBuilder(*mode.arguments(
+            "CLASSPATH=$quotedApk app_process /system/bin ${ShellTextInput::class.java.name}", uid = "2000"))
             .redirectErrorStream(true).start()
         try {
             process.outputStream.bufferedWriter().use { input ->

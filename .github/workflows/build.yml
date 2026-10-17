@@ -86,8 +86,10 @@ jobs:
           import os, re
           from pathlib import Path
           version = re.search(r'versionName = "([^"]+)"', Path('app/build.gradle.kts').read_text()).group(1)
-          if os.environ['GITHUB_REF_NAME'] != 'v' + version or not re.fullmatch(r'\d+\.\d+\.\d+', version):
+          if os.environ['GITHUB_REF_NAME'] != 'v' + version or not re.fullmatch(r'\d+\.\d+\.\d+(?:-beta(?:\.\d+)?)?', version):
               raise SystemExit('Release tag does not match the application version')
+          if not Path(f'docs/RELEASE_NOTES_{version}.md').is_file():
+              raise SystemExit('Release notes are missing for ' + version)
           with open(os.environ['GITHUB_ENV'], 'a') as target:
               target.write('RELEASE_VERSION=' + version + '\n')
           PY
@@ -99,7 +101,12 @@ jobs:
       - name: Publish release
         env:
           GH_TOKEN: ${{ github.token }}
-        run: gh release create "$GITHUB_REF_NAME" "dist/virtual-screen-$RELEASE_VERSION.apk" dist/SHA256SUMS --verify-tag --title "Virtual Screen $RELEASE_VERSION" --notes-file "docs/RELEASE_NOTES_$RELEASE_VERSION.md"
+        run: |
+          release_flags=()
+          if [[ "$RELEASE_VERSION" == *-* ]]; then
+            release_flags+=(--prerelease)
+          fi
+          gh release create "$GITHUB_REF_NAME" "dist/virtual-screen-$RELEASE_VERSION.apk" dist/SHA256SUMS --verify-tag --title "Virtual Screen $RELEASE_VERSION" --notes-file "docs/RELEASE_NOTES_$RELEASE_VERSION.md" "${release_flags[@]}"
       - name: Remove signing material
         if: always()
         run: rm -f "$RUNNER_TEMP/release.jks" "$RUNNER_TEMP/release.lineage" "$RUNNER_TEMP/aligned.apk"
