@@ -163,7 +163,9 @@ class McpToolProbe(private val sessions: VirtualScreenSessionManager) {
                                 }
                                 // Focus acknowledgements precede accessibility's focus-change event.
                                 val focused = awaitNode(BackendProbeActivity.EDITOR) { _, target -> target.optBoolean("focused") }
-                                verifyLast("tap_at", focused, "PROBE_EFFECT_NOT_CONFIRMED")
+                                // The focus tap must not mask a failed or unconfirmed counter tap.
+                                verifyLast("tap_at", tap.optBoolean("ok") && tapped && focused,
+                                    if (tap.optBoolean("ok")) "PROBE_EFFECT_NOT_CONFIRMED" else "PROBE_INPUT_FAILED")
                                 val text = "中文測試 MCP"
                                 val typed = input("input_text") { args, _ -> args.put("text", text).put("replace", true) }
                                 val textVerified = waitFor(description = BackendProbeActivity.EDITOR, text = text).optBoolean("ok")

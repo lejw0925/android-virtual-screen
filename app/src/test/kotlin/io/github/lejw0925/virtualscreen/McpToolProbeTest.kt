@@ -25,6 +25,42 @@ class McpToolProbeTest {
 
     @Test
     fun probeWaitsForDisplayBoundsAndEditorFocusAndVerifiesTheExactCounter() = runBlocking {
+        val report = probeWithAsyncControls(counterTapWorks = true)
+
+        assertEquals(report.failedTools.toString(), 19, report.passedTools)
+    }
+
+    @Test
+    fun successfulEditorTapCannotHideAnUnconfirmedCounterTap() = runBlocking {
+        val report = probeWithAsyncControls(counterTapWorks = false)
+
+        val tap = report.results.single { it.tool == "tap_at" }
+        assertEquals(2, tap.attempts)
+        assertFalse("A focus tap must not replace the counter effect check", tap.passed)
+        assertEquals("PROBE_EFFECT_NOT_CONFIRMED", tap.code)
+        assertTrue(report.failedTools.any { it.tool == "tap_at" })
+        assertEquals(18, report.passedTools)
+        assertEquals(CapabilityStatus.UNAVAILABLE, report.capabilities.inputInjection)
+        assertTrue(report.results.single { it.tool == "input_text" }.passed)
+    }
+
+    @Test
+    fun successfulEditorTapCannotHideAnUnacknowledgedCounterTap() = runBlocking {
+        val report = probeWithAsyncControls(counterTapWorks = true, counterTapAcknowledged = false)
+
+        val tap = report.results.single { it.tool == "tap_at" }
+        assertFalse("An input timeout must remain visible even when its effect arrives", tap.passed)
+        assertEquals("PROBE_INPUT_FAILED", tap.code)
+        assertTrue(report.failedTools.any { it.tool == "tap_at" })
+        assertEquals(18, report.passedTools)
+        assertEquals(CapabilityStatus.UNAVAILABLE, report.capabilities.inputInjection)
+        assertTrue(report.results.single { it.tool == "input_text" }.passed)
+    }
+
+    private suspend fun probeWithAsyncControls(
+        counterTapWorks: Boolean,
+        counterTapAcknowledged: Boolean = true,
+    ): McpToolProbeReport {
         var reads = 0
         var counter = "0"
         var counterPending = 0
@@ -53,7 +89,10 @@ class McpToolProbeTest {
                 when (operation) {
                     is BackendOperation.Tap -> {
                         assertEquals(360, operation.x)
-                        if (operation.y < 225) counterPending = 4 else focusPending = 4
+                        if (operation.y < 225) {
+                            if (counterTapWorks) counterPending = 4
+                            if (!counterTapAcknowledged) return BackendResult.failure("UI_INPUT_TIMEOUT")
+                        } else focusPending = 4
                     }
                     is BackendOperation.LongPress -> held = true
                     is BackendOperation.NodeAction -> {
@@ -73,10 +112,10 @@ class McpToolProbeTest {
 
         val report = McpToolProbe(manager).run()
 
-        assertEquals(report.failedTools.toString(), 19, report.passedTools)
         assertNull(manager.state.value.displayId)
         assertNull(manager.leaseStatus())
         frame.recycle()
+        return report
     }
 
     @Test
