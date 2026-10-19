@@ -160,7 +160,7 @@ flowchart TB
 
 Actions 对 `main`、Pull Request 和手动运行执行 JVM 测试、Lint、Debug / unsigned Release、夹具和 instrumentation APK 构建。推送匹配的 `vX.Y.Z` 或 `vX.Y.Z-beta[.N]` 标签会验证、签名并发布 APK 与 `SHA256SUMS`；Beta 自动标记为 GitHub 预发布版本。签名资料只保存在仓库 Secrets。原生 frpc / cloudflared 的固定来源、校验和及构建方法见 [构建与发布](docs/BUILD.md)。
 
-当前设备验证见 [Beta 后端对照](docs/BACKEND_EMULATOR_VALIDATION.md)、[首页适配记录](docs/MCP_HOME_VALIDATION.md) 和 [发行验证](docs/RELEASE_VALIDATION.md)。Shizuku 在 Android 15 模拟器上完成 19/19 工具检测；该模拟器不允许普通应用执行其 AOSP `su`，因此 Root 的应用授权流程尚需在已授权 Root 的设备上验证。熄屏能力和所有 ROM 组合均未覆盖。
+最新修复与验证汇总见 [变更记录](CHANGELOG.md)。Root 在 Android 17 / HyperOS 4 真机上完成 19/19 工具检测，见 [Android 17 与首页验证](docs/ANDROID17_FIX_VALIDATION.md)；Shizuku 的 Android 15 模拟器结果见 [Beta 后端对照](docs/BACKEND_EMULATOR_VALIDATION.md)。Cloudflare 的持续健康检查与后台 200 秒设备测试见 [1033 验证](docs/TUNNEL_1033_FIX_VALIDATION.md)，厂商后台冻结、应用级「无限制」配置及充电熄屏测试见 [后台断连验证](docs/TUNNEL_BACKGROUND_VALIDATION.md)。断电深度 Doze 和所有 ROM 组合尚未覆盖；历史结果见 [首页适配记录](docs/MCP_HOME_VALIDATION.md) 与 [发行验证](docs/RELEASE_VALIDATION.md)。
 
 | 文档 | 内容 |
 | --- | --- |

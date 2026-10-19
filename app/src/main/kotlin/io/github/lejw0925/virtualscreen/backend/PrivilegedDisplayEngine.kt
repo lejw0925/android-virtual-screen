@@ -256,6 +256,7 @@ internal class PrivilegedDisplayEngine : AutoCloseable {
     companion object {
         fun systemContext(): Context {
             if (android.os.Looper.myLooper() == null) android.os.Looper.prepare()
+            initializeApplicationSharedMemory()
             val type = Class.forName("android.app.ActivityThread")
             val thread = type.getMethod("systemMain").invoke(null)
             val system = type.getMethod("getSystemContext").invoke(thread) as Context
@@ -264,6 +265,21 @@ internal class PrivilegedDisplayEngine : AutoCloseable {
             return if (android.os.Process.myUid() == 2000)
                 system.createPackageContext("com.android.shell", Context.CONTEXT_IGNORE_SECURITY)
             else system
+        }
+        @Synchronized private fun initializeApplicationSharedMemory() {
+            // app_process does not receive the shared-memory singleton installed
+            // by ActivityThread.bindApplication. Android 17's window service
+            // reads it even when obtaining KeyguardManager. Older releases may
+            // not have this class, and Shizuku may already have initialized it.
+            val type = try { Class.forName("com.android.internal.os.ApplicationSharedMemory") }
+                catch (_: ClassNotFoundException) { return }
+            try {
+                type.getMethod("getInstance").invoke(null)
+            } catch (failure: java.lang.reflect.InvocationTargetException) {
+                if (failure.targetException !is IllegalStateException) throw failure
+                val memory = type.getMethod("create").invoke(null)
+                type.getMethod("setInstance", type).invoke(null, memory)
+            }
         }
         private fun flag(name: String) = runCatching { DisplayManager::class.java.getField(name).getInt(null) }.getOrDefault(0)
         private fun ok() = JSONObject().put("ok", true)

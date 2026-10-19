@@ -59,7 +59,7 @@ class TunnelManager(context: Context,private val mcpPort: Int = 8732,private val
                 progress=TunnelConnectionProgress()
                 publicProbe?.cancel(); publicProbe=null
                 probeCall?.cancel(); probeCall=null
-                mutableState.update { if(it.running) it.copy(phase="reconnecting",errorCode=null,publicVerified=false) else it }
+                mutableState.update { if(it.running) it.copy(phase="reconnecting",errorCode=null,publicAddress=null,publicVerified=false) else it }
             }
         }
         override fun onAvailable(network: Network) { if(state().running) appendLog("NETWORK_AVAILABLE") }
@@ -151,8 +151,15 @@ class TunnelManager(context: Context,private val mcpPort: Int = 8732,private val
                     if(process.isAlive) process.destroy()
                     val exit = process.waitFor()
                     if(epoch != expected) break
-                    synchronized(this@TunnelManager) { if(child === process) child = null }
-                    mutableState.update { it.copy(phase="reconnecting",errorCode=null,publicVerified=false) }
+                    synchronized(this@TunnelManager) {
+                        if(epoch != expected) return@launch
+                        if(child === process) child = null
+                        connectionGeneration++
+                        verifiedAddress = null
+                        publicProbe?.cancel(); publicProbe = null
+                        probeCall?.cancel(); probeCall = null
+                        mutableState.update { it.copy(phase="reconnecting",errorCode=null,publicAddress=null,publicVerified=false) }
+                    }
                     appendLog("TUNNEL_EXIT_$exit; automatic retry")
                     attempts++
                     delay((1000L shl attempts.coerceAtMost(5)).coerceAtMost(30000))
@@ -189,7 +196,7 @@ class TunnelManager(context: Context,private val mcpPort: Int = 8732,private val
             probeCall?.cancel(); probeCall=null
         }
         mutableState.value=if(next.phase == "connected" && next.mode in setOf(TunnelMode.CLOUDFLARE_QUICK,TunnelMode.CLOUDFLARE_NAMED) && verifiedAddress != configuredAddress)
-            next.copy(phase="verifying",publicVerified=false)
+            next.copy(phase="verifying",publicAddress=null,publicVerified=false)
         else next
         if(state().phase == "verifying" && publicProbe?.isActive != true) {
             configuredAddress?.let { address ->
@@ -201,32 +208,33 @@ class TunnelManager(context: Context,private val mcpPort: Int = 8732,private val
     }
     private suspend fun verifyPublicOrigin(address: String,expected: Long,generation: Long) {
         var attempt = 0
-        while(currentCoroutineContext().isActive && epoch == expected && connectionGeneration == generation && state().running && state().phase == "verifying") {
+        monitorTunnelPublicOrigin(probe = {
             val request = Request.Builder().url(address.removeSuffix("/mcp") + "/").get().build()
             val call = synchronized(this) {
-                if(epoch != expected || connectionGeneration != generation) return
+                if(epoch != expected || connectionGeneration != generation || !state().running) throw CancellationException("Obsolete tunnel connection")
                 probeHttp.newCall(request).also { probeCall=it }
             }
-            val ready = try {
+            try {
                 call.execute().use { it.isSuccessful && it.header("X-Virtual-Screen") == "mcp" }
             } catch(c: CancellationException) { throw c }
               catch(e: Exception) {
                 if(epoch == expected && (attempt == 0 || attempt % 5 == 0)) appendLog("PUBLIC_ORIGIN_PENDING ${e.javaClass.simpleName}")
                 false
             } finally { synchronized(this) { if(probeCall === call) probeCall=null } }
-            if(ready) {
-                synchronized(this) {
-                    if(epoch == expected && connectionGeneration == generation && state().running && state().phase == "verifying") {
-                        verifiedAddress=address
-                        mutableState.update { it.copy(phase="connected",publicAddress=address,errorCode=null,publicVerified=true) }
-                        appendLog("PUBLIC_ORIGIN_VERIFIED")
-                    }
+        }, publish = { ready ->
+            synchronized(this) {
+                if(epoch != expected || connectionGeneration != generation || !state().running) false
+                else {
+                    val wasVerified = state().publicVerified
+                    verifiedAddress = address.takeIf { ready }
+                    mutableState.update { publicOriginState(it,address,ready) }
+                    if(ready && !wasVerified) appendLog("PUBLIC_ORIGIN_VERIFIED")
+                    if(!ready && wasVerified) appendLog("PUBLIC_ORIGIN_UNREACHABLE; rechecking existing tunnel")
+                    attempt = if(ready) 0 else attempt + 1
+                    true
                 }
-                return
             }
-            attempt++
-            delay((2000L shl attempt.coerceAtMost(4)).coerceAtMost(30_000))
-        }
+        })
     }
     @Synchronized private fun appendLog(line: String) {
         val safe = TunnelConfiguration.redact(line,secrets)

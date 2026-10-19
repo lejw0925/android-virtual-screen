@@ -103,6 +103,13 @@ class VirtualScreenSessionManager(
     fun applyToolProbe(report: McpToolProbeReport) {
         update { it.copy(capabilities = report.capabilities, detail = report.capabilities.details, toolProbe = report) }
     }
+    fun clearInactiveDisplayError() {
+        update { current ->
+            if (current.displayId == null && current.errorCode in setOf("NO_VIRTUAL_SCREEN", "DISPLAY_GONE"))
+                current.copy(status = SessionStatus.STOPPED, errorCode = null)
+            else current
+        }
+    }
     private fun updateAuthorization(caps: BackendCapabilities) {
         update { current ->
             val report = current.toolProbe.takeIf { caps.displayCreation != CapabilityStatus.REQUIRES_AUTHORIZATION }
@@ -274,7 +281,7 @@ class VirtualScreenSessionManager(
         finally {
             handle = null; synchronized(stateLock) { latest = null; latestNodes = null }; epoch.incrementAndGet()
             restartApprovals.cancelAll()
-            update { it.copy(status = SessionStatus.STOPPED, sessionId = null, displayId = null, observationId = null, frame = null, observationGeneration = epoch.get(),previewStatus=PreviewStatus.HIDDEN) }
+            update { it.copy(status = SessionStatus.STOPPED, sessionId = null, displayId = null, observationId = null, frame = null, observationGeneration = epoch.get(),previewStatus=PreviewStatus.HIDDEN, errorCode = null) }
         }
     }
     suspend fun launch(owner: String, token: String, component: String, uri: String? = null, purpose: String = "", clientName: String = ""): OperationEnvelope {

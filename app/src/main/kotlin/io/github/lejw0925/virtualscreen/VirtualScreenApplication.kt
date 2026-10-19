@@ -57,6 +57,7 @@ class VirtualScreenApplication : Application() {
                         if(settings.flow.value.backend == io.github.lejw0925.virtualscreen.backend.BackendKind.ROOT) "ROOT_PERMISSION_REQUIRED" else "SHIZUKU_PERMISSION_REQUIRED"
                     }
                     mcp.start(settings.flow.value.lan).getOrThrow()
+                    sessions.clearInactiveDisplayError()
                 }
             } catch(c: CancellationException) { throw c }
               catch(e: Exception) { rememberMcp(false); mcp.reportStartupError(e.code()) }

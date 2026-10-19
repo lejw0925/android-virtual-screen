@@ -40,6 +40,37 @@ internal class FakeBackend(override val kind: BackendKind): VirtualScreenBackend
 @RunWith(RobolectricTestRunner::class) @Config(sdk=[34],application=Application::class)
 class SessionManagerTest {
     private val context: Context get()=RuntimeEnvironment.getApplication()
+    @Test fun startingServerClearsTheInactiveDisplayError() = runBlocking {
+        val backend = object : VirtualScreenBackend by FakeBackend(BackendKind.ROOT) {
+            override suspend fun create(config: VirtualScreenConfig) =
+                Result.failure<VirtualScreenHandle>(IllegalStateException("DISPLAY_GONE"))
+        }
+        val manager = VirtualScreenSessionManager(context, backend, FakeBackend(BackendKind.SHIZUKU))
+        val lease = (manager.acquireLease("remote") as LeaseDecision.Granted).lease
+        assertFalse(manager.create(lease.owner, lease.token).ok)
+        assertEquals("DISPLAY_GONE", manager.state.value.errorCode)
+
+        manager.clearInactiveDisplayError()
+
+        assertEquals(SessionStatus.STOPPED, manager.state.value.status)
+        assertNull(manager.state.value.errorCode)
+        assertNull(manager.state.value.displayId)
+    }
+    @Test fun closingDisplayClearsThePreviousCreationError() = runBlocking {
+        val backend = object : VirtualScreenBackend by FakeBackend(BackendKind.ROOT) {
+            override suspend fun create(config: VirtualScreenConfig) =
+                Result.failure<VirtualScreenHandle>(IllegalStateException("DISPLAY_GONE"))
+        }
+        val manager = VirtualScreenSessionManager(context, backend, FakeBackend(BackendKind.SHIZUKU))
+        val lease = (manager.acquireLease("remote") as LeaseDecision.Granted).lease
+        assertFalse(manager.create(lease.owner, lease.token).ok)
+        assertEquals("DISPLAY_GONE", manager.state.value.errorCode)
+
+        assertTrue(manager.close(lease.owner, lease.token).ok)
+
+        assertEquals(SessionStatus.STOPPED, manager.state.value.status)
+        assertNull(manager.state.value.errorCode)
+    }
     @Test fun inputConsumesObservationAndTakeoverFencesOldOwner()=runBlocking {
         val root=FakeBackend(BackendKind.ROOT); val manager=VirtualScreenSessionManager(context,root,FakeBackend(BackendKind.SHIZUKU))
         val lease=(manager.acquireLease("remote") as LeaseDecision.Granted).lease

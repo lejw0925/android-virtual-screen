@@ -148,7 +148,8 @@ internal fun McpHome(
                                 renderEffect = if (radius > .1f) BlurEffect(radius, radius, TileMode.Clamp) else null
                             }) {
                                 val cardHeight=maxHeight
-                                Column(Modifier.fillMaxWidth().heightIn(min=cardHeight).verticalScroll(rememberScrollState()).padding(22.dp),verticalArrangement=Arrangement.Center) {
+                                Column(Modifier.fillMaxWidth().heightIn(min=cardHeight).verticalScroll(rememberScrollState()).padding(22.dp),
+                                    verticalArrangement=Arrangement.SpaceBetween) {
                                 Row(
                                     Modifier.fillMaxWidth(),
                                     verticalAlignment = Alignment.CenterVertically,
@@ -164,6 +165,7 @@ internal fun McpHome(
                                     }
                                 }
                                 if(index == 0) {
+                                    Column(Modifier.fillMaxWidth()) {
                                     ScreenPowerScene(server.running, changing, status, onToggle,
                                         Modifier.fillMaxWidth().height((cardHeight*.4f).coerceIn(112.dp,300.dp)).semantics {
                                             contentDescription = l.text("MCP 服务状态", "MCP server status", "MCP 服務狀態")
@@ -172,6 +174,7 @@ internal fun McpHome(
                                         McpProgressBar(progress, changing, Modifier.fillMaxWidth().height(6.dp))
                                     } else {
                                         Spacer(Modifier.fillMaxWidth().height(1.dp))
+                                    }
                                     }
                                     Button(
                                         onClick = { onToggle(!server.running) },
@@ -256,15 +259,17 @@ internal fun McpHome(
 private fun McpConnectionActions(running: Boolean, onCopy: () -> Unit, onConnect: () -> Unit) {
     val l = LocalLanguage.current
     val copy: @Composable (Modifier) -> Unit = { modifier ->
-        FilledTonalButton(onClick = onCopy, enabled = running, modifier = modifier.heightIn(min = 48.dp)) {
+        FilledTonalButton(onClick = onCopy, enabled = running, modifier = modifier.heightIn(min = 48.dp),
+            contentPadding = PaddingValues(horizontal = 12.dp, vertical = 10.dp)) {
             Icon(Icons.Default.ContentCopy, null, Modifier.size(18.dp))
             Spacer(Modifier.width(8.dp))
-            Text(l.text("复制配置", "Copy config", "複製設定"))
+            Text(l.text("复制配置", "Copy config", "複製設定"), maxLines = 1, overflow = TextOverflow.Ellipsis)
         }
     }
     val connect: @Composable (Modifier) -> Unit = { modifier ->
-        OutlinedButton(onClick = onConnect, modifier = modifier.heightIn(min = 48.dp)) {
-            Text(l.text("连接设置", "Connection", "連線設定"))
+        OutlinedButton(onClick = onConnect, modifier = modifier.heightIn(min = 48.dp),
+            contentPadding = PaddingValues(horizontal = 12.dp, vertical = 10.dp)) {
+            Text(l.text("连接设置", "Connection", "連線設定"), maxLines = 1, overflow = TextOverflow.Ellipsis)
             Spacer(Modifier.width(6.dp))
             Icon(Icons.AutoMirrored.Filled.ArrowForward, null, Modifier.size(18.dp))
         }
@@ -275,9 +280,9 @@ private fun McpConnectionActions(running: Boolean, onCopy: () -> Unit, onConnect
             connect(Modifier.fillMaxWidth())
         }
     } else {
-        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-            copy(Modifier.weight(1f))
-            connect(Modifier.weight(1f))
+        Row(Modifier.fillMaxWidth().height(IntrinsicSize.Min), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+            copy(Modifier.weight(1f).fillMaxHeight())
+            connect(Modifier.weight(1f).fillMaxHeight())
         }
     }
 }

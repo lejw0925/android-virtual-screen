@@ -57,6 +57,15 @@ class DeviceCheckReceiver: BroadcastReceiver() {
                         JSONObject().put("ok",true)
                     }
                     "mcp" -> { app.mcp.start().getOrThrow(); JSONObject().put("ok",true).put("token",app.mcp.state().token) }
+                    "tool_probe" -> {
+                        app.sessions.selectBackend(BackendKind.ROOT)
+                        app.sessions.requestAuthorization()
+                        val report=io.github.lejw0925.virtualscreen.mcp.McpToolProbe(app.sessions).run()
+                        app.sessions.applyToolProbe(report)
+                        JSONObject().put("ok",report.passedTools==report.totalTools)
+                            .put("passed",report.passedTools).put("total",report.totalTools)
+                            .put("failures",report.failedTools.toString()).put("error",app.sessions.state.value.errorCode)
+                    }
                     "preview" -> {
                         app.sessions.shutdown()
                         val backend=BackendKind.valueOf(intent.getStringExtra("backend") ?: "ROOT")

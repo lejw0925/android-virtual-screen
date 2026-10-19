@@ -12,10 +12,11 @@ internal class TunnelConnectionProgress {
                 connections += index
                 state.copy(phase = "connected", publicAddress = address, errorCode = null)
             }
-            listOf("retrying connection", "connection with edge closed", "failed to serve tunnel connection",
+            listOf("retrying connection", "connection with edge closed", "lost connection with the edge", "failed to serve tunnel connection",
                 "connection terminated", "login to server failed").any { it in lower } -> {
                 connections -= index
                 state.copy(phase = if (connections.isEmpty()) "reconnecting" else "connected", errorCode = null,
+                    publicAddress = state.publicAddress.takeIf { connections.isNotEmpty() },
                     publicVerified = state.publicVerified && connections.isNotEmpty())
             }
             // An ERR line may describe a retry, optional feature or an individual edge connection.

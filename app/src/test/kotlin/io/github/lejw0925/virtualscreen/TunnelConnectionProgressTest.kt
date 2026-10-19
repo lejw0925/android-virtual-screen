@@ -32,9 +32,21 @@ class TunnelConnectionProgressTest {
         assertEquals("connected", state.phase)
         state = progress.update(state, "connection with edge closed connIndex=1", address)
         assertEquals("reconnecting", state.phase)
-        assertEquals(address, state.publicAddress)
+        assertNull(state.publicAddress)
+        assertFalse(state.publicVerified)
         assertNull(state.errorCode)
         state = progress.update(state, "Registered tunnel connection connIndex=0", address)
         assertEquals("connected", state.phase)
+    }
+
+    @Test fun lostEdgeMessageImmediatelyClearsTheVerifiedAddress() {
+        val progress = TunnelConnectionProgress()
+        val address = "https://fixture.trycloudflare.com/mcp"
+        var state = progress.update(TunnelState(TunnelMode.CLOUDFLARE_QUICK, running = true),
+            "Registered tunnel connection connIndex=0", address).copy(publicVerified = true)
+        state = progress.update(state, "INF Lost connection with the edge connIndex=0", address)
+        assertEquals("reconnecting", state.phase)
+        assertNull(state.publicAddress)
+        assertFalse(state.publicVerified)
     }
 }

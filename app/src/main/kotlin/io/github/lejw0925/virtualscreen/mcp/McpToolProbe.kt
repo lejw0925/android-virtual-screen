@@ -9,7 +9,9 @@ import io.github.lejw0925.virtualscreen.ui.BackendProbeActivity
 import java.util.UUID
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.NonCancellable
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.withContext
+import kotlinx.coroutines.withTimeoutOrNull
 import org.json.JSONArray
 import org.json.JSONObject
 
@@ -62,7 +64,9 @@ class McpToolProbe(private val sessions: VirtualScreenSessionManager) {
         }
         suspend fun waitFor(description: String? = null, text: String? = null): JSONObject {
             val arguments = JSONObject().put("timeout_ms", 4000)
-            if (description != null) arguments.put("condition", "node_present").put("selector", JSONObject().put("description", description))
+            if (description != null) arguments.put("condition", "node_present").put("selector", JSONObject().put("description", description).apply {
+                if (text != null) put("text", text)
+            })
             else arguments.put("condition", "node_text").put("text", text)
             return call("wait", arguments)
         }
@@ -70,6 +74,17 @@ class McpToolProbe(private val sessions: VirtualScreenSessionManager) {
             val nodes = data.optJSONArray("nodes") ?: return null
             return (0 until nodes.length()).map { nodes.getJSONObject(it) }.firstOrNull { it.optString("description") == description }
         }
+        suspend fun awaitNode(description: String, ready: (JSONObject, JSONObject) -> Boolean): Boolean =
+            withTimeoutOrNull(4000) {
+                while (true) {
+                    val observed = call("observe", JSONObject().put("mode", "tree"))
+                    val target = node(observed, description)
+                    if (observed.optBoolean("ok") && target != null && ready(observed, target)) return@withTimeoutOrNull true
+                    delay(100)
+                }
+                @Suppress("UNREACHABLE_CODE")
+                false
+            } ?: false
         fun center(data: JSONObject, description: String, fallbackY: Int): Pair<Int, Int> {
             val bounds = node(data, description)?.optJSONArray("bounds")
             return if (bounds != null && bounds.length() == 4) {
@@ -113,11 +128,21 @@ class McpToolProbe(private val sessions: VirtualScreenSessionManager) {
                                 .put("observe_after", "none"))
                             if (launched.optBoolean("ok")) {
                                 waitFor(description = BackendProbeActivity.COUNTER)
+                                // A visible node may still carry translated launch-animation bounds.
+                                var previousBounds: String? = null
+                                val ready = awaitNode(BackendProbeActivity.COUNTER) { observed, target ->
+                                    val bounds = target.getJSONArray("bounds")
+                                    val stable = previousBounds == bounds.toString()
+                                    previousBounds = bounds.toString()
+                                    stable && bounds.getInt(0) >= 0 && bounds.getInt(1) >= 0 &&
+                                        bounds.getInt(2) <= observed.optInt("width") && bounds.getInt(3) <= observed.optInt("height")
+                                }
+                                verifyLast("wait", ready, "PROBE_WINDOW_NOT_READY")
                                 val tap = input("tap_at") { args, observed ->
                                     val (x, y) = center(observed, BackendProbeActivity.COUNTER, 190)
                                     args.put("x", x).put("y", y)
                                 }
-                                val tapped = waitFor(text = "1").let { it.optBoolean("ok") && node(it, BackendProbeActivity.COUNTER)?.optString("text") == "1" }
+                                val tapped = waitFor(description = BackendProbeActivity.COUNTER, text = "1").optBoolean("ok")
                                 verifyLast("tap_at", tap.optBoolean("ok") && tapped,
                                     if (tap.optBoolean("ok")) "PROBE_EFFECT_NOT_CONFIRMED" else "PROBE_INPUT_FAILED")
                                 val longPress = input("long_press_at") { args, observed ->
@@ -126,16 +151,22 @@ class McpToolProbe(private val sessions: VirtualScreenSessionManager) {
                                 }
                                 val held = waitFor(description = BackendProbeActivity.LONG_PRESSED).optBoolean("ok")
                                 verifyLast("long_press_at", held, "PROBE_EFFECT_NOT_CONFIRMED")
-                                val focus = input("node_action") { args, _ ->
-                                    args.put("selector", JSONObject().put("description", BackendProbeActivity.EDITOR)).put("action", "focus")
+                                val nodeText = input("node_action") { args, _ ->
+                                    args.put("selector", JSONObject().put("description", BackendProbeActivity.EDITOR))
+                                        .put("action", "set_text").put("value", "MCP")
                                 }
-                                if (!focus.optBoolean("ok")) input("tap_at") { args, observed ->
+                                val nodeTextVerified = waitFor(description = BackendProbeActivity.EDITOR, text = "MCP").optBoolean("ok")
+                                verifyLast("node_action", nodeText.optBoolean("ok") && nodeTextVerified, "PROBE_EFFECT_NOT_CONFIRMED")
+                                input("tap_at") { args, observed ->
                                     val (x, y) = center(observed, BackendProbeActivity.EDITOR, 302)
                                     args.put("x", x).put("y", y)
                                 }
+                                // Focus acknowledgements precede accessibility's focus-change event.
+                                val focused = awaitNode(BackendProbeActivity.EDITOR) { _, target -> target.optBoolean("focused") }
+                                verifyLast("tap_at", focused, "PROBE_EFFECT_NOT_CONFIRMED")
                                 val text = "中文測試 MCP"
                                 val typed = input("input_text") { args, _ -> args.put("text", text).put("replace", true) }
-                                val textVerified = waitFor(text = text).optBoolean("ok")
+                                val textVerified = waitFor(description = BackendProbeActivity.EDITOR, text = text).optBoolean("ok")
                                 verifyLast("input_text", textVerified, "PROBE_EFFECT_NOT_CONFIRMED")
                                 val swipe = input("swipe_path") { args, observed ->
                                     val (x, y) = center(observed, BackendProbeActivity.SCROLL, 950)
