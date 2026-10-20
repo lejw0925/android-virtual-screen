@@ -67,7 +67,7 @@ import kotlinx.coroutines.*
             else -> l.text("连接你的 Agent","Connect your agent","連線你的 Agent")
         },style=MaterialTheme.typography.headlineMedium,textAlign=TextAlign.Center,color=MaterialTheme.colorScheme.onSurface)
         if(page==0) ElevatedCard(Modifier.fillMaxWidth()) {
-            DropdownPreference(items=listOf("Root","Shizuku"),selectedIndex=state.backend.ordinal,title=l.text("访问方式","Access method","存取方式"),onSelectedIndexChange={ i -> task { val kind=BackendKind.entries[i]; app.sessions.selectBackend(kind); app.settings.update { it.copy(backend=kind) } } })
+            DropdownPreference(items=listOf("Root","Shizuku / Stellar"),selectedIndex=state.backend.ordinal,title=l.text("访问方式","Access method","存取方式"),onSelectedIndexChange={ i -> task { val kind=BackendKind.entries[i]; app.sessions.selectBackend(kind); app.settings.update { it.copy(backend=kind) } } })
             ArrowPreference(title=if(state.capabilities.usable) l.text("已授权","Authorized","已授權") else l.text("授权并检测","Authorize access","授權並檢測"),summary=state.backend.wireName.uppercase(),icon=Icons.Default.CheckCircle,onClick={ task { app.sessions.requestAuthorization() } })
         }
         if(page==1) ElevatedCard(Modifier.fillMaxWidth()) {

@@ -26,8 +26,18 @@ import kotlinx.coroutines.sync.withLock
 import java.util.concurrent.atomic.AtomicLong
 import org.json.JSONObject
 import rikka.shizuku.Shizuku
+import roro.stellar.Stellar
+import roro.stellar.userservice.ServiceMode
+import roro.stellar.userservice.StellarUserService
+import roro.stellar.userservice.UserServiceArgs as StellarServiceArgs
 import java.util.UUID
 
+/**
+ * Privileged backend reached over Shizuku, or over Stellar's native API when the
+ * device runs Stellar instead. Stellar's Shizuku compatibility layer drops the
+ * UserService connected callback on Android 15+, so the Stellar path talks to
+ * `roro.stellar.userservice` directly while reusing [ShizukuDisplayService].
+ */
 class ShizukuBackend(context: Context) : CommandBackend(context) {
     @Volatile override var liveChannel: LiveDisplayChannel? = null
         private set
@@ -39,10 +49,17 @@ class ShizukuBackend(context: Context) : CommandBackend(context) {
     private val bindingEpoch = AtomicLong()
     private var serviceArgs: Shizuku.UserServiceArgs? = null
     private var serviceConnection: ServiceConnection? = null
+    private var stellarArgs: StellarServiceArgs? = null
     override val kind = BackendKind.SHIZUKU
 
+    private enum class Transport { SHIZUKU, STELLAR }
+
+    /** Stellar's compat layer also answers Shizuku.pingBinder, so the native transport wins whenever the Stellar server is actually reachable. */
+    private fun transport(): Transport =
+        if (stellarAvailable(context)) Transport.STELLAR else Transport.SHIZUKU
+
     override suspend fun probe(): BackendCapabilities {
-        val ready = runCatching { Shizuku.pingBinder() && Shizuku.checkSelfPermission() == PackageManager.PERMISSION_GRANTED }.getOrDefault(false)
+        val ready = isPrivilegeReady(context)
         return BackendCapabilities(
             displayCreation = if (ready) CapabilityStatus.UNKNOWN else CapabilityStatus.REQUIRES_AUTHORIZATION,
             frameCapture = if (ready) CapabilityStatus.UNKNOWN else CapabilityStatus.REQUIRES_AUTHORIZATION,
@@ -52,6 +69,22 @@ class ShizukuBackend(context: Context) : CommandBackend(context) {
     }
 
     suspend fun requestPermission() = withContext(Dispatchers.Main) {
+        if (transport() == Transport.STELLAR) {
+            check(Stellar.pingBinder()) { "SHIZUKU_NOT_RUNNING" }
+            if (Stellar.checkSelfPermission()) return@withContext
+            val result = CompletableDeferred<Boolean>()
+            val listener = Stellar.OnRequestPermissionResultListener { code, allowed, _ ->
+                if (code == 8732) result.complete(allowed)
+            }
+            Stellar.addRequestPermissionResultListener(listener)
+            try {
+                Stellar.requestPermission(requestCode = 8732)
+                check(withTimeout(120_000) { result.await() }) { "SHIZUKU_PERMISSION_REQUIRED" }
+            } finally {
+                Stellar.removeRequestPermissionResultListener(listener)
+            }
+            return@withContext
+        }
         check(Shizuku.pingBinder()) { "SHIZUKU_NOT_RUNNING" }
         if (Shizuku.checkSelfPermission() == PackageManager.PERMISSION_GRANTED) return@withContext
         val result = CompletableDeferred<Int>()
@@ -69,6 +102,14 @@ class ShizukuBackend(context: Context) : CommandBackend(context) {
 
     private suspend fun bind() = bindingLock.withLock {
         if (remote?.isBinderAlive == true) return@withLock
+        if (transport() == Transport.STELLAR) {
+            bindStellar()
+        } else {
+            bindShizuku()
+        }
+    }
+
+    private suspend fun bindShizuku() {
         check(Shizuku.pingBinder()) { "SHIZUKU_NOT_RUNNING" }
         check(Shizuku.checkSelfPermission() == PackageManager.PERMISSION_GRANTED) { "SHIZUKU_PERMISSION_REQUIRED" }
         val expected = bindingEpoch.incrementAndGet()
@@ -102,6 +143,48 @@ class ShizukuBackend(context: Context) : CommandBackend(context) {
             serviceArgs = null
             serviceConnection = null
             withContext(NonCancellable + Dispatchers.Main) { runCatching { Shizuku.unbindUserService(args, connection, true) } }
+            throw failure
+        }
+    }
+
+    private suspend fun bindStellar() {
+        check(Stellar.pingBinder()) { "SHIZUKU_NOT_RUNNING" }
+        check(Stellar.checkSelfPermission()) { "SHIZUKU_PERMISSION_REQUIRED" }
+        val expected = bindingEpoch.incrementAndGet()
+        val connected = CompletableDeferred<IBinder>()
+        val args = StellarServiceArgs.Builder(ShizukuDisplayService::class.java)
+            .processNameSuffix("display")
+            .tag("virtual-screen-${UUID.randomUUID()}")
+            .versionCode((BuildConfig.VERSION_CODE * 100 + 7).toLong())
+            .serviceMode(ServiceMode.ONE_TIME)
+            .build()
+        val callback = object : StellarUserService.ServiceCallback {
+            override fun onServiceConnected(service: IBinder) {
+                if (bindingEpoch.get() != expected) return
+                remote = service
+                service.linkToDeath({
+                    if (bindingEpoch.get() == expected && remote === service) { remote = null; active = null }
+                }, 0)
+                connected.complete(service)
+            }
+            override fun onServiceDisconnected() {
+                if (bindingEpoch.get() == expected) { remote = null; active = null }
+            }
+            override fun onServiceStartFailed(errorCode: Int, message: String) {
+                if (bindingEpoch.get() == expected) {
+                    connected.completeExceptionally(IllegalStateException("SHIZUKU_SERVICE_START_FAILED:$errorCode"))
+                }
+            }
+        }
+        stellarArgs = args
+        try {
+            withContext(Dispatchers.Main) { StellarUserService.bindUserService(args, callback) }
+            remote = withTimeoutOrNull(15_000) { connected.await() } ?: error("SHIZUKU_SERVICE_BIND_TIMEOUT")
+        } catch (failure: Exception) {
+            bindingEpoch.incrementAndGet()
+            remote = null
+            stellarArgs = null
+            withContext(NonCancellable + Dispatchers.Main) { runCatching { StellarUserService.unbindUserService(args) } }
             throw failure
         }
     }
@@ -163,5 +246,29 @@ class ShizukuBackend(context: Context) : CommandBackend(context) {
         if (args != null && connection != null) withContext(NonCancellable + Dispatchers.Main) {
             runCatching { Shizuku.unbindUserService(args, connection, true) }
         }
+        val stellar = stellarArgs
+        stellarArgs = null
+        if (stellar != null) withContext(NonCancellable + Dispatchers.Main) {
+            runCatching { StellarUserService.unbindUserService(stellar) }
+        }
+    }
+
+    companion object {
+        private const val STELLAR_PACKAGE = "roro.stellar.manager"
+
+        private fun packageInstalled(context: Context, name: String): Boolean =
+            runCatching { context.packageManager.getPackageInfo(name, 0); true }.getOrDefault(false)
+
+        /** True when the Stellar manager is installed and its server has delivered a live binder. */
+        fun stellarAvailable(context: Context): Boolean =
+            packageInstalled(context, STELLAR_PACKAGE) && runCatching { Stellar.pingBinder() }.getOrDefault(false)
+
+        /** Transport-aware privilege check shared by the MCP permission gate. */
+        fun isPrivilegeReady(context: Context): Boolean =
+            if (stellarAvailable(context)) {
+                runCatching { Stellar.pingBinder() && Stellar.checkSelfPermission() }.getOrDefault(false)
+            } else {
+                runCatching { Shizuku.pingBinder() && Shizuku.checkSelfPermission() == PackageManager.PERMISSION_GRANTED }.getOrDefault(false)
+            }
     }
 }
