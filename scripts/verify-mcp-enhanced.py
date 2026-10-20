@@ -42,7 +42,7 @@ def main():
         base.data(call('configure_screen', width=720, height=1600, density=320, observe_after='none'))
         base.data(call('launch_app', component=base.FIXTURE+'/.FixtureActivity', observe_after='none'))
         base.observe(client, lease)
-        for mode, fmt in [('both', 'full'), ('both', 'compact'), ('tree', 'compact')]:
+        for mode, fmt in [('tree', 'full'), ('tree', 'compact'), ('both', 'compact')]:
             rows = []
             for _ in range(args.samples):
                 start = time.perf_counter()
@@ -53,6 +53,8 @@ def main():
                     assert not any(c['type'] == 'image' for c in result['content'])
             records[mode+'_'+fmt] = {'samples': rows, 'median_ms': statistics.median(r['ms'] for r in rows),
                                     'mean_bytes': statistics.mean(r['bytes'] for r in rows)}
+        assert records['tree_compact']['mean_bytes'] < records['tree_full']['mean_bytes'], \
+            'Compact tree should serialize smaller than full for the same fixture hierarchy'
         state, _ = observe(mode='tree')
         original = state['observation_id']
         button = next(n for n in state['nodes'] if 'tap counter' in (n.get('text') or '').lower())
@@ -78,11 +80,11 @@ def main():
         assert base.data(stale, False)['code'] == 'STALE_OBSERVATION'
         updated = base.data(call('wait', condition='node_text', text='tap counter: '+str(count+1), timeout_ms=5000))
         assert updated['condition_matched']
-        editor = next(n for n in updated['nodes'] if n['editable'])
+        editor = next(n for n in updated['nodes'] if n.get('editable'))
         text = 'Agent 中文測試 👋 0.0.1'
         base.data(call('node_action', action='set_text', node_id=editor['id'], value=text, observation_id=updated['observation_id'], observe_after='tree'))
         typed = base.data(call('wait', condition='node_text', text=text, timeout_ms=5000))
-        assert any(n['text'] == text for n in typed['nodes'])
+        assert any(n.get('text') == text for n in typed['nodes'])
         base.data(call('node_action', action='set_text', selector={'resource_id': base.FIXTURE+':id/test_editor'}, value='', observation_id=typed['observation_id']))
         base.data(call('wait', condition='node_present', selector={'resource_id': base.FIXTURE+':id/test_editor'}, timeout_ms=2000))
         absent = base.data(call('wait', condition='node_absent', selector={'text': 'definitely missing fixture node'}, timeout_ms=2000))

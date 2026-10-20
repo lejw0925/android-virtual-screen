@@ -70,7 +70,25 @@ data class NodeSnapshot(
     val packageName: String? = null,
     val nodes: List<NodeInfo> = emptyList(),
     val truncated: Boolean = false,
+    val truncationReasons: List<String> = emptyList(),
+    val windows: List<WindowSnapshot> = emptyList(),
+    val nodeLimit: Int = 5000,
+    val depthLimit: Int = 100,
+    val childLimit: Int = 1000,
 )
+
+data class WindowSnapshot(
+    val id: Int,
+    val displayId: Int,
+    val type: Int,
+    val packageName: String? = null,
+    val title: String? = null,
+    val layer: Int = 0,
+    val focused: Boolean = false,
+    val active: Boolean = false,
+)
+
+data class NodeActionInfo(val id: Int, val label: String? = null)
 
 data class NodeInfo(
     val id: String,
@@ -90,6 +108,13 @@ data class NodeInfo(
     val checked: Boolean = false,
     val visible: Boolean = true,
     val password: Boolean = false,
+    val hintText: String? = null,
+    val stateDescription: String? = null,
+    val longClickable: Boolean = false,
+    val focusable: Boolean = false,
+    val windowId: Int? = null,
+    val packageName: String? = null,
+    val actionList: List<NodeActionInfo> = emptyList(),
 )
 
 sealed interface BackendOperation {

@@ -6,7 +6,9 @@ import android.content.Intent
 import io.github.lejw0925.virtualscreen.backend.*
 import io.github.lejw0925.virtualscreen.core.*
 import io.github.lejw0925.virtualscreen.mcp.McpToolRegistry
+import io.github.lejw0925.virtualscreen.mcp.McpServerState
 import io.github.lejw0925.virtualscreen.tunnel.TunnelMode
+import androidx.annotation.RequiresApi
 import kotlinx.coroutines.*
 import org.json.JSONObject
 import java.io.File
@@ -26,6 +28,10 @@ class DeviceCheckReceiver: BroadcastReceiver() {
                         JSONObject().put("ok",true).put("backend",settings.backend.name).put("theme",settings.theme)
                             .put("language",settings.language).put("guide_completed",app.settings.guideCompleted.value).put("mcp_wanted",app.mcpWanted)
                     }
+                    "complete_guide" -> {
+                        app.settings.completeGuide()
+                        JSONObject().put("ok",true)
+                    }
                     "settings" -> {
                         val page=intent.getStringExtra("page") ?: "HOME"
                         require(page in setOf("HOME","BACKEND","DISPLAY","MCP","TUNNEL","APPEARANCE","BACKGROUND","LOGS","ABOUT","LICENSES","GUIDE"))
@@ -42,11 +48,59 @@ class DeviceCheckReceiver: BroadcastReceiver() {
                     "status" -> {
                         val state=app.sessions.state.value
                         val notification=app.getSystemService(android.app.NotificationManager::class.java).activeNotifications.firstOrNull { it.id==8732 }?.notification
-                        JSONObject().put("ok",true).put("display",state.displayId).put("state",state.status.name)
+                        JSONObject().put("ok",true).put("display",state.displayId).put("session",state.sessionId).put("state",state.status.name)
                             .put("preview",state.previewStatus.name).put("mcp_running",app.mcp.state().running)
-                            .put("notification_icon_matches",notification?.smallIcon?.resId==R.drawable.ic_launcher)
+                            .put("notification_icon_matches",notification?.smallIcon?.resId in setOf(R.drawable.ic_status_ready,
+                                R.drawable.ic_status_active, R.drawable.ic_status_remote, R.drawable.ic_status_approval, R.drawable.ic_status_error))
+                            .put("notification_icon",notification?.smallIcon?.resId?.let { app.resources.getResourceEntryName(it) })
+                            .put("notification_actions",org.json.JSONArray(notification?.actions?.map { action ->
+                                JSONObject().put("title",action.title).put("icon",action.getIcon()?.resId?.let { app.resources.getResourceEntryName(it) })
+                            }.orEmpty()))
                             .put("notification_title",notification?.extras?.getString(android.app.Notification.EXTRA_TITLE))
                             .put("notification_text",notification?.extras?.getString(android.app.Notification.EXTRA_TEXT))
+                            .apply {
+                                if (android.os.Build.VERSION.SDK_INT >= 36 && RuntimeNotification.supportsLiveUpdates() && notification != null) {
+                                    put("live_update_requested", notification.extras.getBoolean(android.app.Notification.EXTRA_REQUEST_PROMOTED_ONGOING))
+                                    put("live_update_eligible", notification.hasPromotableCharacteristics())
+                                    put("live_update_promoted", notification.flags and android.app.Notification.FLAG_PROMOTED_ONGOING != 0)
+                                    put("live_update_allowed", app.getSystemService(android.app.NotificationManager::class.java).canPostPromotedNotifications())
+                                    put("status_chip", notification.shortCriticalText)
+                                }
+                            }
+                    }
+                    "live_update" -> {
+                        if (android.os.Build.VERSION.SDK_INT < 36 || !RuntimeNotification.supportsLiveUpdates())
+                            error("LIVE_UPDATES_UNAVAILABLE")
+                        else liveUpdateCheck(app,intent.getStringExtra("preview"))
+                    }
+                    "clear_notification_preview" -> {
+                        app.getSystemService(android.app.NotificationManager::class.java).cancel(8877)
+                        JSONObject().put("ok",true)
+                    }
+                    "notification_action" -> {
+                        val title=when(intent.getStringExtra("action")) {
+                            "takeover" -> R.string.notification_takeover
+                            "close_display" -> R.string.notification_close_display
+                            else -> error("UNKNOWN_NOTIFICATION_ACTION")
+                        }
+                        val notification=app.getSystemService(android.app.NotificationManager::class.java)
+                            .activeNotifications.firstOrNull { it.id==8732 }?.notification ?: error("NOTIFICATION_MISSING")
+                        val action=notification.actions.singleOrNull { it.title.toString()==app.getString(title) }
+                            ?: error("NOTIFICATION_ACTION_MISSING")
+                        action.actionIntent.send()
+                        JSONObject().put("ok",true).put("action",action.title)
+                    }
+                    "notification_content" -> {
+                        val id = intent.getStringExtra("approval_id") ?: error("APPROVAL_ID_REQUIRED")
+                        val control = app.mcp.approvals.pending.value.firstOrNull { it.id == id }
+                        val restart = app.sessions.restartApprovals.pending.value.firstOrNull { it.id == id }
+                        val approval = when {
+                            control != null -> NotificationApproval.control(context, control)
+                            restart != null -> NotificationApproval.restart(context, restart)
+                            else -> error("APPROVAL_NOT_PENDING")
+                        }
+                        RuntimeNotification.approvalContentIntent(context, approval).send()
+                        JSONObject().put("ok", true).put("approval_id", id)
                     }
                     "appearance" -> {
                         val language=intent.getStringExtra("language") ?: "system"
@@ -78,6 +132,10 @@ class DeviceCheckReceiver: BroadcastReceiver() {
                         check(launched.ok) { launched.code ?: "LAUNCH_FAILED" }
                         JSONObject().put("ok",true).put("backend",backend.name).put("display",app.sessions.state.value.displayId).put("bridge",app.sessions.liveChannel?.isAlive == true)
                     }
+                    "close_preview" -> {
+                        app.sessions.shutdown()
+                        JSONObject().put("ok",true).put("closed",true)
+                    }
                     "geometry" -> {
                         app.sessions.preview()
                         val state=app.sessions.state.value
@@ -89,6 +147,21 @@ class DeviceCheckReceiver: BroadcastReceiver() {
                             .put("viewer_width",width).put("viewer_height",height).put("frame_width",frame?.width).put("frame_height",frame?.height)
                     }
                     "release_phone" -> { app.sessions.leaseStatus()?.takeIf { it.owner==VirtualScreenSessionManager.PHONE_CLIENT }?.let { app.sessions.releaseLease(it.owner,it.token) }; JSONObject().put("ok",true) }
+                    "fixture_counter" -> {
+                        val lease = app.sessions.leaseStatus()?.takeIf { it.owner == VirtualScreenSessionManager.PHONE_CLIENT }
+                            ?: error("PHONE_VIEWER_REQUIRED")
+                        val observed = app.sessions.observe(lease.owner, lease.token, captureFrame = false).getOrThrow()
+                        val nodes = app.sessions.nodes(lease.owner, lease.token, observed.values.getValue("observation_id") as String).getOrThrow()
+                        check(nodes.packageName == "io.github.lejw0925.virtualscreen.fixture") { "FIXTURE_REQUIRED" }
+                        val counterNode = nodes.nodes.firstOrNull { node -> node.text?.startsWith("Tap counter:", ignoreCase = true) == true }
+                            ?: error("FIXTURE_COUNTER_MISSING")
+                        val counter = counterNode.text ?: error("FIXTURE_COUNTER_MISSING")
+                        val bounds = counterNode.bounds ?: error("FIXTURE_COUNTER_BOUNDS_MISSING")
+                        JSONObject().put("ok", true).put("counter", counter.substringAfter(':').trim().toInt())
+                            .put("node_count", nodes.nodes.size).put("bounds", org.json.JSONArray(listOf(bounds.left,bounds.top,bounds.right,bounds.bottom)))
+                            .put("viewer_size", org.json.JSONArray(app.settings.viewerSize().toList()))
+                            .put("display_config", org.json.JSONArray(listOf(app.sessions.state.value.config.width,app.sessions.state.value.config.height)))
+                    }
                     "nodes" -> {
                         val backend=BackendKind.valueOf(intent.getStringExtra("backend") ?: "ROOT")
                         app.sessions.shutdown(); app.sessions.selectBackend(backend)
@@ -141,5 +214,39 @@ class DeviceCheckReceiver: BroadcastReceiver() {
             } catch(e: Exception) { output.writeText(JSONObject().put("ok",false).put("code",e.code()).put("detail",e.message).toString()) }
             finally { pending.finish() }
         }
+    }
+
+    @RequiresApi(36)
+    private fun liveUpdateCheck(app: VirtualScreenApplication, preview: String? = null): JSONObject {
+        val screen=SessionState(status=SessionStatus.RUNNING,sessionId="device-check",displayId=9)
+        val content=RuntimeNotification.describe(app,screen,McpServerState(running=true),null,io.github.lejw0925.virtualscreen.tunnel.TunnelState(),false)
+        val notification=RuntimeNotification.build(app,content)
+        val remote=screen.copy(lease=Lease("device-check-agent","not-a-real-lease",Long.MAX_VALUE,1))
+        val purpose="检查通知图标与展开的操作目的，保持完整显示。".repeat(12)
+        val working=io.github.lejw0925.virtualscreen.mcp.ToolActivity("device-check","device-check-agent","tap",purpose,"running")
+        val request=ControlRequest("device-check","device-check-agent","Notification check",purpose,1,Long.MAX_VALUE)
+        val restart=AppRestartRequest("device-check","device-check-agent","Notification check","Fixture",purpose,Long.MAX_VALUE)
+        val cases=listOf(
+            "local" to content,
+            "remote" to RuntimeNotification.describe(app,remote,McpServerState(running=true),working.copy(phase="completed"),io.github.lejw0925.virtualscreen.tunnel.TunnelState(),false),
+            "working" to RuntimeNotification.describe(app,remote,McpServerState(running=true),working,io.github.lejw0925.virtualscreen.tunnel.TunnelState(),false),
+            "control_approval" to RuntimeNotification.describe(app,screen,McpServerState(running=true),null,io.github.lejw0925.virtualscreen.tunnel.TunnelState(),false,listOf(request)),
+            "restart_approval" to RuntimeNotification.describe(app,remote,McpServerState(running=true),working,io.github.lejw0925.virtualscreen.tunnel.TunnelState(),false,restartRequests=listOf(restart)),
+        )
+        val variants=cases.map { (name,description) ->
+            val built=RuntimeNotification.build(app,description)
+            if(name==preview) app.getSystemService(android.app.NotificationManager::class.java).notify(8877,built)
+            JSONObject().put("state",name).put("chip",built.shortCriticalText).put("eligible",built.hasPromotableCharacteristics())
+                .put("icon",app.resources.getResourceEntryName(built.smallIcon.resId))
+                .put("purpose_preserved",name=="local" || built.extras.getCharSequence(android.app.Notification.EXTRA_BIG_TEXT).toString().contains(purpose))
+                .put("actions",org.json.JSONArray(built.actions.map { action ->
+                    JSONObject().put("title",action.title).put("icon",app.resources.getResourceEntryName(action.getIcon().resId))
+                        .apply { if(android.os.Build.VERSION.SDK_INT >= 37) put("icon_and_text",action.styleHint==android.app.Notification.Action.STYLE_ICON_AND_TEXT) }
+                }))
+        }
+        return JSONObject().put("ok",true).put("requested",notification.extras.getBoolean("android.requestPromotedOngoing"))
+            .put("eligible",notification.hasPromotableCharacteristics()).put("chip",content.chip)
+            .put("category",notification.category).put("ongoing",notification.flags and android.app.Notification.FLAG_ONGOING_EVENT != 0)
+            .put("variants",org.json.JSONArray(variants))
     }
 }

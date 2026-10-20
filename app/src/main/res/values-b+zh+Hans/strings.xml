@@ -25,4 +25,18 @@
     <string name="app_restart_detail">%1$s\n该应用正在其他屏幕运行。允许后将结束当前任务，并在虚拟屏打开。两分钟内有效。</string>
     <string name="app_restart_allow">允许重启</string>
     <string name="app_restart_purpose">在虚拟屏打开 %1$s</string>
+    <string name="notification_display_starting">正在创建虚拟屏</string>
+    <string name="notification_server_starting">MCP 正在启动</string>
+    <string name="notification_tunnel_ready">隧道已连接</string>
+    <string name="notification_starting_detail">正在启动服务，请稍候。</string>
+    <string name="notification_failure">请打开应用检查权限与后端设置。</string>
+    <string name="notification_clients">已连接 %1$d 个客户端 · 等待虚拟屏</string>
+    <string name="notification_tunnel_waiting">隧道已连接 · 等待虚拟屏</string>
+    <string name="notification_chip_active">操作中</string>
+    <string name="notification_chip_remote">远程中</string>
+    <string name="notification_chip_local">运行中</string>
+    <string name="notification_chip_ready">MCP</string>
+    <string name="notification_chip_error">需检查</string>
+    <string name="notification_close_display">关闭虚拟屏</string>
+    <string name="notification_chip_approval">待审批</string>
 </resources>

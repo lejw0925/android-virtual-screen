@@ -37,15 +37,25 @@ import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.AccountTree
 import androidx.compose.material.icons.filled.Bedtime
 import androidx.compose.material.icons.filled.CameraAlt
-import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Close
-import androidx.compose.material.icons.filled.Error
+import androidx.compose.material.icons.filled.Code
+import androidx.compose.material.icons.filled.Description
+import androidx.compose.material.icons.filled.Info
+import androidx.compose.material.icons.filled.SystemUpdate
 import androidx.compose.material.icons.automirrored.filled.FactCheck
 import androidx.compose.material.icons.automirrored.filled.HelpOutline
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.automirrored.filled.ScreenShare
 import androidx.compose.material.icons.filled.TouchApp
+import androidx.compose.material.icons.filled.Palette
+import androidx.compose.material.icons.filled.PictureInPictureAlt
+import androidx.compose.material.icons.filled.Security
+import androidx.compose.material.icons.filled.SettingsEthernet
+import androidx.compose.material.icons.filled.SettingsPower
+import androidx.compose.material.icons.filled.Hub
+import io.github.lejw0925.virtualscreen.mcp.McpToolProbe
+import io.github.lejw0925.virtualscreen.mcp.McpToolRegistry
 import kotlinx.coroutines.*
 
 class SettingsActivity : ComponentActivity() {
@@ -65,7 +75,7 @@ class SettingsActivity : ComponentActivity() {
     }
 }
 private enum class SettingsPage { HOME,BACKEND,DISPLAY,MCP,TUNNEL,APPEARANCE,BACKGROUND,LOGS,ABOUT,LICENSES,GUIDE }
-@OptIn(ExperimentalMaterial3Api::class)
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalMaterial3ExpressiveApi::class)
 @Composable private fun SettingsContent(app: VirtualScreenApplication,initial: String,notifications: () -> Unit,onExit: () -> Unit) {
     val l=LocalLanguage.current
     val background=MaterialTheme.colorScheme.surface
@@ -86,15 +96,17 @@ private enum class SettingsPage { HOME,BACKEND,DISPLAY,MCP,TUNNEL,APPEARANCE,BAC
         (slideInHorizontally(tween(260)) { it*direction/4 }+fadeIn(tween(220))) togetherWith
             (slideOutHorizontally(tween(240)) { -it*direction/6 }+fadeOut(tween(180)))
     },label="settings navigation") { page ->
-        val scroll=TopAppBarDefaults.pinnedScrollBehavior()
-        Scaffold(containerColor=MaterialTheme.colorScheme.surface,topBar={ TopAppBar(title={ Text(pageTitle(l,page),color=MaterialTheme.colorScheme.onSurface) },colors=TopAppBarDefaults.topAppBarColors(containerColor=MaterialTheme.colorScheme.surface),scrollBehavior=scroll,
+        val scroll=TopAppBarDefaults.enterAlwaysScrollBehavior()
+        Scaffold(modifier=Modifier.nestedScroll(scroll.nestedScrollConnection),containerColor=MaterialTheme.colorScheme.surface,topBar={ TopAppBar(title={ Text(pageTitle(l,page),color=MaterialTheme.colorScheme.onSurface) },colors=TopAppBarDefaults.topAppBarColors(containerColor=MaterialTheme.colorScheme.surface,scrolledContainerColor=MaterialTheme.colorScheme.surfaceContainer),scrollBehavior=scroll,
             navigationIcon={ IconButton(onClick={ back() },modifier=Modifier.size(48.dp)) { Icon(Icons.AutoMirrored.Filled.ArrowBack,l.text("返回","Back","返回"),modifier=Modifier.size(24.dp),tint=MaterialTheme.colorScheme.onSurface) } }) }) { padding ->
-            Box(Modifier.fillMaxSize().nestedScroll(scroll.nestedScrollConnection).verticalScroll(rememberScrollState()).padding(padding).imePadding()) {
+            Box(Modifier.fillMaxSize().padding(padding).imePadding().verticalScroll(rememberScrollState())) {
                 Column(
                     Modifier.widthIn(max = 720.dp).fillMaxWidth().align(Alignment.TopCenter).padding(horizontal=16.dp).padding(top=12.dp,bottom=32.dp),
                     verticalArrangement=Arrangement.spacedBy(24.dp),
                 ) {
-                    if(busy) LinearWavyProgressIndicator(Modifier.fillMaxWidth().height(4.dp))
+                    if(busy && page != SettingsPage.BACKEND && page != SettingsPage.TUNNEL) {
+                        LinearWavyProgressIndicator(Modifier.fillMaxWidth())
+                    }
                     error?.let { code ->
                         Surface(
                             Modifier.fillMaxWidth(),
@@ -145,81 +157,183 @@ private fun pageTitle(l: UiLanguage,page: SettingsPage)=when(page) {
 @Composable private fun SettingsHome(app: VirtualScreenApplication,go: (SettingsPage) -> Unit) {
     val l=LocalLanguage.current; val s by app.sessions.state.collectAsState(); val server by app.mcp.flow.collectAsState(); val tunnel by app.tunnels.flow.collectAsState()
     Section(l.text("虚拟屏","Virtual screen","虛擬螢幕")) {
-        ArrowPreference(title=pageTitle(l,SettingsPage.BACKEND),summary=s.backend.wireName.uppercase(),onClick={ go(SettingsPage.BACKEND) })
-        ArrowPreference(title=pageTitle(l,SettingsPage.DISPLAY),onClick={ go(SettingsPage.DISPLAY) })
+        ArrowPreference(title=pageTitle(l,SettingsPage.BACKEND),summary=s.backend.wireName.uppercase(),icon=Icons.Default.Security,onClick={ go(SettingsPage.BACKEND) })
+        ArrowPreference(title=pageTitle(l,SettingsPage.DISPLAY),icon=Icons.AutoMirrored.Filled.ScreenShare,onClick={ go(SettingsPage.DISPLAY) })
     }
     Section(l.text("连接","Connections","連線")) {
-        ArrowPreference(title=pageTitle(l,SettingsPage.MCP),summary=if(server.running) l.text("运行中 · ${server.sessionCount} 个客户端","Running · ${server.sessionCount} clients","執行中 · ${server.sessionCount} 個用戶端") else l.text("已关闭","Off","已關閉"),onClick={ go(SettingsPage.MCP) })
-        ArrowPreference(title=pageTitle(l,SettingsPage.TUNNEL),summary=tunnelLabel(l,tunnel.mode)+" · "+phaseLabel(l,tunnel.phase),onClick={ go(SettingsPage.TUNNEL) })
+        ArrowPreference(title=pageTitle(l,SettingsPage.MCP),summary=if(server.running) l.text("运行中 · ${server.sessionCount} 个客户端","Running · ${server.sessionCount} clients","執行中 · ${server.sessionCount} 個用戶端") else l.text("已关闭","Off","已關閉"),icon=Icons.Default.Hub,onClick={ go(SettingsPage.MCP) })
+        ArrowPreference(title=pageTitle(l,SettingsPage.TUNNEL),summary=tunnelLabel(l,tunnel.mode)+" · "+phaseLabel(l,tunnel.phase),icon=Icons.Default.SettingsEthernet,onClick={ go(SettingsPage.TUNNEL) })
     }
     Section(l.text("应用","Application","應用程式")) {
-        ArrowPreference(title=pageTitle(l,SettingsPage.APPEARANCE),onClick={ go(SettingsPage.APPEARANCE) })
-        ArrowPreference(title=pageTitle(l,SettingsPage.BACKGROUND),onClick={ go(SettingsPage.BACKGROUND) })
-        ArrowPreference(title=pageTitle(l,SettingsPage.LOGS),onClick={ go(SettingsPage.LOGS) })
-        ArrowPreference(title=pageTitle(l,SettingsPage.ABOUT),summary=BuildConfig.VERSION_NAME,onClick={ go(SettingsPage.ABOUT) })
-        ArrowPreference(title=pageTitle(l,SettingsPage.GUIDE),onClick={ go(SettingsPage.GUIDE) })
+        ArrowPreference(title=pageTitle(l,SettingsPage.APPEARANCE),icon=Icons.Default.Palette,onClick={ go(SettingsPage.APPEARANCE) })
+        ArrowPreference(title=pageTitle(l,SettingsPage.BACKGROUND),icon=Icons.Default.SettingsPower,onClick={ go(SettingsPage.BACKGROUND) })
+        ArrowPreference(title=pageTitle(l,SettingsPage.LOGS),icon=Icons.Default.Description,onClick={ go(SettingsPage.LOGS) })
+        ArrowPreference(title=pageTitle(l,SettingsPage.ABOUT),summary=BuildConfig.VERSION_NAME,icon=Icons.Default.Info,onClick={ go(SettingsPage.ABOUT) })
+        ArrowPreference(title=pageTitle(l,SettingsPage.GUIDE),icon=Icons.AutoMirrored.Filled.HelpOutline,onClick={ go(SettingsPage.GUIDE) })
     }
 }
-@Composable private fun BackendPreferences(app: VirtualScreenApplication,task: (suspend () -> Unit) -> Unit,busy: Boolean) {
-    val l=LocalLanguage.current; val state by app.sessions.state.collectAsState()
+@OptIn(ExperimentalMaterial3ExpressiveApi::class)
+@Composable
+private fun BackendPreferences(app: VirtualScreenApplication, task: (suspend () -> Unit) -> Unit, busy: Boolean) {
+    val l = LocalLanguage.current
+    val state by app.sessions.state.collectAsState()
     var confirmProbe by remember { mutableStateOf(false) }
-    var probeProgress by remember { mutableIntStateOf(0) }
-    val toolCount=remember(app.sessions,state.backend) { io.github.lejw0925.virtualscreen.mcp.McpToolRegistry(app.sessions).tools.size }
-    Section(l.text("授权","Authorization","授權")) {
-        WindowDropdownPreference(items=listOf("Root","Shizuku"),selectedIndex=state.backend.ordinal,title=l.text("权限后端","Backend","權限後端"),enabled=!busy,onSelectedIndexChange={ index -> task { val backend=BackendKind.entries[index]; app.sessions.selectBackend(backend); app.settings.update { it.copy(backend=backend) } } })
-        ArrowPreference(title=l.text("授权并检测","Authorize and probe","授權並檢測"),icon=Icons.AutoMirrored.Filled.FactCheck,enabled=!busy,onClick={ confirmProbe=true })
-        ArrowPreference(title=l.text("画中画预览","Picture-in-picture preview","子母畫面預覽"),onClick={
-            val intent=Intent("android.settings.PICTURE_IN_PICTURE_SETTINGS",android.net.Uri.parse("package:${app.packageName}")).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-            if(intent.resolveActivity(app.packageManager)!=null) app.startActivity(intent) else app.startActivity(Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS,android.net.Uri.parse("package:${app.packageName}")).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
-        })
+    var probing by remember { mutableStateOf(false) }
+    var probeProgress by remember(state.backend) { mutableIntStateOf(0) }
+    val toolCount = remember(app.sessions, state.backend) { McpToolRegistry(app.sessions).tools.size }
+    val report = state.toolProbe
+
+    Section(l.text("授权", "Authorization", "授權")) {
+        WindowDropdownPreference(
+            title = l.text("权限后端", "Backend", "權限後端"),
+            items = listOf("Root", "Shizuku"),
+            selectedIndex = state.backend.ordinal,
+            enabled = !busy,
+            icon = Icons.Default.Security,
+            onSelectedIndexChange = { index -> task {
+                val backend = BackendKind.entries[index]
+                app.sessions.selectBackend(backend)
+                app.settings.update { it.copy(backend = backend) }
+                app.sessions.ensureAccessibility()
+            } },
+        )
+        ArrowPreference(
+            title = l.text("画中画预览", "Picture-in-picture preview", "子母畫面預覽"),
+            summary = l.text("预览虚拟屏画面悬浮窗", "Preview the virtual display in a floating window", "預覽虛擬螢幕畫面浮動視窗"),
+            icon = Icons.Default.PictureInPictureAlt,
+            onClick = {
+                val intent = Intent("android.settings.PICTURE_IN_PICTURE_SETTINGS", android.net.Uri.parse("package:${app.packageName}"))
+                    .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                if (intent.resolveActivity(app.packageManager) != null) app.startActivity(intent)
+                else app.startActivity(Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS, android.net.Uri.parse("package:${app.packageName}"))
+                    .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
+            },
+        )
+        LiveUpdatesPreference(app)
     }
-    Section(l.text("检测结果","Probe results","檢測結果")) {
-        val report=state.toolProbe
-        Column(Modifier.padding(16.dp),verticalArrangement=Arrangement.spacedBy(4.dp)) {
-            val c=state.capabilities
-            listOf(
-                Triple(l.text("显示创建","Display creation","顯示建立"),Icons.AutoMirrored.Filled.ScreenShare,c.displayCreation),
-                Triple(l.text("截图","Capture","截圖"),Icons.Default.CameraAlt,c.frameCapture),
-                Triple(l.text("输入","Input","輸入"),Icons.Default.TouchApp,c.inputInjection),
-                Triple(l.text("节点","Nodes","節點"),Icons.Default.AccountTree,c.accessibilityNodes),
-                Triple(l.text("熄屏运行","Screen-off operation","熄屏執行"),Icons.Default.Bedtime,c.screenOff),
-            ).forEach { (name,icon,value) ->
-                Row(Modifier.fillMaxWidth().padding(horizontal=4.dp,vertical=8.dp),verticalAlignment=Alignment.CenterVertically,horizontalArrangement=Arrangement.spacedBy(12.dp)) {
-                    Icon(icon,null,tint=MaterialTheme.colorScheme.onSurfaceVariant)
-                    Text(name,modifier=Modifier.weight(1f).padding(end=12.dp),color=MaterialTheme.colorScheme.onSurface)
-                    Icon(when(value) { CapabilityStatus.AVAILABLE -> Icons.Default.CheckCircle; CapabilityStatus.UNAVAILABLE -> Icons.Default.Error; CapabilityStatus.REQUIRES_AUTHORIZATION -> Icons.Default.Close; CapabilityStatus.UNKNOWN -> Icons.AutoMirrored.Filled.HelpOutline },capabilityLabel(l,value),tint=when(value) { CapabilityStatus.AVAILABLE -> MaterialTheme.colorScheme.primary; CapabilityStatus.UNAVAILABLE,CapabilityStatus.REQUIRES_AUTHORIZATION -> MaterialTheme.colorScheme.error; CapabilityStatus.UNKNOWN -> MaterialTheme.colorScheme.onSurfaceVariant })
-                    Text(capabilityLabel(l,value),style=MaterialTheme.typography.labelLarge,color=MaterialTheme.colorScheme.onSurfaceVariant)
+
+    AccessibilityPermission(app, busy) { task { app.sessions.requestAuthorization() } }
+
+    Section(l.text("检测结果", "Probe results", "檢測結果")) {
+        Column(Modifier.fillMaxWidth().padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+            Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                Text(
+                    when {
+                        probing -> l.text("正在检测 · $probeProgress/$toolCount", "Checking · $probeProgress/$toolCount", "正在檢測 · $probeProgress/$toolCount")
+                        report != null -> l.text("${report.passedTools}/${report.totalTools} 通过", "${report.passedTools}/${report.totalTools} passed", "${report.passedTools}/${report.totalTools} 通過")
+                        else -> l.text("待实际检测", "Not yet checked", "待實際檢測")
+                    },
+                    modifier = Modifier.weight(1f),
+                    style = MaterialTheme.typography.titleMediumEmphasized,
+                )
+                FilledTonalButton(onClick = { confirmProbe = true }, enabled = !busy,
+                    contentPadding = PaddingValues(horizontal = 12.dp)) {
+                    Icon(
+                        if (report == null) Icons.Default.PlayArrow else Icons.Default.Refresh,
+                        null, Modifier.size(18.dp),
+                    )
+                    Spacer(Modifier.width(6.dp))
+                    Text(if (report == null) l.text("授权并检测", "Authorize & check", "授權並檢測")
+                        else l.text("重新检测", "Check again", "重新檢測"))
                 }
             }
-            if(report!=null) {
-                HorizontalDivider(Modifier.padding(vertical=8.dp))
-                Text(l.text("${report.passedTools}/${report.totalTools} 个工具通过","${report.passedTools}/${report.totalTools} tools passed","${report.passedTools}/${report.totalTools} 個工具通過"),style=MaterialTheme.typography.titleSmall,color=MaterialTheme.colorScheme.onSurface)
-                report.results.forEach { result ->
-                    Row(Modifier.fillMaxWidth().padding(vertical=5.dp),verticalAlignment=Alignment.CenterVertically,horizontalArrangement=Arrangement.spacedBy(10.dp)) {
-                        Icon(when { result.passed -> Icons.Default.CheckCircle; result.attempts == 0 -> Icons.AutoMirrored.Filled.HelpOutline; else -> Icons.Default.Error },null,tint=when { result.passed -> MaterialTheme.colorScheme.primary; result.attempts == 0 -> MaterialTheme.colorScheme.onSurfaceVariant; else -> MaterialTheme.colorScheme.error })
-                        Text(mcpToolLabel(l,result.tool),Modifier.weight(1f),style=MaterialTheme.typography.bodyMedium,color=MaterialTheme.colorScheme.onSurface)
-                        if(!result.passed) Text(result.code ?: l.text("未执行","Skipped","未執行"),style=MaterialTheme.typography.labelSmall,color=MaterialTheme.colorScheme.onSurfaceVariant,maxLines=1)
-                    }
-                }
+            if (probing || busy) {
+                LinearWavyProgressIndicator(Modifier.fillMaxWidth())
+            } else {
+                LinearWavyProgressIndicator(
+                    progress = { if (report == null) 0f else report.passedTools / report.totalTools.toFloat().coerceAtLeast(1f) },
+                    modifier = Modifier.fillMaxWidth(),
+                    color = when {
+                        report == null -> MaterialTheme.colorScheme.onSurfaceVariant
+                        report.passedTools == report.totalTools -> MaterialTheme.colorScheme.tertiary
+                        else -> MaterialTheme.colorScheme.error
+                    },
+                    trackColor = MaterialTheme.colorScheme.surfaceContainerHighest,
+                    amplitude = { 1f },
+                    waveSpeed = 0.dp,
+                )
             }
         }
-        ArrowPreference(title=l.text("重新检测","Probe again","重新檢測"),icon=Icons.Default.Refresh,enabled=!busy,onClick={ confirmProbe=true })
-    }
-    if(busy && probeProgress>0) LinearProgressIndicator({ probeProgress/toolCount.toFloat().coerceAtLeast(1f) },Modifier.fillMaxWidth().padding(horizontal=16.dp))
-    if(confirmProbe) AlertDialog(
-        onDismissRequest={ if(!busy) confirmProbe=false },
-        icon={ Icon(Icons.AutoMirrored.Filled.FactCheck,null) },
-        title={ Text(l.text("运行权限检测","Run backend check","執行權限檢測")) },
-        text={ Text(l.text("将执行全部 $toolCount 个 MCP 工具，并在临时虚拟屏中验证；检测结束后会关闭并清理。","All $toolCount MCP tools will run on a temporary virtual display. The display will be closed and cleaned up when the check finishes.","將執行全部 $toolCount 個 MCP 工具，並在臨時虛擬螢幕中驗證；檢測結束後會關閉並清理。")) },
-        confirmButton={ Button(enabled=!busy,onClick={ confirmProbe=false; probeProgress=0; task {
-            app.sessions.requestAuthorization()
-            val report=io.github.lejw0925.virtualscreen.mcp.McpToolProbe(app.sessions).run { completed,total,_ ->
-                android.os.Handler(android.os.Looper.getMainLooper()).post { probeProgress=completed.coerceIn(0,total) }
+        val c = state.capabilities
+        listOf(
+            Triple(l.text("显示创建", "Display creation", "顯示建立"), Icons.AutoMirrored.Filled.ScreenShare, c.displayCreation),
+            Triple(l.text("截图", "Capture", "截圖"), Icons.Default.CameraAlt, c.frameCapture),
+            Triple(l.text("输入", "Input", "輸入"), Icons.Default.TouchApp, c.inputInjection),
+            Triple(l.text("节点", "Nodes", "節點"), Icons.Default.AccountTree, c.accessibilityNodes),
+            Triple(l.text("熄屏运行", "Screen-off operation", "熄屏執行"), Icons.Default.Bedtime, c.screenOff),
+        ).forEach { (name, icon, value) ->
+            val status = if (probing) CapabilityStatus.UNKNOWN else value
+            StatusPreference(name, icon, capabilityLabel(l, status), capabilityTone(status))
+        }
+        if (report != null) {
+            HorizontalDivider(Modifier.padding(horizontal = 16.dp, vertical = 8.dp))
+            report.results.forEach { result ->
+                val tone = when {
+                    probing || result.attempts == 0 -> StatusTone.Neutral
+                    result.passed -> StatusTone.Positive
+                    else -> StatusTone.Negative
+                }
+                StatusPreference(
+                    title = mcpToolLabel(l, result.tool),
+                    icon = mcpToolIcon(result.tool),
+                    status = when {
+                        probing -> l.text("检测中", "Checking", "檢測中")
+                        result.passed -> l.text("通过", "Passed", "通過")
+                        result.attempts == 0 -> l.text("未执行", "Skipped", "未執行")
+                        else -> l.text("失败", "Failed", "失敗")
+                    },
+                    tone = tone,
+                    summary = if (!probing && !result.passed) result.code?.let { localizedError(l, it) } else null,
+                )
             }
-            app.sessions.applyToolProbe(report)
-        } }) { Icon(Icons.Default.PlayArrow,null); Spacer(Modifier.width(8.dp)); Text(l.text("开始检测","Run check","開始檢測")) } },
-        dismissButton={ TextButton(enabled=!busy,onClick={ confirmProbe=false }) { Text(l.text("取消","Cancel","取消")) } },
+        }
+    }
+    if (confirmProbe) AlertDialog(
+        onDismissRequest = { if (!busy) confirmProbe = false },
+        icon = { Icon(Icons.AutoMirrored.Filled.FactCheck, null) },
+        title = { Text(l.text("运行权限检测", "Run backend check", "執行權限檢測")) },
+        text = { Text(l.text("将执行全部 $toolCount 个 MCP 工具，并在临时虚拟屏中验证；检测结束后会关闭并清理。", "All $toolCount MCP tools will run on a temporary virtual display. The display will be closed and cleaned up when the check finishes.", "將執行全部 $toolCount 個 MCP 工具，並在臨時虛擬螢幕中驗證；檢測結束後會關閉並清理。")) },
+        confirmButton = {
+            Button(enabled = !busy, onClick = {
+                confirmProbe = false
+                probeProgress = 0
+                task {
+                    withContext(Dispatchers.Main) { probing = true }
+                    try {
+                        app.sessions.requestAuthorization()
+                        val report = McpToolProbe(app.sessions).run { completed, total, _ ->
+                            android.os.Handler(android.os.Looper.getMainLooper()).post { probeProgress = completed.coerceIn(0, total) }
+                        }
+                        app.sessions.applyToolProbe(report)
+                    } finally {
+                        withContext(NonCancellable + Dispatchers.Main) { probing = false }
+                    }
+                }
+            }) {
+                Icon(Icons.Default.PlayArrow, null)
+                Spacer(Modifier.width(8.dp))
+                Text(l.text("开始检测", "Run check", "開始檢測"))
+            }
+        },
+        dismissButton = { TextButton(enabled = !busy, onClick = { confirmProbe = false }) { Text(l.text("取消", "Cancel", "取消")) } },
     )
+}
+
+private fun capabilityTone(status: CapabilityStatus) = when (status) {
+    CapabilityStatus.AVAILABLE -> StatusTone.Positive
+    CapabilityStatus.UNKNOWN -> StatusTone.Neutral
+    CapabilityStatus.UNAVAILABLE, CapabilityStatus.REQUIRES_AUTHORIZATION -> StatusTone.Negative
+}
+
+private fun mcpToolIcon(tool: String) = when (tool) {
+    "acquire_control", "release_control", "request_control" -> Icons.Default.Security
+    "create_screen", "configure_screen", "close_screen", "launch_app" -> Icons.AutoMirrored.Filled.ScreenShare
+    "observe" -> Icons.Default.CameraAlt
+    "tap_at", "long_press_at", "swipe_path", "scroll_at", "input_text", "press_key" -> Icons.Default.TouchApp
+    "node_action" -> Icons.Default.AccountTree
+    "get_status" -> Icons.Default.Info
+    "get_request_receipt" -> Icons.Default.Description
+    else -> Icons.Default.Code
 }
 private fun mcpToolLabel(l: UiLanguage,tool: String)=when(tool) {
     "acquire_control" -> l.text("申请控制权","Acquire control","申請控制權")
@@ -280,6 +394,7 @@ private fun capabilityLabel(l: UiLanguage,c: CapabilityStatus)=when(c) {
 }
 @Composable private fun McpPreferences(app: VirtualScreenApplication,task: (suspend () -> Unit) -> Unit,notifications: () -> Unit) {
     val l=LocalLanguage.current; val server by app.mcp.flow.collectAsState(); val settings by app.settings.flow.collectAsState(); val tunnel by app.tunnels.flow.collectAsState()
+    val endpoint = remember(server.host, server.port, tunnel.publicAddress) { connectionAddress(server, tunnel) }
     val toggleMcp=rememberMcpToggle(app,notifications)
     val alwaysAllow by app.mcp.approvals.alwaysAllow.collectAsState()
     var rotate by remember { mutableStateOf(false) }
@@ -289,7 +404,7 @@ private fun capabilityLabel(l: UiLanguage,c: CapabilityStatus)=when(c) {
         SwitchPreference(checked=settings.lan,onCheckedChange={ value -> task { app.settings.update { it.copy(lan=value) }; if(server.running) { app.tunnels.stop(); app.mcp.stop(); app.mcp.start(value).getOrThrow() } } },title=l.text("局域网访问","LAN access","區域網路存取"))
     }
     Section(l.text("客户端配置","Client configuration","用戶端設定")) {
-        ArrowPreference(title=l.text("复制客户端配置","Copy client configuration","複製用戶端設定"),onClick={ copy(app,app.mcp.clientConfiguration(connectionAddress(app))) })
+        ArrowPreference(title=l.text("复制客户端配置","Copy client configuration","複製用戶端設定"),onClick={ copy(app,app.mcp.clientConfiguration(endpoint)) })
         ArrowPreference(title=l.text("复制 Token","Copy token","複製 Token"),summary="••••••••",onClick={ copy(app,server.token) })
         ArrowPreference(title=l.text("轮换 Token","Rotate token","輪換 Token"),onClick={ rotate=true })
         if(server.host=="0.0.0.0") lanAddresses(server.port).forEach { address -> ArrowPreference(title=l.text("局域网地址","LAN address","區域網路位址"),summary=address,onClick={ copy(app,address) }) }
@@ -326,9 +441,31 @@ private fun capabilityLabel(l: UiLanguage,c: CapabilityStatus)=when(c) {
 }
 @Composable private fun AboutPreferences(app: VirtualScreenApplication,onLicenses: () -> Unit) {
     val l=LocalLanguage.current
-    Section(l.text("虚拟屏","Virtual Screen","虛擬屏")) {
-        Column(Modifier.padding(22.dp),verticalArrangement=Arrangement.spacedBy(8.dp)) { Text(BuildConfig.VERSION_NAME,style=MaterialTheme.typography.titleLarge,color=MaterialTheme.colorScheme.onSurface) }
-        ArrowPreference(title=l.text("开源许可与构建来源","Licenses and build sources","開源授權與建置來源"),summary="ETA · Material 3 · frpc 0.65.0 · cloudflared 2025.8.1",onClick=onLicenses)
+    val repository = "https://github.com/lejw0925/android-virtual-screen"
+    fun open(url: String) {
+        app.startActivity(Intent(Intent.ACTION_VIEW,android.net.Uri.parse(url)).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
+    }
+    Section(l.text("虚拟屏","Virtual screen","虛擬螢幕")) {
+        Column(Modifier.padding(22.dp),verticalArrangement=Arrangement.spacedBy(8.dp)) {
+            Text(l.text("让 Agent 在独立屏幕上工作","A separate screen for your agents","讓 Agent 在獨立螢幕上工作"),
+                style=MaterialTheme.typography.headlineSmall,color=MaterialTheme.colorScheme.onSurface)
+            Text(l.text("通过 MCP 连接，使用 Root 或 Shizuku 控制 Android 虚拟屏。","Connect over MCP and control an Android virtual display with Root or Shizuku.","透過 MCP 連線，使用 Root 或 Shizuku 控制 Android 虛擬螢幕。"),
+                style=MaterialTheme.typography.bodyMedium,color=MaterialTheme.colorScheme.onSurfaceVariant)
+            Text(l.text("0.1.0 · 19 个 MCP 工具 · 独立显示与手机端接管审批",
+                "0.1.0 · 19 MCP tools · isolated display with on-device takeover approval",
+                "0.1.0 · 19 個 MCP 工具 · 獨立顯示與手機端接管審批"),
+                style=MaterialTheme.typography.labelLarge,color=MaterialTheme.colorScheme.primary)
+        }
+        ArrowPreference(title=l.text("仓库","Repository","儲存庫"),summary="lejw0925/android-virtual-screen",
+            icon=Icons.Default.Code,onClick={ open(repository) })
+        ArrowPreference(title=l.text("查看更新","View updates","檢視更新"),
+            summary=l.text("在 GitHub Releases 查看版本与更新说明","Browse versions and release notes on GitHub","在 GitHub Releases 檢視版本與更新說明"),
+            icon=Icons.Default.SystemUpdate,onClick={ open("$repository/releases") })
+        ArrowPreference(title=l.text("许可","Licenses","授權"),summary=l.text("开源许可、第三方组件与构建来源","Open-source licenses, third-party components and build sources","開源授權、第三方元件與建置來源"),
+            icon=Icons.Default.Description,onClick=onLicenses)
+        ArrowPreference(title=l.text("版本","Version","版本"),
+            summary="${BuildConfig.VERSION_NAME} (${BuildConfig.VERSION_CODE}) · ${BuildConfig.BUILD_TYPE}",
+            icon=Icons.Default.Info,onClick={ copy(app,"${BuildConfig.VERSION_NAME} (${BuildConfig.VERSION_CODE}) · ${BuildConfig.BUILD_TYPE}") })
     }
 }
 @Composable private fun LicenseText(app: VirtualScreenApplication) {

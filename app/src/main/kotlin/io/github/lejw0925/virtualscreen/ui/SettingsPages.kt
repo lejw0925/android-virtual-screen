@@ -8,6 +8,7 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import io.github.lejw0925.virtualscreen.VirtualScreenApplication
+import io.github.lejw0925.virtualscreen.mcp.McpServerState
 import io.github.lejw0925.virtualscreen.tunnel.*
 import androidx.compose.material3.*
 import androidx.compose.ui.text.input.TextFieldValue
@@ -39,12 +40,12 @@ internal fun copy(context: Context,text: String) {
     context.getSystemService(ClipboardManager::class.java).setPrimaryClip(clip)
     android.widget.Toast.makeText(context,context.getString(io.github.lejw0925.virtualscreen.R.string.clipboard_copied),android.widget.Toast.LENGTH_SHORT).show()
 }
-internal fun connectionAddress(app: VirtualScreenApplication): String {
-    val server=app.mcp.state()
-    return app.tunnels.state().publicAddress?.replaceFirst("tcp://","http://")
-        ?: (if(server.host=="0.0.0.0") lanAddresses(server.port).firstOrNull() else null)
+internal fun connectionAddress(server: McpServerState, tunnel: TunnelState): String =
+    tunnel.publicAddress?.replaceFirst("tcp://", "http://")
+        ?: (if (server.host == "0.0.0.0") lanAddresses(server.port).firstOrNull() else null)
         ?: "http://127.0.0.1:${server.port}/mcp"
-}
+
+internal fun connectionAddress(app: VirtualScreenApplication): String = connectionAddress(app.mcp.state(), app.tunnels.state())
 internal fun lanAddresses(port: Int): List<String> = runCatching {
     java.net.NetworkInterface.getNetworkInterfaces().toList().filter { it.isUp && !it.isLoopback }.flatMap { it.inetAddresses.toList() }
         .filterIsInstance<java.net.Inet4Address>().filter { !it.isLoopbackAddress && !it.isLinkLocalAddress }.map { "http://${it.hostAddress}:$port/mcp" }.distinct()

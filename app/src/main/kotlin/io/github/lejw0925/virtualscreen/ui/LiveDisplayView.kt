@@ -14,6 +14,9 @@ import android.view.SurfaceView
 import android.view.View
 import android.widget.FrameLayout
 import io.github.lejw0925.virtualscreen.backend.*
+import io.github.lejw0925.virtualscreen.VirtualScreenApplication
+import io.github.lejw0925.virtualscreen.core.code
+import io.github.lejw0925.virtualscreen.core.failure
 import java.util.UUID
 import java.util.concurrent.ArrayBlockingQueue
 import java.util.concurrent.ThreadPoolExecutor
@@ -137,7 +140,14 @@ internal class LiveDisplayView(context: Context) : FrameLayout(context),SurfaceH
                     channel.motion(viewer,g,id,mapped)
                     if(finished) channel.settle(viewer,id)
                 }
-            } catch(e: Exception) { post { cancelGesture(); onError("INPUT_DISPATCH_UNCONFIRMED") } }
+            } catch(e: Exception) {
+                (context.applicationContext as? VirtualScreenApplication)?.activityLog?.failure("manual_input", e)
+                post {
+                    // A delayed failure from the preceding gesture must not cancel the next tap.
+                    if (gesture == id && active) cancelGesture()
+                    onError(e.code().takeUnless { it == "BACKEND_OPERATION_FAILED" } ?: "INPUT_DISPATCH_UNCONFIRMED")
+                }
+            }
             finally { mapped.recycle(); if(finished) token?.let { onManualComplete(it) } } }) {
                 mapped.recycle(); epoch.incrementAndGet()
                 token?.let { onManualComplete(it) }

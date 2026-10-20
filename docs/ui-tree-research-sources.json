@@ -1,0 +1,262 @@
+{
+  "review_date": "2026-10-19",
+  "method": "Static source inspection. GitHub default branches resolved via API, then files fetched by immutable commit. No third-party deployment or device tests. Local files reflect the current working tree, including pre-existing changes.",
+  "repositories": [
+    {
+      "requested_repository": "mobile-next/mobile-mcp",
+      "repository": "mobile-next/mobile-mcp",
+      "default_branch": "main",
+      "commit": "c659f8ee34873a832adea7daca9c69172d887e70",
+      "files": [
+        {
+          "path": "src/android.ts",
+          "url": "https://github.com/mobile-next/mobile-mcp/blob/c659f8ee34873a832adea7daca9c69172d887e70/src/android.ts",
+          "sha256": "65f409b7acafcb887ed7cac06d15e169398c2c2cdbf4584f01b8a6e67d76ea91"
+        },
+        {
+          "path": "src/format-elements.ts",
+          "url": "https://github.com/mobile-next/mobile-mcp/blob/c659f8ee34873a832adea7daca9c69172d887e70/src/format-elements.ts",
+          "sha256": "953a3d369a608e1f7f8de7964d8a955c92ad02a8fce5197553f6722d3e8536b0"
+        },
+        {
+          "path": "src/mobile-device.ts",
+          "url": "https://github.com/mobile-next/mobile-mcp/blob/c659f8ee34873a832adea7daca9c69172d887e70/src/mobile-device.ts",
+          "sha256": "0a82ccf58c8dc410ef962f3d6b3d0bad1125d88ce0d800483a2044d9f8f303d6"
+        },
+        {
+          "path": "src/mobilecli.ts",
+          "url": "https://github.com/mobile-next/mobile-mcp/blob/c659f8ee34873a832adea7daca9c69172d887e70/src/mobilecli.ts",
+          "sha256": "150806116a7ab3dae257c37ec0da0c5b06c7c6b891f4e59ffcdd6104881841b3"
+        },
+        {
+          "path": "src/robot.ts",
+          "url": "https://github.com/mobile-next/mobile-mcp/blob/c659f8ee34873a832adea7daca9c69172d887e70/src/robot.ts",
+          "sha256": "aea6e6e612d457920a0527e21b68c802d56228806d78625bb4bd15f32cd64c85"
+        }
+      ]
+    },
+    {
+      "requested_repository": "CursorTouch/Android-MCP",
+      "repository": "CursorTouch/Android-MCP",
+      "default_branch": "master",
+      "commit": "a983ca16e03fd557e8580f3b90d790a291454a94",
+      "files": [
+        {
+          "path": "src/android_mcp/tree/config.py",
+          "url": "https://github.com/CursorTouch/Android-MCP/blob/a983ca16e03fd557e8580f3b90d790a291454a94/src/android_mcp/tree/config.py",
+          "sha256": "5d08a6744b0bcb6b84a7d78016434e50a94e0ba26e3568bee0be049b5687d9f2"
+        },
+        {
+          "path": "src/android_mcp/tree/service.py",
+          "url": "https://github.com/CursorTouch/Android-MCP/blob/a983ca16e03fd557e8580f3b90d790a291454a94/src/android_mcp/tree/service.py",
+          "sha256": "286c9d592343e70c4fd50557f662daf746bb9872db0093fd90036bd7fa3d4be4"
+        },
+        {
+          "path": "src/android_mcp/tree/views.py",
+          "url": "https://github.com/CursorTouch/Android-MCP/blob/a983ca16e03fd557e8580f3b90d790a291454a94/src/android_mcp/tree/views.py",
+          "sha256": "c098d1e13e94a1d967d41f1b76bbce71f2d589be417b49d0b4bdf64b2211be41"
+        }
+      ]
+    },
+    {
+      "requested_repository": "danielealbano/android-remote-control-mcp",
+      "repository": "danielealbano/android-remote-control-mcp",
+      "default_branch": "main",
+      "commit": "1a09261d7d99840403cc07302684b9f711af0013",
+      "files": [
+        {
+          "path": "app/src/main/kotlin/com/danielealbano/androidremotecontrolmcp/mcp/tools/NodeActionTools.kt",
+          "url": "https://github.com/danielealbano/android-remote-control-mcp/blob/1a09261d7d99840403cc07302684b9f711af0013/app/src/main/kotlin/com/danielealbano/androidremotecontrolmcp/mcp/tools/NodeActionTools.kt",
+          "sha256": "d1b70a9c01ec80ea923f94ae1ecb70fc6fdf301a3db8d32052f9cba355d471f6"
+        },
+        {
+          "path": "app/src/main/kotlin/com/danielealbano/androidremotecontrolmcp/mcp/tools/ScreenIntrospectionTools.kt",
+          "url": "https://github.com/danielealbano/android-remote-control-mcp/blob/1a09261d7d99840403cc07302684b9f711af0013/app/src/main/kotlin/com/danielealbano/androidremotecontrolmcp/mcp/tools/ScreenIntrospectionTools.kt",
+          "sha256": "b484dc91c5f8dd44f174de5542f642e15a16ae4227e765e91f9e2b80257e7cfb"
+        },
+        {
+          "path": "app/src/main/kotlin/com/danielealbano/androidremotecontrolmcp/services/accessibility/AccessibilityServiceProviderImpl.kt",
+          "url": "https://github.com/danielealbano/android-remote-control-mcp/blob/1a09261d7d99840403cc07302684b9f711af0013/app/src/main/kotlin/com/danielealbano/androidremotecontrolmcp/services/accessibility/AccessibilityServiceProviderImpl.kt",
+          "sha256": "d8ca8c409bbab99175880bfd3a116500c6b3e395140e8aebad4e9ad4438f3ad3"
+        },
+        {
+          "path": "app/src/main/kotlin/com/danielealbano/androidremotecontrolmcp/services/accessibility/AccessibilityTreeParser.kt",
+          "url": "https://github.com/danielealbano/android-remote-control-mcp/blob/1a09261d7d99840403cc07302684b9f711af0013/app/src/main/kotlin/com/danielealbano/androidremotecontrolmcp/services/accessibility/AccessibilityTreeParser.kt",
+          "sha256": "ffbbb4cd2f6ffe0038ff3f6e32d626f7ced59881aeb63660bda3ccccbf45ac64"
+        },
+        {
+          "path": "app/src/main/kotlin/com/danielealbano/androidremotecontrolmcp/services/accessibility/CompactTreeFormatter.kt",
+          "url": "https://github.com/danielealbano/android-remote-control-mcp/blob/1a09261d7d99840403cc07302684b9f711af0013/app/src/main/kotlin/com/danielealbano/androidremotecontrolmcp/services/accessibility/CompactTreeFormatter.kt",
+          "sha256": "8221590ed59b605ce1eea890a1dae2e4838c6eb3775b511e812009be349c8bb4"
+        },
+        {
+          "path": "app/src/main/kotlin/com/danielealbano/androidremotecontrolmcp/services/accessibility/McpAccessibilityService.kt",
+          "url": "https://github.com/danielealbano/android-remote-control-mcp/blob/1a09261d7d99840403cc07302684b9f711af0013/app/src/main/kotlin/com/danielealbano/androidremotecontrolmcp/services/accessibility/McpAccessibilityService.kt",
+          "sha256": "3193387e0effbf254e3cda7aabc967b5dbdf584e9b1cf079e20b02517257576f"
+        },
+        {
+          "path": "app/src/main/kotlin/com/danielealbano/androidremotecontrolmcp/services/accessibility/WebViewNodeMerger.kt",
+          "url": "https://github.com/danielealbano/android-remote-control-mcp/blob/1a09261d7d99840403cc07302684b9f711af0013/app/src/main/kotlin/com/danielealbano/androidremotecontrolmcp/services/accessibility/WebViewNodeMerger.kt",
+          "sha256": "31fc8d8b0421e48509b8cfad3d49241cdb93b6fcbe047e77ebb6d65edca77ae6"
+        },
+        {
+          "path": "app/src/main/res/xml/accessibility_service_config.xml",
+          "url": "https://github.com/danielealbano/android-remote-control-mcp/blob/1a09261d7d99840403cc07302684b9f711af0013/app/src/main/res/xml/accessibility_service_config.xml",
+          "sha256": "f706df61a8f492b0d76476899a1549d355a46a248bf18b3978d6e882ba548012"
+        },
+        {
+          "path": "privacy/src/main/kotlin/com/danielealbano/androidremotecontrolmcp/services/accessibility/AccessibilityData.kt",
+          "url": "https://github.com/danielealbano/android-remote-control-mcp/blob/1a09261d7d99840403cc07302684b9f711af0013/privacy/src/main/kotlin/com/danielealbano/androidremotecontrolmcp/services/accessibility/AccessibilityData.kt",
+          "sha256": "81e8da83ef18ccac01090aee94ee17a700b72e3f87a3a99897b6080b3438a9cb"
+        }
+      ]
+    },
+    {
+      "requested_repository": "droidrun/droidrun-portal",
+      "repository": "droidrun/mobilerun-portal",
+      "default_branch": "main",
+      "commit": "cc3fa91b15847ca9f7cc9a5afdd6b8e1db7e4ec2",
+      "files": [
+        {
+          "path": "app/src/main/java/com/mobilerun/portal/api/ApiHandler.kt",
+          "url": "https://github.com/droidrun/mobilerun-portal/blob/cc3fa91b15847ca9f7cc9a5afdd6b8e1db7e4ec2/app/src/main/java/com/mobilerun/portal/api/ApiHandler.kt",
+          "sha256": "7c77ac29174de9b0e656cadfe11544cf208eaac6ff7d0d70eb1dc551e479fab2"
+        },
+        {
+          "path": "app/src/main/java/com/mobilerun/portal/core/AccessibilityTraversalGuard.kt",
+          "url": "https://github.com/droidrun/mobilerun-portal/blob/cc3fa91b15847ca9f7cc9a5afdd6b8e1db7e4ec2/app/src/main/java/com/mobilerun/portal/core/AccessibilityTraversalGuard.kt",
+          "sha256": "2dcf9d6382fa3f9ca9285282af686fb3610d30941432ce12778b4cd9362c512d"
+        },
+        {
+          "path": "app/src/main/java/com/mobilerun/portal/core/AccessibilityTreeBuilder.kt",
+          "url": "https://github.com/droidrun/mobilerun-portal/blob/cc3fa91b15847ca9f7cc9a5afdd6b8e1db7e4ec2/app/src/main/java/com/mobilerun/portal/core/AccessibilityTreeBuilder.kt",
+          "sha256": "08823887dd6ae8d00e071c1ed612fc95858adcc90d38fd58b64cb44e8605229d"
+        },
+        {
+          "path": "app/src/main/java/com/mobilerun/portal/core/JsonBuilders.kt",
+          "url": "https://github.com/droidrun/mobilerun-portal/blob/cc3fa91b15847ca9f7cc9a5afdd6b8e1db7e4ec2/app/src/main/java/com/mobilerun/portal/core/JsonBuilders.kt",
+          "sha256": "fa1b701c61eaa524f4207746980fe151cd31175a44c65a9a1508cd0370b0661c"
+        },
+        {
+          "path": "app/src/main/java/com/mobilerun/portal/core/StateRepository.kt",
+          "url": "https://github.com/droidrun/mobilerun-portal/blob/cc3fa91b15847ca9f7cc9a5afdd6b8e1db7e4ec2/app/src/main/java/com/mobilerun/portal/core/StateRepository.kt",
+          "sha256": "edcc41e6c07dea8c61c9882f9b44ee39e721a3544674c5e39f9cbd26ab9d70a4"
+        },
+        {
+          "path": "app/src/main/res/xml/accessibility_service_config.xml",
+          "url": "https://github.com/droidrun/mobilerun-portal/blob/cc3fa91b15847ca9f7cc9a5afdd6b8e1db7e4ec2/app/src/main/res/xml/accessibility_service_config.xml",
+          "sha256": "4e12b3e4d902098793ed33a663f71b662fd8581894a864ffc396f88b2d3dd624"
+        }
+      ]
+    },
+    {
+      "requested_repository": "appium/appium-uiautomator2-server",
+      "repository": "appium/appium-uiautomator2-server",
+      "default_branch": "master",
+      "commit": "56bf27a222b9aa242e6a40cf87825b78b443b7be",
+      "files": [
+        {
+          "path": "app/src/main/java/io/appium/uiautomator2/core/AccessibilityNodeInfoDumper.java",
+          "url": "https://github.com/appium/appium-uiautomator2-server/blob/56bf27a222b9aa242e6a40cf87825b78b443b7be/app/src/main/java/io/appium/uiautomator2/core/AccessibilityNodeInfoDumper.java",
+          "sha256": "fd37d6747d8569e8fd2271773068925587e3e5f28f06513e6379f21dc0bc7eee"
+        },
+        {
+          "path": "app/src/main/java/io/appium/uiautomator2/core/AxNodeInfoExtractor.java",
+          "url": "https://github.com/appium/appium-uiautomator2-server/blob/56bf27a222b9aa242e6a40cf87825b78b443b7be/app/src/main/java/io/appium/uiautomator2/core/AxNodeInfoExtractor.java",
+          "sha256": "26c2255ef48e3c9e058802f2ed8d00c345af139e8a82a0babe797461a339281e"
+        },
+        {
+          "path": "app/src/main/java/io/appium/uiautomator2/model/UiElementSnapshot.java",
+          "url": "https://github.com/appium/appium-uiautomator2-server/blob/56bf27a222b9aa242e6a40cf87825b78b443b7be/app/src/main/java/io/appium/uiautomator2/model/UiElementSnapshot.java",
+          "sha256": "e74b7a9440a7ae69d995e1e7bc64752144179041b9bbc4c5e891009604627e5e"
+        },
+        {
+          "path": "app/src/main/java/io/appium/uiautomator2/model/settings/AllowInvisibleElements.java",
+          "url": "https://github.com/appium/appium-uiautomator2-server/blob/56bf27a222b9aa242e6a40cf87825b78b443b7be/app/src/main/java/io/appium/uiautomator2/model/settings/AllowInvisibleElements.java",
+          "sha256": "85b669d5d7670201f1dcd11510ee429a78096d25840b241ad54d2534e921b4b6"
+        },
+        {
+          "path": "app/src/main/java/io/appium/uiautomator2/model/settings/IncludeA11yActionsInPageSource.java",
+          "url": "https://github.com/appium/appium-uiautomator2-server/blob/56bf27a222b9aa242e6a40cf87825b78b443b7be/app/src/main/java/io/appium/uiautomator2/model/settings/IncludeA11yActionsInPageSource.java",
+          "sha256": "7f4fe8d3c0e5f4c2c88eb1b5cdbb420e6b45e63d15c19bb681aaa98e51d8c996"
+        },
+        {
+          "path": "app/src/main/java/io/appium/uiautomator2/model/settings/SnapshotMaxDepth.java",
+          "url": "https://github.com/appium/appium-uiautomator2-server/blob/56bf27a222b9aa242e6a40cf87825b78b443b7be/app/src/main/java/io/appium/uiautomator2/model/settings/SnapshotMaxDepth.java",
+          "sha256": "27bef5bb1f65b1db80e8932d2b4dbff6fcd913ce78b2025cf232b21fb84a24a4"
+        },
+        {
+          "path": "app/src/main/java/io/appium/uiautomator2/utils/Attribute.java",
+          "url": "https://github.com/appium/appium-uiautomator2-server/blob/56bf27a222b9aa242e6a40cf87825b78b443b7be/app/src/main/java/io/appium/uiautomator2/utils/Attribute.java",
+          "sha256": "3ff746df779dbfc39bdd87b209a580b6dcc3dcf93abaaad9baa771e3b060bce1"
+        }
+      ]
+    },
+    {
+      "requested_repository": "google-research/android_world",
+      "repository": "google-research/android_world",
+      "default_branch": "main",
+      "commit": "30583e22b9fbb8f32f109d3214153517b6f9b8e4",
+      "files": [
+        {
+          "path": "android_world/env/representation_utils.py",
+          "url": "https://github.com/google-research/android_world/blob/30583e22b9fbb8f32f109d3214153517b6f9b8e4/android_world/env/representation_utils.py",
+          "sha256": "4fdfc593668ade52dc477a119f7c8d83d77cdc939d5c97ce8dd291a018ca56d2"
+        },
+        {
+          "path": "android_world/google/apps/java/com/google/androidenv/accessibilityforwarder/AccessibilityTreeCreator.kt",
+          "url": "https://github.com/google-research/android_world/blob/30583e22b9fbb8f32f109d3214153517b6f9b8e4/android_world/google/apps/java/com/google/androidenv/accessibilityforwarder/AccessibilityTreeCreator.kt",
+          "sha256": "f252cd9997afa35b7075e840964173071cd6a411a593596d6ae519d506cf3a8b"
+        }
+      ]
+    }
+  ],
+  "local_sources": [
+    {
+      "path": "app/src/main/kotlin/io/github/lejw0925/virtualscreen/core/ScreenAccessibilityService.kt",
+      "sha256": "6f1cbbbe9b537b8479eedc2f3128491d701b3cbcab6f6ff6bae56259cb49d586"
+    },
+    {
+      "path": "app/src/main/kotlin/io/github/lejw0925/virtualscreen/backend/VirtualScreenBackend.kt",
+      "sha256": "42b330458bbf09bdec9eb65751ba682815457e544af5dc6da5e3d4a13fb548e9"
+    },
+    {
+      "path": "app/src/main/kotlin/io/github/lejw0925/virtualscreen/backend/CommandBackend.kt",
+      "sha256": "14b77f0ae5e9afbc78f3e22a473c87724edf2b0ed3f3c441fc3ed8f5a17f5d19"
+    },
+    {
+      "path": "app/src/main/kotlin/io/github/lejw0925/virtualscreen/core/VirtualScreenSessionManager.kt",
+      "sha256": "e6186309ef10c1af6e343fedd2d38cb5e9bf9cabae16022a408887feee7b3f9c"
+    },
+    {
+      "path": "app/src/main/kotlin/io/github/lejw0925/virtualscreen/mcp/McpToolRegistry.kt",
+      "sha256": "e22153b0cf93c825292c6bc74870c6a43d124275bb51b6d0154dd4b4075f9884"
+    },
+    {
+      "path": "app/src/main/res/xml/accessibility_service.xml",
+      "sha256": "8c5e5d613a5537b6af29d09eb91c1191bffe0db7aadd8d8cb484c0ca3009253f"
+    },
+    {
+      "path": "docs/MCP.md",
+      "sha256": "b9c9822aafd1dd765fe1cd26998b5adc54122ae0f337277e053c691893e936c2"
+    },
+    {
+      "path": "docs/NODE_TREE_DIAGNOSTICS.md",
+      "sha256": "25ce93af7314dab98820688ef0690e3c84ed8cf28408b4abdc6042b3734dfad8"
+    }
+  ],
+  "platform_sources": [
+    {
+      "url": "https://developer.android.com/reference/androidx/core/view/accessibility/AccessibilityNodeInfoCompat#setAccessibilityDataSensitive(boolean)",
+      "supports": "SDK 34+ sensitive nodes hidden from non-accessibility-tool services"
+    },
+    {
+      "url": "https://developer.android.com/reference/android/accessibilityservice/AccessibilityServiceInfo#attr_android:isAccessibilityTool",
+      "supports": "Flag meaning and default false"
+    },
+    {
+      "url": "https://developer.android.com/blog/posts/enhancing-android-security-stop-malware-from-snooping-on-your-app-data",
+      "supports": "Sensitive node protections and proper accessibility-tool declaration"
+    }
+  ]
+}

@@ -4,6 +4,12 @@
 
 首页“MCP 服务”开关或设置 → MCP 连接可以开关服务。开启前检查 Root / Shizuku、通知、画中画和后台运行权限；缺失时弹窗提供授权入口。授权 Root 或 Shizuku 后自动启用虚拟屏节点服务，并移除本服务的系统无障碍快捷按钮，保留其他服务。默认地址为 `http://127.0.0.1:8732/mcp`；通过 ADB 使用 `adb forward tcp:8732 tcp:8732` 即可在电脑访问。开启局域网访问后设置页显示手机的局域网地址。
 
+“权限与后端”页显示系统无障碍授权及服务连接状态，并提供 Root / Shizuku 一键授权和系统设置入口。自动写入设置后会等候服务绑定，必要时仅重绑本应用服务；若绑定仍未成功，会提示手动启用。Android 16 QPR1 / API 36.1 及更高版本可选择允许原生 Live Updates：有活动虚拟屏会话时，运行通知会请求显示状态栏 Chip，包含当前远程、本机、Agent 操作或待审批状态；划掉可收起当前会话的胶囊。空闲 MCP 使用普通前台通知。实时通知开关、Chip 是否显示及设备厂商的展示策略由 Android 系统控制。
+
+胶囊图标按状态使用手指操作、电脑屏幕、手机、审批盾牌或警告标识。展开通知显示当前控制方的最新 purpose（包括已完成操作），不显示其他客户端的目的；控制权和跨屏重启审批优先显示申请人、操作目的、审批提示和对应按钮。活动虚拟屏提供带图标的“人工接管”“关闭虚拟屏”，关闭只释放对应会话的虚拟屏，不停止 MCP 或公网隧道；旧通知不能关闭新会话。Android 17 额外请求图标加文字的按钮样式，低版本由系统模板决定。
+
+原生 Live Updates 不允许自定义 RemoteViews，无法为系统模板的 purpose 设置跑马灯。当前使用 BigTextStyle 保留完整原文并交给系统多行展开；实际显示行数仍受系统通知高度限制。
+
 服务启动独立于界面生命周期，后台保持前台通知；仅执行设备操作时持有有超时保护的 CPU 唤醒锁，空闲监听及等待手机审批时释放。没有虚拟屏时不轮询后端；系统回收进程后恢复已开启的 MCP。手动关闭服务或系统强行停止仍会停止运行。部分 ROM 还需在应用后台权限中允许自启动。
 
 每个请求都需要随机 Bearer Token。初始化成功后保存响应的 `Mcp-Session-Id`，后续请求携带该标识与协商的 `MCP-Protocol-Version`。轮换 Token 会立即使旧 Token 失效并断开所有客户端。浏览器 Origin 默认拒绝；面向原生 MCP HTTP 客户端使用。
@@ -56,7 +62,7 @@ MCP-Protocol-Version: 2025-06-18
 | `close_screen` | 关闭虚拟屏，仅接受租约和 purpose |
 | `list_apps` | 只读查询，可按 `query` 或 `package` 过滤 |
 | `launch_app` | 必填 `component`，可选 `uri`；必要时等待手机重启审批 |
-| `observe` | `mode=tree/screenshot/both`；`format=compact/full` |
+| `observe` | 默认 `mode=tree`、`format=compact`；可显式请求 `screenshot/both` 或 `full` |
 | `tap_at` | 必填 `x/y`；不接受滑动路径、时长或滚动量 |
 | `long_press_at` | 必填 `x/y`，可选 `duration_ms`，200–2000 ms |
 | `swipe_path` | 必填 `points`（2–64 个 `[x,y]`），可选 `duration_ms` |
@@ -76,8 +82,8 @@ MCP-Protocol-Version: 2025-06-18
 2. `acquire_control(purpose=...)`，保存 `lease_token`。每个带租约的操作会自动把有效期顺延到操作时刻后五分钟；最后一次操作后五分钟租约失效，无需手动续租。租约到期或主动释放时，远程画中画自动收起；虚拟显示保留，再次取得控制时恢复预览。用户展开全屏接管后的本地预览按手机操作处理。
 3. 用 `create_screen` 创建屏幕，或先查询现有状态。默认使用手机可用显示区域的像素分辨率和 DPI，保持应用实际密度；只指定分辨率时同比缩放 DPI，显式 `density` 则覆盖自动计算。设置中可保留自定义参数。
 4. 发现并启动应用。跨屏冲突时，`launch_app(component=...,lease_token=...,purpose=...)` 保持等待，手机显示原生悬浮审批通知；用户允许后继续启动并返回最终结果，客户端不能自动强制重启。
-5. `observe(mode=tree)` 返回节点和 `observation_id`，省去截图；需要视觉信息时用 `both`。节点不可用时，`both` 仍可返回截图和 `nodes_error`。`screenshot` 无节点；旧 `include_nodes` 参数保留，不能与 `mode` 同时传入。
-6. 每次输入携带租约与当前观察标识；会使观察失效的输入、启动应用和重配置显示操作默认在结果中附带 `both` 模式的新观察，也可指定 `observe_after=tree/screenshot/both`，或用 `observe_after=none` 关闭。手机接管、取消、释放控制权或后端丢失时没有可用的新观察，需按错误中的恢复工具重新申请和观察。
+5. `observe` 省略 `mode` 时返回 compact 节点树，不采集截图；需要视觉信息时显式用 `mode=both`。节点不可用时，`tree` 返回节点错误且不会自动截图，`both` 仍可返回截图和 `nodes_error`。`screenshot` 无节点；旧 `include_nodes=true/false` 分别等同 `both/screenshot`，不能与 `mode` 同时传入。
+6. 每次输入携带租约与当前观察标识；会使观察失效的输入、启动应用和重配置显示操作默认在结果中附带 `tree` 模式的新 compact 观察，也可指定 `observe_after=tree/screenshot/both`，或用 `observe_after=none` 关闭。手机接管、取消、释放控制权或后端丢失时没有可用的新观察，需按错误中的恢复工具重新申请和观察。
 7. 完成后 `release_control(lease_token=...,purpose=...)`，再 DELETE 当前 MCP 会话。
 
 手机系统语言为简体中文时，一次点击的参数示例：
@@ -113,7 +119,13 @@ MCP-Protocol-Version: 2025-06-18
 
 ## 观察与目标选择
 
-`format=compact` 为默认值，保留可见且有文本、描述、交互或焦点状态的节点；`full` 保留层级。节点包含 `resource_id`、`parent_id`、bounds、enabled、focused、selected、checked 等状态。密码节点不返回文字。`node_count` 是采集总数，`returned_node_count` 是本次输出数；树限制为 500 节点、40 层和每节点 100 个子项，达到限制时 `truncated=true`。
+省略 `mode` 时默认只返回 compact 节点树且不采集图片；`mode=tree` 可显式表达同一行为，`screenshot` 只返回图像，`both` 同时返回图像和树。旧参数 `include_nodes=true` 等同于 `both`，`false` 等同于 `screenshot`；该参数不能与 `mode` 同时传入。tree 模式节点不可用时返回错误，不会退回截图；both 模式仍可返回截图和 `nodes_error`。
+
+`format=compact` 为默认值。它保留可见的文字、description、hint、stateDescription、交互目标，以及 focused/selected 节点；禁用但含阅读内容的节点也保留，纯 resource ID 结构节点会省略。省略节点后，`parent_id` 指向同窗口最近的保留祖先。无名称交互容器可从同窗口、可见且非独立交互后代的文字或 hint 得到 `label`；不会穿过其他交互目标或密码子树，也不会移除原文字节点。compact 省略空文字和默认状态键（`enabled/visible=true`，其余布尔值为 false）；依赖每个状态键都存在的客户端应改用 `full`。
+
+`full` 返回系统提供且预算内采集到的全部节点，包括结构节点、不可见节点和原始父子关系；它不绕过系统隐藏节点或隐私处理。节点保留完整类名、资源 ID、bounds、逐节点 `package`、`window_id`、`hint_text`、`state_description`、`long_clickable`、`focusable`、支持动作 `actions` 及原始 `action_list`。两种格式都有 `display_id` 和 `windows`；每个窗口含 ID、display ID、类型、包名、标题、layer、focused、active。顶层 `package` 保持排序后首个根节点的包名语义。
+
+密码节点的 `text` 与 `state_description` 始终隐藏。`node_count` 表示本次实际采集数量，不表示系统树总量；`returned_node_count` 是本次格式输出数量。安全上限为 5000 节点、深度 100、每节点 1000 个子项；触发上限会返回 `truncated=true`、`truncation_reasons` 和采用的三个 limit 字段。未截断的 full 必须满足两个计数相等。
 
 节点 ID 只属于该观察；新的观察替换旧缓存。`node_action` 要求 `node_id` 与 `selector` 二选一；后者支持 `resource_id/text/description/class` 的精确 AND 匹配。只能唯一匹配一项，不能默认选择第一项。多结果返回 `AMBIGUOUS_NODE`，无结果返回 `NODE_NOT_FOUND`；截断树的 selector 操作也拒绝。执行前仍会刷新并验证目标显示与签名。
 
@@ -138,13 +150,13 @@ MCP-Protocol-Version: 2025-06-18
 
 ## 输入结果与条件等待
 
-tap_at、long_press_at、swipe_path、scroll_at、input_text、node_action、press_key、`launch_app` 和 `configure_screen` 支持 `observe_after=none/tree/screenshot/both`，默认 `both`。结果中 `execution_status=accepted` 表示后端接受输入；`effect_status=verified/unconfirmed` 区分已读回效果与尚未确认。超时或传输不确定可能是 unknown，不能盲目重试。
+tap_at、long_press_at、swipe_path、scroll_at、input_text、node_action、press_key、`launch_app` 和 `configure_screen` 支持 `observe_after=none/tree/screenshot/both`，默认 `tree`，返回 compact 节点树且不采集图片。结果中 `execution_status=accepted` 表示后端接受输入；`effect_status=verified/unconfirmed` 区分已读回效果与尚未确认。超时或传输不确定可能是 unknown，不能盲目重试。
 
 输入接受后若新观察失败，仍保留 `ok=true` 与 accepted，同时返回 `observation_status=failed`、`observation_error`。输入不会重放；重新观察并用业务状态决定下一步。操作被拒绝时先处理租约 / 观察 / 参数问题。
 
 | wait condition | 必填目标 | 行为 |
 | --- | --- | --- |
-| delay | 无 | 等待 timeout_ms 后截图，默认 1000 ms |
+| delay | 无 | 等待 timeout_ms 后返回 compact 节点树，不采集截图；默认 1000 ms |
 | frame_changed | fingerprint | 与给定帧指纹不同 |
 | node_text | text | 可见节点文字或描述包含目标；默认忽略大小写，case_sensitive=true 可区分 |
 | node_present / node_absent | selector | 精确目标存在 / 不存在；截断树不推断不存在 |
@@ -163,7 +175,9 @@ tap_at、long_press_at、swipe_path、scroll_at、input_text、node_action、pre
 
 ## 手机端日志
 
-设置 → 运行日志可按 MCP / 隧道筛选、复制或清空。记录时间、客户端名、实际网络连接 IP、工具名、结果与耗时，不记录请求参数、输入内容、截图或认证 Token。Cloudflare 转发的来源 IP 单独标记为“代理报告 IP”，不用于认证。日志位于 App 私有 no-backup 目录，最多三个 512 KiB 文件；界面显示最近 500 条。写盘在后台批量处理，过载时记录丢弃数量。
+设置 → 运行日志可按软件 / MCP / 隧道筛选、复制或清空。软件记录包含应用及 Activity 生命周期、前台服务、悬浮屏会话、Root / Shizuku 能力、缺少的运行权限、预览状态、后台限制与异常。MCP 和隧道记录保留请求结果、客户端名、实际连接 IP 与经过脱敏的进程输出，不记录请求参数、输入内容、截图或认证 Token。崩溃记录只保留异常类型、错误码、有限调用栈；系统最近一次进程退出原因会在下次启动后补入历史。Cloudflare 转发的来源 IP 单独标记为“代理报告 IP”，不用于认证。日志保存在 App 私有 no-backup 目录，最多三个 512 KiB 文件；界面显示最近 500 条。写盘在后台批量处理，过载时记录丢弃数量。
+
+复制日志会一并附上 App 版本、设备型号、Android 版本 / ABI、通知与电池优化状态、无障碍服务状态、屏幕后端能力、MCP 与隧道状态及当前筛选出的记录。诊断报告由用户主动复制，应用不会上传日志。
 
 Cloudflare edge 注册后先显示“正在验证公网连接”，只有随机 / 固定域名实际返回手机服务的连接说明页后才显示“已连接”。DNS 传播和暂时的连接失败会继续等待并记录，不会提前显示终止失败。
 

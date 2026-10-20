@@ -2,4 +2,9 @@
     <item name="test_scroll" type="id" />
     <item name="test_counter" type="id" />
     <item name="test_editor" type="id" />
+    <item name="test_long_press" type="id" />
+    <item name="test_click_container" type="id" />
+    <item name="test_disabled" type="id" />
+    <item name="test_state_description" type="id" />
+    <item name="test_dialog" type="id" />
 </resources>

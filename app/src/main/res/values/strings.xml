@@ -25,4 +25,18 @@
     <string name="app_restart_detail">%1$s\nThis app is running on another screen. Allowing ends its current task and opens it on the virtual screen. Expires in two minutes.</string>
     <string name="app_restart_allow">Allow restart</string>
     <string name="app_restart_purpose">Open %1$s on the virtual screen</string>
+    <string name="notification_display_starting">Creating virtual screen</string>
+    <string name="notification_server_starting">Starting MCP</string>
+    <string name="notification_tunnel_ready">Tunnel connected</string>
+    <string name="notification_starting_detail">Starting services. Please wait.</string>
+    <string name="notification_failure">Check permissions and backend settings in the app.</string>
+    <string name="notification_clients">%1$d clients connected · Waiting for a virtual screen</string>
+    <string name="notification_tunnel_waiting">Tunnel is connected · Waiting for a virtual screen</string>
+    <string name="notification_chip_active">Active</string>
+    <string name="notification_chip_remote">Remote</string>
+    <string name="notification_chip_local">Screen</string>
+    <string name="notification_chip_ready">MCP</string>
+    <string name="notification_chip_error">Check</string>
+    <string name="notification_close_display">Close display</string>
+    <string name="notification_chip_approval">Approve</string>
 </resources>

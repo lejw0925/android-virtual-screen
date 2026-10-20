@@ -16,8 +16,8 @@ internal class DisplayMirror(private val display: Display, injector: RootInputIn
     private var layer: SurfaceControl? = null
     private var parent: SurfaceControl? = null
     private var viewer: String? = null
-    @Volatile private var inputError: String? = null
-    private val motion=RootMotionStream(injector,allowed,onActivity,{ inputError=it })
+    private val inputErrors = java.util.concurrent.ConcurrentHashMap<Long, String>()
+    private val motion=RootMotionStream(injector,allowed,onActivity,{ id, error -> inputErrors[id] = error })
     @Suppress("DEPRECATION") private fun geometry() = Point().also { display.getRealSize(it) }.let { LiveGeometry(it.x,it.y,display.rotation) }
     @Synchronized fun transact(code: Int, request: JSONObject, data: Parcel, reply: Parcel?) {
         when(code) {
@@ -53,8 +53,9 @@ internal class DisplayMirror(private val display: Display, injector: RootInputIn
             LiveDisplayChannel.SETTLE -> {
                 data.enforceNoDataAvail()
                 check(request.getString("viewer")==viewer) { "VIEWER_HIDDEN" }
-                motion.awaitSettled(request.getLong("gesture"))
-                inputError?.let { error(it) }
+                val gesture = request.getLong("gesture")
+                motion.awaitSettled(gesture)
+                inputErrors.remove(gesture)?.let { error(it) }
                 reply?.writeNoException()
             }
             LiveDisplayChannel.MOTION -> {
@@ -64,9 +65,10 @@ internal class DisplayMirror(private val display: Display, injector: RootInputIn
                     check(request.getString("viewer") == viewer && layer?.isValid == true) { "VIEWER_HIDDEN" }
                     val g=geometry()
                     check(request.getInt("width") == g.width && request.getInt("height") == g.height && request.getInt("rotation") == g.rotation) { "STALE_OBSERVATION" }
-                    if(event.actionMasked == MotionEvent.ACTION_DOWN) inputError=null
-                    inputError?.let { error(it) }
-                    motion.enqueue(g,request.getLong("gesture"),event)
+                    val gesture = request.getLong("gesture")
+                    if(event.actionMasked == MotionEvent.ACTION_DOWN) inputErrors.keys.removeIf { it < gesture - 32 }
+                    inputErrors[gesture]?.let { error(it) }
+                    motion.enqueue(g,gesture,event)
                     reply?.writeNoException()
                 } finally { event.recycle() }
             }
@@ -75,6 +77,7 @@ internal class DisplayMirror(private val display: Display, injector: RootInputIn
     fun cancel() { motion.cancel() }
     private fun closeMirror() {
         motion.cancel()
+        inputErrors.clear()
         layer?.let { runCatching { SurfaceControl.Transaction().use { t -> t.setVisibility(it,false).reparent(it,null).apply() } }; it.release() }
         parent?.release(); layer=null; parent=null; viewer=null
     }

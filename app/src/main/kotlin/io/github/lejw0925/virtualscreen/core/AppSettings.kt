@@ -19,6 +19,11 @@ class AppSettings(private val context: Context) {
     private val guideState = MutableStateFlow(prefs.getBoolean("guideCompleted",false))
     val guideCompleted = guideState.asStateFlow()
     fun completeGuide() { prefs.edit().putBoolean("guideCompleted",true).apply(); guideState.value=true }
+    val mcpBackgroundNoticeAcknowledged: Boolean
+        get() = prefs.getBoolean("mcpBackgroundNoticeAcknowledged", false)
+    fun acknowledgeMcpBackgroundNotice() {
+        prefs.edit().putBoolean("mcpBackgroundNoticeAcknowledged", true).apply()
+    }
     val backendConfigured: Boolean get() = prefs.contains("backend")
     @Volatile private var viewerWidth=0
     @Volatile private var viewerHeight=0

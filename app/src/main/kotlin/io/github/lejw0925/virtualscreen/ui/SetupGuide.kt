@@ -24,6 +24,8 @@ import kotlinx.coroutines.*
     val l=LocalLanguage.current
     val state by app.sessions.state.collectAsState()
     val server by app.mcp.flow.collectAsState()
+    val tunnel by app.tunnels.flow.collectAsState()
+    val endpoint = remember(server.host, server.port, tunnel.publicAddress) { connectionAddress(server, tunnel) }
     val toggleMcp=rememberMcpToggle(app,notifications)
     var page by rememberSaveable { mutableIntStateOf(0) }
     var busy by remember { mutableStateOf(false) }
@@ -40,6 +42,7 @@ import kotlinx.coroutines.*
         withContext(Dispatchers.IO) { app.runtimeWork {
             app.awaitShutdown()
             app.sessions.initializeBackend(app.settings.flow.value.backend)
+            app.sessions.ensureAccessibility()
         } }
     }
     val scroll=rememberScrollState()
@@ -65,12 +68,12 @@ import kotlinx.coroutines.*
         },style=MaterialTheme.typography.headlineMedium,textAlign=TextAlign.Center,color=MaterialTheme.colorScheme.onSurface)
         if(page==0) ElevatedCard(Modifier.fillMaxWidth()) {
             DropdownPreference(items=listOf("Root","Shizuku"),selectedIndex=state.backend.ordinal,title=l.text("访问方式","Access method","存取方式"),onSelectedIndexChange={ i -> task { val kind=BackendKind.entries[i]; app.sessions.selectBackend(kind); app.settings.update { it.copy(backend=kind) } } })
-            ArrowPreference(title=if(state.capabilities.usable) l.text("已授权","Authorized","已授權") else l.text("授权并检测","Authorize access","授權並檢測"),summary=state.backend.wireName.uppercase(),icon=if(state.capabilities.usable) Icons.Default.CheckCircle else null,onClick={ task { app.sessions.requestAuthorization() } })
+            ArrowPreference(title=if(state.capabilities.usable) l.text("已授权","Authorized","已授權") else l.text("授权并检测","Authorize access","授權並檢測"),summary=state.backend.wireName.uppercase(),icon=Icons.Default.CheckCircle,onClick={ task { app.sessions.requestAuthorization() } })
         }
         if(page==1) ElevatedCard(Modifier.fillMaxWidth()) {
-            ArrowPreference(title=l.text("复制连接配置","Copy connection configuration","複製連線設定"),enabled=server.running,icon=Icons.Default.ContentCopy,onClick={ if(server.running) copy(app,app.mcp.clientConfiguration(connectionAddress(app))) })
+            ArrowPreference(title=l.text("复制连接配置","Copy connection configuration","複製連線設定"),enabled=server.running,icon=Icons.Default.ContentCopy,onClick={ if(server.running) copy(app,app.mcp.clientConfiguration(endpoint)) })
             if (server.running) {
-                StatusPill(l.text("MCP 已就绪", "MCP ready", "MCP 已就緒"), positive = true, modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp))
+                StatusChip(l.text("MCP 已就绪", "MCP ready", "MCP 已就緒"), StatusTone.Positive, modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp))
             }
         }
         error?.let { Text(localizedError(l,it),color=MaterialTheme.colorScheme.error) }

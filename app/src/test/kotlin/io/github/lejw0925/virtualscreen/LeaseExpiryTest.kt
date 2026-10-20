@@ -83,4 +83,30 @@ class LeaseExpiryTest {
         assertEquals(true, manager.showRemotePreview().values["preview_requested"])
         assertEquals(2, backend.previews)
     }
+
+    @Test fun notificationCloseInvalidatesTheLeaseAndOnlyClosesItsOriginalSession() = runTest {
+        val backend = FakeBackend(BackendKind.ROOT)
+        val manager = VirtualScreenSessionManager(RuntimeEnvironment.getApplication(), backend, FakeBackend(BackendKind.SHIZUKU))
+        val first = (manager.acquireLease("remote") as LeaseDecision.Granted).lease
+        assertTrue(manager.create(first.owner, first.token).ok)
+        val session = manager.state.value.sessionId!!
+        manager.observe(first.owner, first.token, captureFrame = false).getOrThrow()
+        manager.phoneTakeover()
+        manager.closeFromPhone(session)
+        assertEquals(1, backend.closed)
+        assertNull(manager.state.value.displayId)
+        assertNull(manager.state.value.observationId)
+        assertNull(manager.leaseStatus())
+        assertEquals("LEASE_REQUIRED", manager.observe(first.owner, first.token).exceptionOrNull()?.message)
+
+        val next = (manager.acquireLease("next") as LeaseDecision.Granted).lease
+        assertTrue(manager.create(next.owner, next.token).ok)
+        val nextSession = manager.state.value.sessionId
+        manager.closeFromPhone(session)
+        assertEquals(nextSession, manager.state.value.sessionId)
+        assertNotNull(manager.state.value.displayId)
+        assertEquals(next.token, manager.leaseStatus()!!.token)
+        assertEquals(1, backend.closed)
+        manager.shutdown()
+    }
 }

@@ -110,4 +110,99 @@ class ControlApprovalTest {
         sessions.endPhoneSession("viewer")
         assertEquals("approved",approvals.request("agent","Agent","Resume after PiP").values["approval_status"])
     }
+
+    @Test fun explicitPhoneDialogCanEndViewingAndApproveWithoutReacquiringPhoneControl() {
+        val sessions = sessions()
+        sessions.beginPhoneSession("viewer")
+        val approvals = ControlApprovalManager(sessions)
+        val id = approvals.request("agent", "Agent", "Continue remotely").values["approval_id"] as String
+
+        assertTrue(approvals.approve(id, releasePhoneViewer = true))
+        assertFalse(sessions.phoneViewerActive)
+        assertEquals("approved", approvals.status("agent", id).values["approval_status"])
+        sessions.endPhoneSession("viewer")
+        assertEquals("agent", sessions.leaseStatus()?.owner)
+        assertFalse(approvals.alwaysAllow.value)
+    }
+
+    @Test fun openingPhoneApprovalKeepsTheOriginalLeaseValidWhenViewerStops() {
+        val sessions = sessions()
+        val phone = sessions.beginPhoneSession("viewer")
+        val approvals = ControlApprovalManager(sessions)
+        val id = approvals.request("agent", "Agent", "Continue remotely").values["approval_id"] as String
+
+        sessions.endPhoneSession("viewer", retainControl = true)
+
+        assertEquals(phone.token, sessions.leaseStatus()?.token)
+        assertTrue(approvals.approve(id, releasePhoneViewer = true))
+        assertEquals("approved", approvals.status("agent", id).values["approval_status"])
+    }
+
+    @Test fun stalePhoneDialogCannotEndViewingOrRememberApproval() {
+        val sessions = sessions()
+        sessions.beginPhoneSession("viewer")
+        val approvals = ControlApprovalManager(sessions)
+        val id = approvals.request("agent", "Agent", "Continue remotely").values["approval_id"] as String
+        val phone = sessions.phoneTakeover()
+
+        assertFalse(approvals.approve(id, always = true, releasePhoneViewer = true))
+        assertTrue(sessions.phoneViewerActive)
+        assertEquals(phone.token, sessions.leaseStatus()?.token)
+        assertEquals(phone.generation, sessions.leaseStatus()?.generation)
+        assertFalse(approvals.alwaysAllow.value)
+    }
+
+    @Test fun phoneDialogCannotInterruptAnUnfinishedGesture() {
+        val sessions = sessions()
+        sessions.beginPhoneSession("viewer")
+        val phone = sessions.beginPhoneGesture()
+        val approvals = ControlApprovalManager(sessions)
+        val id = approvals.request("agent", "Agent", "Continue remotely").values["approval_id"] as String
+
+        assertFalse(approvals.approve(id, releasePhoneViewer = true))
+        assertTrue(sessions.phoneViewerActive)
+        assertEquals(phone.token, sessions.leaseStatus()?.token)
+        assertEquals(phone.generation, sessions.leaseStatus()?.generation)
+        sessions.finishPhoneControl(phone.token)
+        assertTrue(approvals.approve(id, releasePhoneViewer = true))
+    }
+
+    @Test fun consecutiveTouchesReuseThePhoneLeaseWithoutFencingTheScreenObservation() = runBlocking {
+        val backend = FakeBackend(BackendKind.ROOT)
+        val sessions = VirtualScreenSessionManager(RuntimeEnvironment.getApplication(), backend, FakeBackend(BackendKind.SHIZUKU))
+        val phone = sessions.beginPhoneSession("viewer")
+        sessions.create(phone.owner, phone.token)
+        val first = sessions.observe(phone.owner, phone.token, captureFrame = false).getOrThrow()
+        val observation = first.values.getValue("observation_id")
+        val generation = sessions.state.value.lease?.generation
+        val cancelledBeforeGesture = backend.cancelled
+        assertEquals(VirtualScreenSessionManager.PHONE_CLIENT, sessions.leaseStatus()?.owner)
+
+        val nextGesture = sessions.beginPhoneGesture()
+        assertEquals(phone.token, nextGesture.token)
+        assertEquals(cancelledBeforeGesture, backend.cancelled)
+        sessions.finishPhoneControl(nextGesture.token)
+
+        assertEquals(phone.token, sessions.state.value.lease?.token)
+        assertEquals(generation, sessions.state.value.lease?.generation)
+        assertEquals(observation, sessions.state.value.observationId)
+        assertEquals(cancelledBeforeGesture, backend.cancelled)
+    }
+
+    @Test fun endingOneOverlappingGestureDoesNotClearTheOtherGestureGuard() {
+        val sessions = sessions()
+        sessions.beginPhoneSession("viewer")
+        val first = sessions.beginPhoneGesture()
+        val second = sessions.beginPhoneGesture()
+        assertEquals(first.token, second.token)
+        val approvals = ControlApprovalManager(sessions)
+        val id = approvals.request("agent", "Agent", "Continue remotely").values["approval_id"] as String
+
+        sessions.finishPhoneControl(first.token)
+
+        assertFalse(approvals.approve(id, releasePhoneViewer = true))
+        assertEquals(second.token, sessions.leaseStatus()?.token)
+        sessions.finishPhoneControl(second.token)
+        assertTrue(approvals.approve(id, releasePhoneViewer = true))
+    }
 }

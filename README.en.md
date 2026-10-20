@@ -4,7 +4,7 @@
   <p><strong>A separate Android display for your agent. Your phone stays yours.</strong></p>
   <p><a href="README.md">简体中文</a> · English</p>
   <p>
-    <a href="https://github.com/lejw0925/android-virtual-screen/releases/tag/v0.1.0-beta"><img src="https://img.shields.io/badge/Beta-0.1.0-yellow" alt="Beta 0.1.0" /></a>
+    <a href="https://github.com/lejw0925/android-virtual-screen/releases/tag/v0.1.0"><img src="https://img.shields.io/badge/Release-0.1.0-2D6846" alt="Release 0.1.0" /></a>
     <a href="https://github.com/lejw0925/android-virtual-screen/actions/workflows/build.yml"><img src="https://github.com/lejw0925/android-virtual-screen/actions/workflows/build.yml/badge.svg" alt="Build" /></a>
     <img src="https://img.shields.io/badge/Android-13%2B-3DDC84" alt="Android 13+" />
     <a href="LICENSE"><img src="https://img.shields.io/badge/license-PolyForm_Noncommercial-blue" alt="PolyForm Noncommercial" /></a>
@@ -14,14 +14,14 @@
 Virtual Screen is an Android app that gives an AI agent an isolated virtual display and runs an authenticated MCP server on the phone. The agent can discover, launch, and operate apps on that display while you keep using the phone's main screen. You can view, take over, or stop an operation at any time.
 
 <p align="center">
-  <img src="docs/images/material3-home.png" width="240" alt="Home and service status" />
-  <img src="docs/images/material3-connections-large.png" width="240" alt="Connection card" />
-  <img src="docs/images/material3-settings.png" width="240" alt="Backend and permission settings" />
+  <img src="docs/images/material3-settings.png" width="240" alt="On-device permissions and backend screen" />
+  <img src="docs/images/material3-connections-large.png" width="240" alt="On-device MCP connection settings" />
+  <img src="docs/images/material3-home.png" width="240" alt="Virtual Screen home" />
 </p>
 
-## Beta 0.1.0
+## Release 0.1.0
 
-Download `virtual-screen-0.1.0-beta.apk` and `SHA256SUMS` from [GitHub Releases](https://github.com/lejw0925/android-virtual-screen/releases/tag/v0.1.0-beta). The app requires Android 13 (API 33) or later and either a working Root `su` or a running, authorized Shizuku service. This beta is for testing; device compatibility and background behavior can vary by ROM.
+Download `virtual-screen-0.1.0.apk` and `SHA256SUMS` from [GitHub Releases](https://github.com/lejw0925/android-virtual-screen/releases/tag/v0.1.0). The app requires Android 13 (API 33) or later and either a working Root `su` or a running, authorized Shizuku service. Device compatibility and background behavior can vary by ROM.
 
 ## Features
 
@@ -34,7 +34,7 @@ Download `virtual-screen-0.1.0-beta.apk` and `SHA256SUMS` from [GitHub Releases]
 
 ## Get Started
 
-1. Install the [Beta 0.1.0 APK](https://github.com/lejw0925/android-virtual-screen/releases/tag/v0.1.0-beta) and install a compatible Root manager or Shizuku. If using Shizuku, start its service first.
+1. Install the [0.1.0 APK](https://github.com/lejw0925/android-virtual-screen/releases/tag/v0.1.0) and install a compatible Root manager or Shizuku. If using Shizuku, start its service first.
 2. Open Virtual Screen, select Root or Shizuku under **Permissions and backend**, and grant access. Enable the app's accessibility service for node targeting and Unicode text editing. Allow notifications for approval and takeover actions, and PiP for automatic previews.
 3. Enable MCP. For a USB debugging connection, run this on the computer:
 
@@ -160,7 +160,7 @@ Run the same full build used by GitHub Actions:
 
 Actions run JVM tests, Lint, Debug / unsigned Release, fixture, and instrumentation APK builds on `main`, pull requests, and manual dispatch. A matching `vX.Y.Z` or `vX.Y.Z-beta[.N]` tag runs signing and publishes the APK with `SHA256SUMS`; beta tags become GitHub prereleases. Signing material stays in repository secrets. See [Build and release](docs/BUILD.md) for the toolchain and the pinned provenance and build steps for frpc / cloudflared.
 
-See the [changelog](CHANGELOG.md) for the latest fixes and validation. Root passed all 19 tools on a physical Android 17 / HyperOS 4 device; see [Android 17 and home validation](docs/ANDROID17_FIX_VALIDATION.md). Shizuku's Android 15 emulator results are in [Beta backend comparison](docs/BACKEND_EMULATOR_VALIDATION.md). See [1033 validation](docs/TUNNEL_1033_FIX_VALIDATION.md) for continuous Cloudflare health checks and the 200-second background device test, and [background connection validation](docs/TUNNEL_BACKGROUND_VALIDATION.md) for vendor freezing, the app-specific unrestricted battery setting, and screen-off testing while charging. Unplugged deep Doze and all ROM combinations remain untested. Historical results are in [home layout validation](docs/MCP_HOME_VALIDATION.md) and [release validation](docs/RELEASE_VALIDATION.md).
+See the [changelog](CHANGELOG.md) and [0.1.0 device report](docs/RELEASE_VALIDATION_0.1.0.md) for current fixes and validation. The previous physical Android 17 / HyperOS 4 Root run passed all 19 tools; see [Android 17 and home validation](docs/ANDROID17_FIX_VALIDATION.md). Shizuku's Android 15 emulator results are in [Beta backend comparison](docs/BACKEND_EMULATOR_VALIDATION.md). See [1033 validation](docs/TUNNEL_1033_FIX_VALIDATION.md) for continuous Cloudflare health checks and the 200-second background device test, and [background connection validation](docs/TUNNEL_BACKGROUND_VALIDATION.md) for vendor freezing, the app-specific unrestricted battery setting, and screen-off testing while charging. Unplugged deep Doze and all ROM combinations remain untested. Historical results are in [home layout validation](docs/MCP_HOME_VALIDATION.md) and [release validation](docs/RELEASE_VALIDATION.md).
 
 | Guide | Contents |
 | --- | --- |

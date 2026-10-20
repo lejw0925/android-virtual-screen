@@ -17,6 +17,8 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.withTimeoutOrNull
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
@@ -49,11 +51,17 @@ class VirtualScreenSessionManager(
     private val leases: ControlLeaseManager = ControlLeaseManager(),
     private val configuredDisplay: (() -> VirtualScreenConfig)? = null,
     val restartApprovals: AppRestartApprovalManager = AppRestartApprovalManager(),
+    private val log: ActivityLogger = ActivityLogger.NONE,
 ) {
     companion object {
         const val PHONE_CLIENT = "phone"
         const val PROBE_CLIENT_PREFIX = "backend-probe-"
     }
+    internal val accessibilityActivation = AccessibilityActivation(
+        isConnected = { ScreenAccessibilityService.current != null },
+        awaitConnection = { withTimeoutOrNull(3_000) { ScreenAccessibilityService.connected.first { it } } == true },
+        log = log,
+    )
     private val mutex = Mutex()
     private val launchMutex = Mutex()
     private val stateLock = Any()
@@ -62,12 +70,26 @@ class VirtualScreenSessionManager(
     private val mutableState = MutableStateFlow(SessionState())
     val state: StateFlow<SessionState> = mutableState.asStateFlow()
     @Volatile private var handle: VirtualScreenHandle? = null
-    private var phoneGestureToken: String? = null
+    private val phoneGestures = mutableMapOf<String, Int>()
     private val phoneViewers = mutableSetOf<String>()
     val phoneViewerActive: Boolean get() = synchronized(this) { phoneViewers.isNotEmpty() }
     private var latest: ScreenObservation? = null
     private var latestNodes: NodeSnapshot? = null
-    private fun update(block: (SessionState) -> SessionState) = synchronized(stateLock) { mutableState.value = block(mutableState.value) }
+    private fun update(block: (SessionState) -> SessionState) = synchronized(stateLock) {
+        val before = mutableState.value
+        val after = block(before)
+        mutableState.value = after
+        if (before.backend != after.backend || before.capabilities != after.capabilities) {
+            val caps = after.capabilities
+            log.runtime("backend_capabilities", "changed", "backend=${after.backend}; display=${caps.displayCreation}; capture=${caps.frameCapture}; input=${caps.inputInjection}; nodes=${caps.accessibilityNodes}")
+        }
+        if (before.status != after.status || before.displayId != after.displayId) {
+            log.runtime("virtual_display", after.status.name.lowercase(),
+                "backend=${after.backend}; display=${after.displayId}; size=${after.config.width}x${after.config.height}@${after.config.density}")
+        }
+        if (before.previewStatus != after.previewStatus) log.runtime("preview", after.previewStatus.name.lowercase())
+        if (after.errorCode != null && before.errorCode != after.errorCode) log.runtime("screen_error", "error", after.errorCode)
+    }
     val liveChannel: LiveDisplayChannel? get() = if(state.value.status == SessionStatus.RUNNING) backend().liveChannel else null
     val defaultDisplayConfig get() = configuredDisplay?.invoke() ?: state.value.config
     val systemLanguage get() = io.github.lejw0925.virtualscreen.ui.systemLanguage(context)
@@ -117,37 +139,34 @@ class VirtualScreenSessionManager(
         }
     }
     suspend fun requestAuthorization(): BackendCapabilities {
-        when (val selected = backend()) {
-            is RootBackend -> check(selected.requestPermission()) { "ROOT_PERMISSION_DENIED" }
-            is ShizukuBackend -> selected.requestPermission()
+        log.runtime("backend_permission", "requested", "backend=${state.value.backend}")
+        try {
+            when (val selected = backend()) {
+                is RootBackend -> check(selected.requestPermission()) { "ROOT_PERMISSION_DENIED" }
+                is ShizukuBackend -> selected.requestPermission()
+            }
+            return ensureAccessibility().also {
+                log.runtime("backend_permission", if (it.usable) "granted" else "pending", "backend=${state.value.backend}")
+            }
+        } catch (failure: Exception) {
+            if (failure !is CancellationException && ScreenAccessibilityService.current == null) accessibilityActivation.reportFailure()
+            log.failure("backend_permission", failure)
+            throw failure
         }
-        return ensureAccessibility()
     }
     suspend fun ensureAccessibility(): BackendCapabilities = mutex.withLock {
-        var caps = backend().probe()
-        if (caps.displayCreation != CapabilityStatus.REQUIRES_AUTHORIZATION) {
-            when (val selected = backend()) {
-                is RootBackend -> selected.enableAccessibility()
-                is ShizukuBackend -> selected.enableAccessibility()
-            }
-            // System binding is asynchronous; allow it to settle without blocking the UI.
-            if (backend() is CommandBackend) {
-                repeat(30) {
-                    if (ScreenAccessibilityService.current != null) return@repeat
-                    kotlinx.coroutines.delay(100)
+        val selected = backend()
+        var caps = selected.probe()
+        if (selected is RootBackend || selected is ShizukuBackend) {
+            accessibilityActivation.ensure(state.value.backend, caps.displayCreation != CapabilityStatus.REQUIRES_AUTHORIZATION) { rebind ->
+                when (selected) {
+                    is RootBackend -> selected.enableAccessibility(rebind)
+                    is ShizukuBackend -> selected.enableAccessibility(rebind)
                 }
             }
-            if (backend() is CommandBackend && ScreenAccessibilityService.current == null) {
-                when(val selected=backend()) {
-                    is RootBackend -> selected.enableAccessibility(rebind=true)
-                    is ShizukuBackend -> selected.enableAccessibility(rebind=true)
-                }
-                repeat(30) {
-                    if(ScreenAccessibilityService.current == null) kotlinx.coroutines.delay(100)
-                }
-            }
-            caps = backend().probe()
+            caps = selected.probe()
         }
+        // Node access can be granted manually while the MCP server remains available.
         updateAuthorization(caps)
         caps
     }
@@ -182,10 +201,18 @@ class VirtualScreenSessionManager(
     @Synchronized fun releaseLease(clientId: String, token: String): LeaseDecision = leases.release(clientId, token).also {
         if (it is LeaseDecision.Granted) { fence(); update { s -> s.copy(lease = null) } }
     }
-    @Synchronized fun beginPhoneGesture(): Lease = phoneTakeover().also { phoneGestureToken = it.token }
+    @Synchronized fun beginPhoneGesture(): Lease {
+        val held = leases.snapshot()
+        val lease = if (held?.owner == PHONE_CLIENT) {
+            (touchLease(held.owner, held.token) as? LeaseDecision.Granted)?.lease ?: phoneTakeover()
+        } else phoneTakeover()
+        phoneGestures[lease.token] = phoneGestures.getOrDefault(lease.token, 0) + 1
+        return lease
+    }
     @Synchronized fun finishPhoneControl(token: String) {
-        if (phoneGestureToken == token) phoneGestureToken = null
-        if (phoneViewers.isNotEmpty()) return
+        val count = phoneGestures[token] ?: 0
+        if (count > 1) phoneGestures[token] = count - 1 else phoneGestures.remove(token)
+        if (phoneViewers.isNotEmpty() || phoneGestures.containsKey(token)) return
         leases.snapshot()?.takeIf { it.owner==PHONE_CLIENT && it.token==token }?.let { releaseLease(it.owner,it.token) }
     }
     /** Keeps the phone lease for the duration of a full-screen local viewer. */
@@ -199,9 +226,9 @@ class VirtualScreenSessionManager(
         return phoneTakeover()
     }
     /** Releases only the phone-owned lease when the viewer returns to PiP/background. */
-    @Synchronized fun endPhoneSession(viewer: String) {
+    @Synchronized fun endPhoneSession(viewer: String, retainControl: Boolean = false) {
         if (!phoneViewers.remove(viewer) || phoneViewers.isNotEmpty()) return
-        phoneGestureToken = null
+        if (retainControl || phoneGestures.isNotEmpty()) return
         leases.snapshot()?.takeIf { it.owner == PHONE_CLIENT }?.let { releaseLease(it.owner, it.token) }
     }
     private fun retainPhoneViewerLease() {
@@ -218,17 +245,19 @@ class VirtualScreenSessionManager(
         leases.snapshot()?.takeIf { it.owner == clientId }?.let { releaseLease(clientId, it.token) }
     }
     @Synchronized fun phoneTakeover(): Lease {
-        phoneGestureToken = null
+        phoneGestures.clear()
         val lease = leases.takeover(PHONE_CLIENT)
         fence(); update { it.copy(lease = lease) }
         return lease
     }
     /** Approval is valid only for the controller shown in that notification. */
-    @Synchronized fun approveControl(clientId: String, expectedGeneration: Long): LeaseDecision {
+    @Synchronized fun approveControl(clientId: String, expectedGeneration: Long, releasePhoneViewer: Boolean = false): LeaseDecision {
         val held = leases.snapshot()
         if (held?.generation != expectedGeneration) return LeaseDecision.Rejected("CONTROL_CHANGED", held?.owner)
-        if (phoneGestureToken == held.token) return LeaseDecision.Rejected("PHONE_GESTURE_ACTIVE", held.owner)
-        if (phoneViewers.isNotEmpty()) return LeaseDecision.Rejected("PHONE_VIEWER_ACTIVE", held.owner)
+        if (phoneGestures.isNotEmpty()) return LeaseDecision.Rejected("PHONE_GESTURE_ACTIVE", held.owner)
+        if (phoneViewers.isNotEmpty() && !releasePhoneViewer) return LeaseDecision.Rejected("PHONE_VIEWER_ACTIVE", held.owner)
+        // Only an explicit decision in the phone dialog may end local viewing.
+        if (releasePhoneViewer) phoneViewers.clear()
         val lease = leases.takeover(clientId)
         fence(); update { it.copy(lease = lease) }
         return LeaseDecision.Granted(lease)
@@ -263,6 +292,7 @@ class VirtualScreenSessionManager(
         } catch (failure: CancellationException) {
             withContext(NonCancellable) { closeInternal() }; throw failure
         } catch (failure: Exception) {
+            log.failure("display_create", failure)
             update { it.copy(status = SessionStatus.ERROR, errorCode = failure.code(), detail = failure.message) }
             OperationEnvelope.failure(failure.code())
         }
@@ -275,6 +305,11 @@ class VirtualScreenSessionManager(
         requireLease(owner, token); fence(); closeInternal(); OperationEnvelope.success("closed" to true)
     }
     suspend fun shutdown() = mutex.withLock { fence(); closeInternal(); leases.clear(); update { it.copy(lease = null) } }
+    /** A stale notification must never close a newer virtual display. */
+    suspend fun closeFromPhone(sessionId: String) = mutex.withLock {
+        if (state.value.sessionId != sessionId || state.value.displayId == null) return@withLock
+        fence(); closeInternal(); leases.clear(); update { it.copy(lease = null) }
+    }
     private suspend fun closeInternal() {
         val current = handle
         try { if (current != null) backend().close(current) }
@@ -335,7 +370,10 @@ class VirtualScreenSessionManager(
         mutex.withLock {
             requireLease(owner, token)
             val expected = epoch.get()
-            val observed = (if(captureFrame) backend().observe(requireHandle()) else backend().inspect(requireHandle())).getOrThrow()
+            val observed = (if(captureFrame) backend().observe(requireHandle()) else backend().inspect(requireHandle())).getOrElse { failure ->
+                if (failure.code() == "NO_RUNNING_APP") invalidateObservation()
+                throw failure
+            }
             verify(owner, token, expected)
             val fenced = observed.copy(id = UUID.randomUUID().toString(), sessionId = state.value.sessionId.orEmpty(), generation = expected)
             synchronized(stateLock) { latest = fenced; latestNodes = null }
@@ -354,9 +392,9 @@ class VirtualScreenSessionManager(
             synchronized(stateLock) { latest?.let { if (it.width != frame.width || it.height != frame.height || it.rotation != frame.rotation) invalidateObservation() } }
             update { it.copy(frame = frame.frame,frameRotation=frame.rotation,errorCode=null) }
         }.onFailure { failure ->
-            if (failure.code() == "APP_MOVED_TO_PHONE") {
+            if (failure.code() in setOf("APP_MOVED_TO_PHONE", "NO_RUNNING_APP")) {
                 invalidateObservation()
-                update { it.copy(frame=null,errorCode="APP_MOVED_TO_PHONE") }
+                update { it.copy(frame=null,errorCode=failure.code()) }
             }
         }
     }

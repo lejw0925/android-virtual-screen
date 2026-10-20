@@ -25,7 +25,7 @@ class McpToolRegistry(private val sessions: VirtualScreenSessionManager,
     private val approvals: ControlApprovalManager = ControlApprovalManager(sessions),
     private val clientName: (String) -> String = { "MCP client" },
     private val language: () -> UiLanguage = { sessions.systemLanguage }) {
-    private val defaultOperationObservation = "both"
+    private val defaultOperationObservation = "tree"
     private val current=MutableStateFlow<ToolActivity?>(null)
     val activity=current.asStateFlow()
     private val receipts=RequestReceipts()
@@ -55,8 +55,8 @@ class McpToolRegistry(private val sessions: VirtualScreenSessionManager,
             tool(l,"close_screen",t("关闭虚拟屏并使旧观察失效。需要当前控制租约。","Close the isolated display and invalidate its observations. Requires the current control lease.","關閉虛擬螢幕並使舊觀察失效。需要目前控制租約。"),lease,lease.keys),
             tool(l,"list_apps",t("查询可启动应用，可按 query 或 package 过滤。需要控制租约，不会启动应用。","List launchable apps, optionally filtering by query or package. Requires control; does not launch apps.","查詢可啟動應用程式，可按 query 或 package 篩選。需要控制租約，不會啟動應用程式。"),lease+mapOf("query" to string(),"package" to string()),lease.keys,readOnly=true),
             tool(l,"launch_app",t("在虚拟屏启动 component，可传 uri。启动会使旧观察失效，默认直接返回启动后的新观察；跨屏冲突时等待手机通知确认重启，最长两分钟。","Launch component on the isolated display with an optional uri. Launching invalidates the old observation and returns a fresh post-launch observation by default. Cross-display conflicts await phone restart approval for up to two minutes.","在虛擬螢幕啟動 component，可傳 uri。啟動會使舊觀察失效，預設直接傳回啟動後的新觀察；跨螢幕衝突時等待手機通知確認重新啟動，最長兩分鐘。"),lease+after+mapOf("component" to string().put("minLength",1),"uri" to string()),lease.keys+"component"),
-            tool(l,"observe",t("取得新观察。mode=tree 省去截图；screenshot 或 both 返回图像。format=compact 只返回可见的有用节点，full 保留层级。坐标始终以 width/height 的显示像素计，缩图须按 image_to_display_scale 换算。输入消耗观察。","Get a fresh observation. mode=tree avoids image capture; screenshot/both add an image. compact returns useful visible nodes; full preserves hierarchy. Coordinates use display width/height, so map scaled images with image_to_display_scale. Input consumes the observation.","取得新觀察。mode=tree 省去截圖；screenshot 或 both 傳回影像。compact 只傳回可見的有用節點，full 保留階層。座標以 width/height 的顯示像素計，縮圖須按 image_to_display_scale 換算。輸入消耗觀察。"),
-                lease+mapOf("include_nodes" to boolean(),"mode" to choice("tree","screenshot","both"),"format" to choice("compact","full"),"max_image_width" to integer(320,2048)),lease.keys,readOnly=true),
+            tool(l,"observe",t("取得新观察，默认只返回 compact 节点树，不采集截图。mode=screenshot/both 显式请求图片；format=full 返回预算内全部采集节点及完整字段。compact 保留可读内容和交互目标，并省略默认状态键。节点含窗口归属、hint 和 stateDescription；树上限为 5000 节点、100 层、每节点 1000 个子项。","Get a fresh observation. Defaults to a compact node tree without image capture. Set mode=screenshot/both to request an image; format=full returns every collected node and field within budget. Compact keeps readable content and interaction targets while omitting default state keys. Nodes include window ownership, hints and state descriptions. Tree limits: 5,000 nodes, depth 100 and 1,000 children per node.","取得新觀察，預設只傳回 compact 節點樹，不擷取截圖。mode=screenshot/both 可明確要求圖片；format=full 傳回預算內所有已擷取節點與完整欄位。compact 保留可讀內容和互動目標，並省略預設狀態鍵。節點包含視窗歸屬、hint 和 stateDescription；樹上限為 5000 個節點、100 層、每節點 1000 個子項。"),
+                lease+mapOf("include_nodes" to boolean().put("description",t("旧参数：true 等同 both，false 等同 screenshot。省略 mode 时优先采用此参数。","Legacy parameter: true maps to both and false maps to screenshot when mode is omitted.","舊參數：true 等同 both，false 等同 screenshot；省略 mode 時優先採用此參數。")),"mode" to choice("tree","screenshot","both").put("default","tree"),"format" to choice("compact","full").put("default","compact"),"max_image_width" to integer(320,2048)),lease.keys,readOnly=true),
             tool(l,"tap_at",t("使用最新未消耗观察，在虚拟屏像素坐标 x/y 点击。","Tap display pixel coordinates x/y using a fresh unconsumed observation.","使用最新未消耗觀察，在虛擬螢幕像素座標 x/y 點按。"),observed+after+xy,observed.keys+xy.keys),
             tool(l,"long_press_at",t("在虚拟屏 x/y 长按，duration_ms 为200–2000，默认600。消耗当前观察。","Long press display coordinates x/y for 200–2000 ms (default 600). Consumes the observation.","在虛擬螢幕 x/y 長按，duration_ms 為200–2000，預設600。消耗目前觀察。"),observed+after+xy+("duration_ms" to integer(200,2000)),observed.keys+xy.keys),
             tool(l,"swipe_path",t("沿2–64个 [x,y] 虚拟屏像素坐标滑动，duration_ms 默认300。消耗当前观察。","Swipe along 2–64 display-pixel [x,y] points. duration_ms defaults to 300. Consumes the observation.","沿2–64個 [x,y] 虛擬螢幕像素座標滑動，duration_ms 預設300。消耗目前觀察。"),observed+after+mapOf("duration_ms" to integer(100,2000),
@@ -66,7 +66,7 @@ class McpToolRegistry(private val sessions: VirtualScreenSessionManager,
             tool(l,"node_action",t("对当前观察中的节点操作。node_id 和 selector 二选一；selector 字段为精确匹配，必须唯一，歧义或截断会拒绝。set_text 必填 value，可设为空。不会降级到主屏。observe_after 可返回新观察，接受输入后观察失败不会重放输入。","Act on the current observation. Supply exactly one of node_id/selector. Selector fields match exactly and must identify one node; ambiguity/truncation is rejected. set_text requires value and allows empty text. No phone-display fallback. observe_after returns a fresh observation; a failed observation never replays accepted input.","對目前觀察中的節點操作。node_id 和 selector 二選一；selector 欄位為精確比對，必須唯一，歧義或截斷會拒絕。set_text 必填 value，可設為空。不會降級到主螢幕。observe_after 可傳回新觀察，接受輸入後觀察失敗不會重播輸入。"),
                 observed+after+mapOf("node_id" to string(),"selector" to selector,"action" to choice("click","long_click","focus","scroll_forward","scroll_backward","set_text"),"value" to string(20000)),observed.keys+"action",branches=mapOf("set_text" to setOf("value"))),
             tool(l,"press_key",t("发送虚拟屏导航或编辑按键。默认返回键 4；禁止电源、主屏等全局按键。","Send a display-scoped navigation or editing key. Default: Back (4). Global power/home keys are rejected.","傳送虛擬螢幕導覽或編輯按鍵。預設返回鍵 4；禁止電源、主螢幕等全域按鍵。"),observed+after+("key_code" to integer(4,123).put("enum",JSONArray(DisplayKeys.codes))),observed.keys),
-            tool(l,"wait",t("最多等待 30 秒。delay；frame_changed 需 fingerprint；node_text 需 text；node_present/absent 需 selector；app_foreground 需 package；ui_stable 要求画面持续稳定 500 毫秒。节点条件不截图。返回新观察及 condition_matched；超时返回当前状态，取消后重新观察。","Wait up to 30 seconds. delay; frame_changed requires fingerprint; node_text requires text; node_present/absent requires selector; app_foreground requires package; ui_stable requires 500 ms of unchanged frames. Node conditions avoid screenshots. Return a fresh observation and condition_matched; timeout returns current state, and cancellation requires re-observation.","最多等待 30 秒。delay；frame_changed 需 fingerprint；node_text 需 text；node_present/absent 需 selector；app_foreground 需 package；ui_stable 要求畫面持續穩定 500 毫秒。節點條件不截圖。傳回新觀察及 condition_matched；逾時傳回目前狀態，取消後重新觀察。"),
+            tool(l,"wait",t("最多等待 30 秒。delay 返回 compact 节点树且不截图；frame_changed 需 fingerprint；node_text 需 text；node_present/absent 需 selector；app_foreground 需 package；ui_stable 要求画面持续稳定 500 毫秒。节点条件不截图。返回新观察及 condition_matched；超时返回当前状态，取消后重新观察。","Wait up to 30 seconds. delay returns a compact node tree without an image; frame_changed requires fingerprint; node_text requires text; node_present/absent requires selector; app_foreground requires package; ui_stable requires 500 ms of unchanged frames. Node conditions avoid screenshots. Return a fresh observation and condition_matched; timeout returns current state, and cancellation requires re-observation.","最多等待 30 秒。delay 傳回 compact 節點樹且不截圖；frame_changed 需 fingerprint；node_text 需 text；node_present/absent 需 selector；app_foreground 需 package；ui_stable 要求畫面持續穩定 500 毫秒。節點條件不截圖。傳回新觀察及 condition_matched；逾時傳回目前狀態，取消後重新觀察。"),
                 lease+mapOf("condition" to choice("delay","frame_changed","node_text","node_present","node_absent","app_foreground","ui_stable"),"text" to string(),"case_sensitive" to boolean(),"fingerprint" to string(),"selector" to selector,"package" to string(),"timeout_ms" to integer(0,30000)),lease.keys,readOnly=true)
         ).onEach { spec ->
             if(spec.name=="node_action") spec.schema.put("oneOf",JSONArray(listOf(
@@ -152,9 +152,13 @@ class McpToolRegistry(private val sessions: VirtualScreenSessionManager,
                 "list_apps" -> {
                     check(sessions.touchLease(owner,token) is LeaseDecision.Granted) { "LEASE_REQUIRED" }
                     val query=args.optString("query")
-                    OperationEnvelope.success("applications" to sessions.discoverApplications().filter { it.exported && it.packageName!=io.github.lejw0925.virtualscreen.BuildConfig.APPLICATION_ID && (args.optString("package").isBlank() || it.packageName==args.getString("package")) && (query.isBlank() || it.label.contains(query,true) || it.packageName.contains(query,true)) }.map { mapOf("label" to it.label,"package" to it.packageName,"component" to it.component) })
+                    OperationEnvelope.success("applications" to launchableApplications(args.optString("package"), query))
                 }
-                "observe" -> observe(owner,token,args.optString("mode",if(args.optBoolean("include_nodes")) "both" else "screenshot"),args.optString("format","compact"))
+                "observe" -> observe(owner,token,when {
+                    args.has("mode") -> args.getString("mode")
+                    args.has("include_nodes") -> if(args.getBoolean("include_nodes")) "both" else "screenshot"
+                    else -> "tree"
+                },args.optString("format","compact"))
                 "wait" -> waitFor(owner,token,args)
                 else -> {
                     val operationArgs=JSONObject(args.toString())
@@ -184,10 +188,31 @@ class McpToolRegistry(private val sessions: VirtualScreenSessionManager,
         }
     }
     private fun complete(a: ToolActivity?,phase: String,code: String?) { if(a != null) current.compareAndSet(a,a.copy(phase=phase,code=code)) }
+    private fun launchableApplications(packageName: String = "", query: String = "") = sessions.discoverApplications()
+        .filter { it.exported && it.packageName != io.github.lejw0925.virtualscreen.BuildConfig.APPLICATION_ID &&
+            (packageName.isBlank() || it.packageName == packageName) &&
+            (query.isBlank() || it.label.contains(query, true) || it.packageName.contains(query, true)) }
+        .map { mapOf("label" to it.label, "package" to it.packageName, "component" to it.component) }
+
     private suspend fun observe(owner: String,token: String,mode: String,format: String = "compact"): OperationEnvelope {
-        val frame=sessions.observe(owner,token,captureFrame=mode!="tree").getOrThrow()
+        val frame=sessions.observe(owner,token,captureFrame=mode!="tree").getOrElse { failure ->
+            if (failure.code() !in setOf("NO_RUNNING_APP", "NO_VIRTUAL_SCREEN")) throw failure
+            val hasDisplay = sessions.state.value.displayId != null
+            return OperationEnvelope.failure("NO_RUNNING_APP", sessions.state.value.sessionId,
+                "application_running" to false, "nodes" to emptyList<Any>(), "windows" to emptyList<Any>(),
+                "applications" to launchableApplications(), "requires_launch" to true,
+                "requires_display" to !hasDisplay,
+                "recovery_tools" to if (hasDisplay) listOf("launch_app", "observe") else listOf("create_screen", "launch_app", "observe"))
+        }
         if(mode=="screenshot") return frame
-        val nodes=sessions.nodes(owner,token,frame.values.getValue("observation_id") as String)
+        val observationId = frame.values.getValue("observation_id") as String
+        var nodes = sessions.nodes(owner, token, observationId)
+        repeat(3) {
+            if (nodes.exceptionOrNull()?.code() in setOf("NODE_WINDOW_NOT_READY", "ACCESSIBILITY_NODES_UNAVAILABLE")) {
+                delay(150)
+                nodes = sessions.nodes(owner, token, observationId)
+            }
+        }
         if(mode=="tree") nodes.getOrThrow()
         return frame.copy(values=frame.values+nodes.fold({ snapshot -> nodeValues(snapshot,format) },{ failure ->
             mapOf("nodes" to emptyList<Any>(),"nodes_error" to failure.code(),"nodes_message" to localizedError(language(),failure.code())) }))
@@ -201,7 +226,10 @@ class McpToolRegistry(private val sessions: VirtualScreenSessionManager,
         // Never replay an accepted input if the subsequent observation fails.
         return try {
             val next=observe(owner,token,mode,"compact")
-            result.copy(values=result.values+next.values+mapOf("observation_status" to "available","requires_observation" to false))
+            if (next.ok) result.copy(values=result.values+next.values+mapOf("observation_status" to "available","requires_observation" to false))
+            else result.copy(values=result.values+next.values+mapOf("observation_status" to "failed",
+                "observation_error" to next.code, "observation_message" to localizedError(language(), next.code ?: "BACKEND_OPERATION_FAILED"),
+                "requires_observation" to true))
         } catch(c: CancellationException) { throw c }
           catch(e: Exception) { result.copy(values=result.values+mapOf("observation_status" to "failed","observation_error" to e.code(),"requires_observation" to true)) }
     }
@@ -210,29 +238,28 @@ class McpToolRegistry(private val sessions: VirtualScreenSessionManager,
         (!s.has("text") || n.text==s.getString("text")) &&
         (!s.has("description") || n.contentDescription==s.getString("description")) &&
         (!s.has("class") || n.className==s.getString("class"))
-    private fun nodeValues(n: NodeSnapshot,format: String = "compact"): Map<String,Any?> {
-        val visible=if(format=="full") n.nodes else n.nodes.filter { it.visible && (it.text?.isNotEmpty()==true || it.contentDescription?.isNotEmpty()==true || it.clickable || it.editable || it.scrollable || it.focused || it.checkable) }
-        return mapOf("nodes" to visible.map { mapOf("id" to it.id,"text" to it.text,"description" to it.contentDescription,"class" to it.className,
-            "resource_id" to it.resourceId,"parent_id" to it.parentId,"bounds" to it.bounds?.let { b -> listOf(b.left,b.top,b.right,b.bottom) },
-            "clickable" to it.clickable,"editable" to it.editable,"scrollable" to it.scrollable,"enabled" to it.enabled,"focused" to it.focused,
-            "selected" to it.selected,"checkable" to it.checkable,"checked" to it.checked,"visible" to it.visible,"password" to it.password) },
-            "package" to n.packageName,"node_count" to n.nodes.size,"returned_node_count" to visible.size,"truncated" to n.truncated,"format" to format,"node_limit" to 500,"depth_limit" to 40)
-    }
+    private fun nodeValues(n: NodeSnapshot,format: String = "compact"): Map<String,Any?> = NodeTreeFormatter.values(n,format)
     private suspend fun waitFor(owner: String,token: String,a: JSONObject): OperationEnvelope {
         val condition=a.optString("condition","delay")
         if(condition == "frame_changed") require(a.optString("fingerprint").isNotBlank()) { "FINGERPRINT_REQUIRED" }
         if(condition == "node_text") require(a.optString("text").isNotBlank()) { "TEXT_REQUIRED" }
         val timeout=a.optLong("timeout_ms",1000); val deadline=System.nanoTime()/1000000+timeout
-        if(condition == "delay") { delay(timeout); return sessions.observe(owner,token).getOrThrow() }
+        if(condition == "delay") {
+            delay(timeout)
+            val observed = observe(owner,token,"tree")
+            if (!observed.ok) return observed.copy(values = observed.values + ("condition_matched" to false))
+            return observed.copy(values=observed.values+("condition_matched" to true))
+        }
         var previous: String?=null; var stableSince=System.nanoTime()/1000000
         while(true) {
             val observed=try { observe(owner,token,if(condition in setOf("frame_changed","ui_stable")) "screenshot" else "tree") }
                 catch(c: CancellationException) { throw c }
                 catch(e: Exception) {
-                    if(e.code() !in setOf("ACCESSIBILITY_NODES_UNAVAILABLE","DISPLAY_FRAME_PENDING") || System.nanoTime()/1000000>=deadline) throw e
+                    if(e.code() !in setOf("ACCESSIBILITY_NODES_UNAVAILABLE","NODE_WINDOW_NOT_READY","DISPLAY_FRAME_PENDING") || System.nanoTime()/1000000>=deadline) throw e
                     delay(250); continue
                 }
             val now=System.nanoTime()/1000000
+            if (!observed.ok) return observed.copy(values = observed.values + ("condition_matched" to false))
             val matched=when(condition) {
                 "frame_changed" -> observed.values["fingerprint"] != a.getString("fingerprint")
                 "ui_stable" -> {

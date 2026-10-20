@@ -67,15 +67,16 @@ class ControlApprovalManager(
         return result(requests.getValue(id))
     }
 
-    @Synchronized fun approve(id: String, always: Boolean = false) {
+    @Synchronized fun approve(id: String, always: Boolean = false, releasePhoneViewer: Boolean = false): Boolean {
         refresh()
-        val request = requests[id]?.takeIf { it.status == "pending" } ?: return
-        val decision = sessions.approveControl(request.owner, request.controllerGeneration)
-        if (decision is LeaseDecision.Rejected && decision.code in setOf("PHONE_GESTURE_ACTIVE", "PHONE_VIEWER_ACTIVE")) return
+        val request = requests[id]?.takeIf { it.status == "pending" } ?: return false
+        val decision = sessions.approveControl(request.owner, request.controllerGeneration, releasePhoneViewer)
+        if (decision is LeaseDecision.Rejected && decision.code in setOf("PHONE_GESTURE_ACTIVE", "PHONE_VIEWER_ACTIVE")) return false
         requests[id] = request.copy(status = if (decision is LeaseDecision.Granted) "approved" else "stale",
             grantedGeneration = (decision as? LeaseDecision.Granted)?.lease?.generation)
         if (always && decision is LeaseDecision.Granted) setAlwaysAllow(true)
         refresh()
+        return decision is LeaseDecision.Granted
     }
 
     @Synchronized fun deny(id: String) {

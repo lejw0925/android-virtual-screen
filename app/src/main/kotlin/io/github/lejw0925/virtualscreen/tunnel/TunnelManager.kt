@@ -8,6 +8,8 @@ import io.github.lejw0925.virtualscreen.core.CredentialVault
 import io.github.lejw0925.virtualscreen.core.ActivityLogger
 import io.github.lejw0925.virtualscreen.core.ActivityLogEntry
 import io.github.lejw0925.virtualscreen.core.code
+import io.github.lejw0925.virtualscreen.core.failure
+import io.github.lejw0925.virtualscreen.core.runtime
 import java.io.File
 import java.util.concurrent.TimeUnit
 import kotlinx.coroutines.*
@@ -29,8 +31,9 @@ class TunnelManager(context: Context,private val mcpPort: Int = 8732,private val
     private val vault = CredentialVault(app)
     private val directory = File(app.noBackupFilesDir,"tunnel-runtime").apply { mkdirs() }
     private val certificate = File(directory,".cloudflared/cert.pem")
-    private val scope = CoroutineScope(SupervisorJob()+Dispatchers.IO+CoroutineExceptionHandler { _, _ ->
+    private val scope = CoroutineScope(SupervisorJob()+Dispatchers.IO+CoroutineExceptionHandler { _, failure ->
         mutableState.value = state().copy(running=false,phase="error",publicAddress=null,errorCode="TUNNEL_PROCESS_IO_FAILED")
+        log.failure("tunnel_process", failure)
     })
     private val mutex = Mutex()
     private val mutableState = MutableStateFlow(TunnelState())
@@ -131,7 +134,10 @@ class TunnelManager(context: Context,private val mcpPort: Int = 8732,private val
                 var attempts = 0
                 while(isActive && epoch == expected) {
                     val process = runCatching { launchChild(command,environment,expected) }.getOrElse {
-                        if(epoch == expected) mutableState.value = state().copy(running=false,errorCode="TUNNEL_EXEC_FAILED",phase="error")
+                        if(epoch == expected) {
+                            mutableState.value = state().copy(running=false,errorCode="TUNNEL_EXEC_FAILED",phase="error")
+                            log.failure("tunnel_start", it)
+                        }
                         return@launch
                     }
                     synchronized(this@TunnelManager) {
@@ -166,10 +172,11 @@ class TunnelManager(context: Context,private val mcpPort: Int = 8732,private val
                 }
             }
         } catch(c: CancellationException) { stop(); throw c }
-          catch(e: Exception) { mutableState.value = TunnelState(mode,errorCode=e.code(),phase="error",certificateReady=hasCertificate(),logs=state().logs); appendLog(e.code()) }
+          catch(e: Exception) { mutableState.value = TunnelState(mode,errorCode=e.code(),phase="error",certificateReady=hasCertificate(),logs=state().logs); appendLog(e.code()); log.failure("tunnel_start", e) }
         state()
     } }
     @Synchronized fun stop() {
+        if (state().running || state().phase == "login") log.runtime("tunnel_process", "stopped", "mode=${state().mode}")
         epoch++
         connectionGeneration++
         supervisor?.cancel(); supervisor = null
@@ -328,6 +335,7 @@ class TunnelManager(context: Context,private val mcpPort: Int = 8732,private val
         catch(c: CancellationException) { throw c }
         catch(e: Exception) {
             if(epoch == expected) mutableState.update { it.copy(phase="error",errorCode=e.code()) }
+            log.failure("tunnel_configuration", e)
             throw e
         } finally { certificate.delete() }
     } }

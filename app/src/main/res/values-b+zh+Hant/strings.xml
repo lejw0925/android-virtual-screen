@@ -25,4 +25,18 @@
     <string name="app_restart_detail">%1$s\n此應用程式正在其他螢幕執行。允許後將結束目前工作，並在虛擬螢幕開啟。兩分鐘內有效。</string>
     <string name="app_restart_allow">允許重新啟動</string>
     <string name="app_restart_purpose">在虛擬螢幕開啟 %1$s</string>
+    <string name="notification_display_starting">正在建立虛擬螢幕</string>
+    <string name="notification_server_starting">MCP 正在啟動</string>
+    <string name="notification_tunnel_ready">通道已連線</string>
+    <string name="notification_starting_detail">正在啟動服務，請稍候。</string>
+    <string name="notification_failure">請開啟應用程式檢查權限與後端設定。</string>
+    <string name="notification_clients">已連線 %1$d 個用戶端 · 等待虛擬螢幕</string>
+    <string name="notification_tunnel_waiting">通道已連線 · 等待虛擬螢幕</string>
+    <string name="notification_chip_active">操作中</string>
+    <string name="notification_chip_remote">遠端中</string>
+    <string name="notification_chip_local">執行中</string>
+    <string name="notification_chip_ready">MCP</string>
+    <string name="notification_chip_error">需檢查</string>
+    <string name="notification_close_display">關閉虛擬螢幕</string>
+    <string name="notification_chip_approval">待審批</string>
 </resources>

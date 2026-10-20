@@ -15,7 +15,7 @@ internal class RootMotionStream(
     private val injector: RootInputInjector,
     private val allowed: () -> Boolean,
     private val onActivity: () -> Unit,
-    private val onFailure: (String) -> Unit,
+    private val onFailure: (Long, String) -> Unit,
     private val onDispatched: (String) -> Unit = {},
 ) : AutoCloseable {
     private data class Pending(val gestureId: Long, val epoch: Long, val event: MotionEvent)
@@ -56,7 +56,7 @@ internal class RootMotionStream(
                 previous.event.historySize + event.historySize < 64 && previous.event.appendMove(event)) return
             if (queue.size >= 64) {
                 clearPending()
-                handler.post { cancelTouch(); onFailure("INPUT_STREAM_BACKPRESSURE") }
+                handler.post { cancelTouch(); onFailure(gestureId, "INPUT_STREAM_BACKPRESSURE") }
                 return
             }
             queue.addLast(Pending(gestureId, inputEpoch, MotionEvent.obtain(event)))
@@ -72,10 +72,10 @@ internal class RootMotionStream(
             val event = pending.event
             try {
                 if (pending.epoch != inputEpoch) continue
-                if (!allowed()) { cancelTouch(); onFailure("SCREEN_OFF_PERMISSION_REQUIRED"); continue }
+                if (!allowed()) { cancelTouch(); onFailure(pending.gestureId, "SCREEN_OFF_PERMISSION_REQUIRED"); continue }
                 if (event.actionMasked == MotionEvent.ACTION_DOWN) {
                     cancelTouch()
-                    if (!injector.cancelActive()) { onFailure("UI_MANUAL_TAKEOVER_PENDING"); continue }
+                    if (!injector.cancelActive()) { onFailure(pending.gestureId, "UI_MANUAL_TAKEOVER_PENDING"); continue }
                     gesture = pending.gestureId
                     gestureEpoch = pending.epoch
                     moved = false; startX = event.x; startY = event.y
@@ -83,8 +83,8 @@ internal class RootMotionStream(
                     handler.postDelayed(::checkInputAvailable, 150)
                 }
                 if (pending.gestureId != gesture) continue
-                if (!state.accept(event)) { cancelTouch(); onFailure("INVALID_MOTION_SEQUENCE"); continue }
-                if (!injector.injectRealtime(event)) { cancelTouch(); onFailure("INPUT_DISPATCH_UNCONFIRMED"); continue }
+                if (!state.accept(event)) { cancelTouch(); onFailure(pending.gestureId, "INVALID_MOTION_SEQUENCE"); continue }
+                if (!injector.injectRealtime(event)) { cancelTouch(); onFailure(pending.gestureId, "INPUT_DISPATCH_UNCONFIRMED"); continue }
                 if (event.pointerCount > 1 || (0..event.historySize).any { history ->
                     val x = if (history == event.historySize) event.x else event.getHistoricalX(history)
                     val y = if (history == event.historySize) event.y else event.getHistoricalY(history)
@@ -98,7 +98,7 @@ internal class RootMotionStream(
                 lastEvent?.recycle()
                 lastEvent = if (state.active) MotionEvent.obtain(event) else null
                 onActivity()
-            } catch (_: Exception) { cancelTouch(); onFailure("INPUT_DISPATCH_UNCONFIRMED") }
+            } catch (_: Exception) { cancelTouch(); onFailure(pending.gestureId, "INPUT_DISPATCH_UNCONFIRMED") }
             finally { event.recycle() }
         }
     }
@@ -161,7 +161,11 @@ internal class RootMotionStream(
 
     private fun checkInputAvailable() {
         if (closed.get() || !state.active) return
-        if (!allowed()) { cancelTouch(); onFailure("SCREEN_OFF_PERMISSION_REQUIRED") }
+        if (!allowed()) {
+            val id = gesture
+            cancelTouch()
+            onFailure(id, "SCREEN_OFF_PERMISSION_REQUIRED")
+        }
         else handler.postDelayed(::checkInputAvailable, 150)
     }
 

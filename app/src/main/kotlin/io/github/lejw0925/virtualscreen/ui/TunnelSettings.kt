@@ -22,6 +22,7 @@ import androidx.compose.material3.*
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowForward
 
+@OptIn(ExperimentalMaterial3ExpressiveApi::class)
 @Composable internal fun TunnelSettings(
     app: VirtualScreenApplication,
     task: (suspend () -> Unit) -> Unit,
@@ -66,6 +67,9 @@ import androidx.compose.material.icons.automirrored.filled.ArrowForward
     val savedCertificate = remember { app.tunnels.hasCertificate() }
     val certificateReady = tunnel.certificateReady || savedCertificate
     val loggingIn = tunnel.phase == "login"
+    val progressComplete = tunnel.phase == "connected" || tunnel.phase == "dns_ready"
+    val progressActive = error == null && !progressComplete &&
+        (busy || mcpChanging || tunnel.running || loggingIn || tunnel.phase in setOf("dns_binding", "tunnel_configuring"))
     val editable = !busy && !tunnel.running
     val configurationReady = when(mode) {
         TunnelMode.CLOUDFLARE_QUICK -> true
@@ -89,11 +93,35 @@ import androidx.compose.material.icons.automirrored.filled.ArrowForward
             },
         )
         Column(Modifier.padding(start = 16.dp, end = 16.dp, bottom = 16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-            StatusPill(
+            StatusChip(
                 phaseLabel(l, tunnel.phase),
-                positive = tunnel.phase == "connected",
+                tone = when {
+                    tunnel.phase == "connected" -> StatusTone.Positive
+                    tunnel.phase == "failed" || error != null -> StatusTone.Negative
+                    else -> StatusTone.Neutral
+                },
             )
             error?.let { Text(localizedError(l, it), color = MaterialTheme.colorScheme.error) }
+            if (progressActive) {
+                LinearWavyProgressIndicator(
+                    modifier = Modifier.fillMaxWidth().height(8.dp),
+                    color = MaterialTheme.colorScheme.primary,
+                    trackColor = MaterialTheme.colorScheme.surfaceContainerHighest,
+                )
+            } else {
+                LinearWavyProgressIndicator(
+                    progress = { if (progressComplete) 1f else 0f },
+                    modifier = Modifier.fillMaxWidth().height(8.dp),
+                    color = when {
+                        error != null -> MaterialTheme.colorScheme.error
+                        progressComplete -> MaterialTheme.colorScheme.tertiary
+                        else -> MaterialTheme.colorScheme.primary
+                    },
+                    trackColor = MaterialTheme.colorScheme.surfaceContainerHighest,
+                    amplitude = { 1f },
+                    waveSpeed = 0.dp,
+                )
+            }
             TunnelButton(
                 text = when {
                     tunnel.running -> l.text("停止隧道","Stop tunnel","停止通道")

@@ -112,6 +112,9 @@ internal class PrivilegedDisplayEngine : AutoCloseable {
             val tasks = runningTasks()
             check(tasks.any { taskDisplay(it) == current.display.displayId } ||
                 tasks.none { it.taskId in hostedTasks && taskDisplay(it) != current.display.displayId }) { "APP_MOVED_TO_PHONE" }
+            if (action in setOf("observe", "validate")) {
+                check(tasks.any { taskDisplay(it) == current.display.displayId && it.numActivities > 0 }) { "NO_RUNNING_APP" }
+            }
         }
         if (action == "observe") {
             val frame = capture?.capture(2000) ?: error("DISPLAY_FRAME_PENDING")

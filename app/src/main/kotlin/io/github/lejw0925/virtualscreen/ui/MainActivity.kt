@@ -35,6 +35,7 @@ import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.basicMarquee
 import androidx.compose.foundation.background
 import androidx.compose.foundation.gestures.detectDragGestures
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -71,6 +72,7 @@ import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.WindowInsetsControllerCompat
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.compose.LocalLifecycleOwner
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.repeatOnLifecycle
 import androidx.lifecycle.lifecycleScope
 import kotlinx.coroutines.flow.map
@@ -98,9 +100,11 @@ open class MainActivity : ComponentActivity() {
     private var previewDismissed = false
     private var remotePreview = false
     private var launchingPreview by mutableStateOf(false)
+    private var approvalTarget by mutableStateOf<ApprovalTarget?>(null)
     override fun onCreate(savedInstanceState: Bundle?) {
         prepareWindowTheme(app)
         super.onCreate(savedInstanceState); enableEdgeToEdge()
+        approvalTarget = ApprovalTarget.from(intent)
         pip = isInPictureInPictureMode
         remotePreview = savedInstanceState?.getBoolean("remote_preview") ?: (this is ViewerActivity && intent.getBooleanExtra("pip",false))
         launchingPreview = this is ViewerActivity && intent.getBooleanExtra("pip",false) && !pip && savedInstanceState==null
@@ -111,14 +115,23 @@ open class MainActivity : ComponentActivity() {
         WindowCompat.getInsetsController(window,window.decorView).apply {
             show(WindowInsetsCompat.Type.statusBars()); hide(WindowInsetsCompat.Type.navigationBars()); systemBarsBehavior=WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
         }
-        setContent { VirtualScreenTheme(app) {
+        setContent { VirtualScreenTheme(app, accessibilityFeedback = !pip && !launchingPreview) {
             val guideDone by app.settings.guideCompleted.collectAsState()
-            if(launchingPreview && !pip) Box(Modifier.fillMaxSize().background(Color.Transparent)) {
+            val approval = approvalTarget
+            if (approval != null) Box(Modifier.fillMaxSize().background(MaterialTheme.colorScheme.surface)) {
+                WindowAppearance(MaterialTheme.colorScheme.surface)
+                ApprovalDialog(app, approval) {
+                    previewDismissed = true
+                    endPhoneSession()
+                    ViewerActivity.dismissPreview()
+                    finish()
+                }
+            } else if(launchingPreview && !pip) Box(Modifier.fillMaxSize().background(Color.Transparent)) {
                 WindowAppearance(Color.Transparent)
             } else if(!guideDone && this !is ViewerActivity && !pip) Box(Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).statusBarsPadding()) {
                 WindowAppearance(MaterialTheme.colorScheme.background)
                 SetupGuide(app,{ notifications.launch(Manifest.permission.POST_NOTIFICATIONS) }) {}
-            } else ViewerScreen(app,pip,{ notifications.launch(Manifest.permission.POST_NOTIFICATIONS) },{ enterPreviewPictureInPicture() },{ openSettings() },{ openSettings("MCP") })
+            } else ViewerScreen(app,pip,{ notifications.launch(Manifest.permission.POST_NOTIFICATIONS) },{ enterPreviewPictureInPicture() },{ openSettings() },{ openSettings("MCP") },{ openSettings("BACKEND") },{ openSettings("LOGS") })
         } }
         lifecycleScope.launch { app.sessions.state.map { Triple(it.displayId,it.frame?.width,it.frame?.height) }.distinctUntilChanged().collect { geometry ->
             if(geometry.first==null) endPhoneSession()
@@ -143,7 +156,7 @@ open class MainActivity : ComponentActivity() {
         super.onResume()
         if(app.mcpWanted && !app.mcp.state().running) { foreground(app); app.restoreMcp() }
         if(launchingPreview && !pip) requestPreviewPictureInPicture()
-        if(!pip && !launchingPreview && !previewDismissed && app.sessions.state.value.displayId!=null) {
+        if(approvalTarget == null && !pip && !launchingPreview && !previewDismissed && app.sessions.state.value.displayId!=null) {
             openingSettings = false
             if(this !is ViewerActivity) ViewerActivity.dismissPreview()
             beginPhoneSession()
@@ -154,6 +167,7 @@ open class MainActivity : ComponentActivity() {
     override fun onPictureInPictureModeChanged(isInPictureInPictureMode: Boolean,newConfig: android.content.res.Configuration) {
         super.onPictureInPictureModeChanged(isInPictureInPictureMode,newConfig)
         pip=isInPictureInPictureMode
+        app.activityLog.runtime("picture_in_picture", if (pip) "entered" else "exited")
         app.sessions.previewVisibility(pip)
         revealPreviewWindow()
         if(pip) {
@@ -167,7 +181,7 @@ open class MainActivity : ComponentActivity() {
     }
     override fun onUserLeaveHint() {
         super.onUserLeaveHint()
-        if(!previewDismissed && !pip && !launchingPreview && !openingSettings && app.sessions.state.value.displayId!=null) {
+        if(approvalTarget == null && !previewDismissed && !pip && !launchingPreview && !openingSettings && app.sessions.state.value.displayId!=null) {
             enterPreviewPictureInPicture()
         }
     }
@@ -182,9 +196,15 @@ open class MainActivity : ComponentActivity() {
     }
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
+        // Notification taps reuse the launcher task. Publish the parsed target
+        // before any preview state can be resumed, then refresh Compose from it.
+        setIntent(intent)
+        approvalTarget = ApprovalTarget.from(intent)
+        previewDismissed = approvalTarget != null
+        launchingPreview = false
+        window.decorView.alpha = 1f
         val requestPreview=intent.getBooleanExtra("pip",false)
         intent.removeExtra("pip")
-        setIntent(intent)
         if(requestPreview) remotePreview=true
         if(requestPreview && !pip) {
             launchingPreview=true
@@ -196,7 +216,7 @@ open class MainActivity : ComponentActivity() {
         val state=app.sessions.state.value
         val ratio=(state.frame?.let { it.width.toFloat()/it.height } ?: state.config.width.toFloat()/state.config.height).coerceIn(0.42f,2.38f)
         return PictureInPictureParams.Builder().setAspectRatio(Rational((ratio*1000).roundToInt(),1000))
-            .setSourceRectHint(android.graphics.Rect(0,0,window.decorView.width,window.decorView.height)).setAutoEnterEnabled(state.displayId!=null && !openingSettings && !previewDismissed).setSeamlessResizeEnabled(true).build()
+            .setSourceRectHint(android.graphics.Rect(0,0,window.decorView.width,window.decorView.height)).setAutoEnterEnabled(approvalTarget == null && state.displayId!=null && !openingSettings && !previewDismissed).setSeamlessResizeEnabled(true).build()
     }
     fun enterPreviewPictureInPicture(): Boolean = requestPreviewPictureInPicture()
     private fun requestPreviewPictureInPicture(): Boolean {
@@ -229,12 +249,14 @@ open class MainActivity : ComponentActivity() {
         }
     }
     private fun beginPhoneSession() {
-        if(pip || previewDismissed || launchingPreview) return
+        if(approvalTarget != null || pip || previewDismissed || launchingPreview) return
         remotePreview=false
         app.sessions.beginPhoneSession(phoneViewer)
     }
     private fun endPhoneSession() {
-        app.sessions.endPhoneSession(phoneViewer)
+        val generation = app.sessions.state.value.lease?.generation
+        app.sessions.endPhoneSession(phoneViewer,
+            retainControl = app.mcp.approvals.pending.value.any { it.controllerGeneration == generation })
     }
     internal fun dismissPreview() {
         previewDismissed = true
@@ -245,7 +267,7 @@ open class MainActivity : ComponentActivity() {
 }
 
 @OptIn(ExperimentalMaterial3ExpressiveApi::class)
-@Composable internal fun VirtualScreenTheme(app: VirtualScreenApplication,content: @Composable () -> Unit) {
+@Composable internal fun VirtualScreenTheme(app: VirtualScreenApplication, accessibilityFeedback: Boolean = true, content: @Composable () -> Unit) {
     val settings by app.settings.flow.collectAsState()
     val useDarkTheme = when(settings.theme) {
         "Light" -> false
@@ -253,7 +275,7 @@ open class MainActivity : ComponentActivity() {
         else -> isSystemInDarkTheme() // MonetSystem or System
     }
     val useDynamicColors = settings.theme == "MonetSystem"
-    val colorScheme = when {
+    val baseColorScheme = when {
         useDynamicColors && Build.VERSION.SDK_INT >= Build.VERSION_CODES.S -> {
             if(useDarkTheme) dynamicDarkColorScheme(LocalContext.current)
             else dynamicLightColorScheme(LocalContext.current)
@@ -261,10 +283,26 @@ open class MainActivity : ComponentActivity() {
         useDarkTheme -> darkColorScheme()
         else -> lightColorScheme()
     }
+    // Permission success stays green, including with pink dynamic tertiary palettes.
+    val cardColorScheme = baseColorScheme.copy(
+        surfaceContainerLow = baseColorScheme.surfaceContainerHigh,
+    )
+    val colorScheme = if (useDarkTheme) cardColorScheme.copy(
+        tertiary = Color(0xFF9FD4AF), onTertiary = Color(0xFF07391F),
+        tertiaryContainer = Color(0xFF225135), onTertiaryContainer = Color(0xFFBAF0C9),
+    ) else cardColorScheme.copy(
+        tertiary = Color(0xFF2D6846), onTertiary = Color.White,
+        tertiaryContainer = Color(0xFFBAF0C9), onTertiaryContainer = Color(0xFF00210F),
+    )
     val locale=androidx.compose.ui.platform.LocalConfiguration.current.locales[0]
     val l=when(settings.language) { "zh-Hans" -> UiLanguage.ZH_HANS; "zh-Hant" -> UiLanguage.ZH_HANT; "en" -> UiLanguage.EN; else -> uiLanguage(locale) }
-    MaterialExpressiveTheme(colorScheme=colorScheme) {
-        CompositionLocalProvider(LocalLanguage provides l,LocalContentColor provides colorScheme.onSurface,content=content)
+    MaterialExpressiveTheme(colorScheme=colorScheme, motionScheme=MotionScheme.expressive()) {
+        CompositionLocalProvider(LocalLanguage provides l, LocalContentColor provides colorScheme.onSurface) {
+            Box(Modifier.fillMaxSize()) {
+                content()
+                if (accessibilityFeedback) AccessibilitySnackbar(app, Modifier.align(Alignment.BottomCenter))
+            }
+        }
     }
 }
 internal fun foreground(app: VirtualScreenApplication) { app.startForegroundService(Intent(app,VirtualScreenForegroundService::class.java)) }
@@ -287,10 +325,14 @@ internal suspend fun phoneInput(app: VirtualScreenApplication,operation: Backend
     } finally { app.sessions.finishPhoneControl(lease.token) }
 }
 
-@Composable private fun ViewerScreen(app: VirtualScreenApplication,pip: Boolean,notifications: () -> Unit,onPip: () -> Unit,onSettings: () -> Unit,onConnect: () -> Unit) {
+@Composable private fun ViewerScreen(app: VirtualScreenApplication,pip: Boolean,notifications: () -> Unit,onPip: () -> Unit,onSettings: () -> Unit,onConnect: () -> Unit,onBackend: () -> Unit,onLogs: () -> Unit) {
     val l=LocalLanguage.current; val state by app.sessions.state.collectAsState(); val settings by app.settings.flow.collectAsState()
     val tool by app.mcp.activity.collectAsState(); val server by app.mcp.flow.collectAsState(); val scope=rememberCoroutineScope(); val lifecycle=LocalLifecycleOwner.current
+    val tunnel by app.tunnels.flow.collectAsState()
+    val endpoint = remember(server.host, server.port, tunnel.publicAddress) { connectionAddress(server, tunnel) }
     val mcpChanging by app.mcpChanging.collectAsState()
+    val accessibilityConnected by ScreenAccessibilityService.connected.collectAsStateWithLifecycle()
+    val context = LocalContext.current
     val toggleMcp=rememberMcpToggle(app,notifications)
     var view by remember { mutableStateOf<LiveDisplayView?>(null) }; var live by remember { mutableStateOf(false) }
     var expanded by rememberSaveable { mutableStateOf(false) }; var chooseApp by remember { mutableStateOf(false) }; var keyboard by remember { mutableStateOf(false) }
@@ -307,6 +349,7 @@ internal suspend fun phoneInput(app: VirtualScreenApplication,operation: Backend
                     if(shizuku.displayCreation != CapabilityStatus.REQUIRES_AUTHORIZATION) app.settings.update { it.copy(backend=BackendKind.SHIZUKU) }
                 }
                 app.sessions.initializeBackend(app.settings.flow.value.backend)
+                app.sessions.ensureAccessibility()
             }
         }
     }
@@ -326,10 +369,16 @@ internal suspend fun phoneInput(app: VirtualScreenApplication,operation: Backend
     Box(Modifier.fillMaxSize().background(background).windowInsetsPadding(if(pip) WindowInsets(0,0,0,0) else WindowInsets.statusBars.union(WindowInsets.displayCutout)).onSizeChanged { if(!pip && !imeVisible) { viewerSize=it; app.settings.setViewerSize(it.width,it.height) } }) {
         if(state.displayId!=null) AndroidView(factory={ context -> LiveDisplayView(context).also { view=it } },modifier=Modifier.fillMaxSize(),onRelease={ renderer -> renderer.dispose(); if(view===renderer) view=null },update={ renderer ->
             renderer.onLiveChanged={ live=it }
-            renderer.onManualDown={ if(pip) null else app.sessions.beginPhoneGesture().token }
+            renderer.onManualDown={
+                if(pip || state.errorCode == "NO_RUNNING_APP") null
+                else { error=null; app.sessions.beginPhoneGesture().token }
+            }
             renderer.onManualComplete={ token -> app.sessions.finishPhoneControl(token) }
             renderer.onCompatibilityInput={ op -> task { phoneInput(app,op) } }
-            renderer.onError={ code -> if(code != "DISPLAY_MIRROR_UNAVAILABLE") error=code }
+            renderer.onError={ code -> if(code != "DISPLAY_MIRROR_UNAVAILABLE") {
+                if (error != code) app.activityLog.runtime("display_preview", "error", code)
+                error=code
+            } }
             val frame=state.frame
             renderer.setTarget(state.sessionId,app.sessions.liveChannel,LiveGeometry(frame?.width ?: state.config.width,frame?.height ?: state.config.height,state.frameRotation),frame)
         }) else {
@@ -337,20 +386,51 @@ internal suspend fun phoneInput(app: VirtualScreenApplication,operation: Backend
                 server = server,
                 changing = mcpChanging,
                 wanted = app.mcpWanted,
-                address = connectionAddress(app),
+                address = endpoint,
                 backend = state.backend,
+                backendReady = state.capabilities.details in setOf("SHIZUKU_READY", "ROOT_READY") ||
+                    state.capabilities.displayCreation == CapabilityStatus.AVAILABLE,
+                accessibilityConnected = accessibilityConnected,
+                activityLog = app.activityLog,
                 onToggle = toggleMcp,
                 onConnect = onConnect,
                 onSettings = onSettings,
-                onCopy = { copy(app, app.mcp.clientConfiguration(connectionAddress(app))) },
+                onBackend = onBackend,
+                onAccessibility = { enabled ->
+                    if (enabled) task { app.sessions.ensureAccessibility() }
+                    else ScreenAccessibilityService.current?.disableSelf()
+                },
+                onLogs = onLogs,
+                onCopy = { copy(app, app.mcp.clientConfiguration(endpoint)) },
+                onCopyAddress = { copy(app, endpoint) },
                 error = (server.lastError ?: state.errorCode)?.let { localizedError(l, it) },
             )
         }
         if(state.displayId!=null) FloatingControls(state,server.running,expanded,{ expanded=it },tool?.purpose,tool?.phase,live,pip,
             onSettings=onSettings,onKeyboard={ expanded=false; keyboard=true },onApps={ task { applications=app.sessions.discoverApplications(includeIcons=true).filter { it.exported && it.packageName!=app.packageName }; chooseApp=true }; expanded=false },
-            onPip={ expanded=false; onPip() })
+            onPip={ expanded=false; onPip() }, onEnd={
+                val session = state.sessionId ?: return@FloatingControls
+                expanded=false; keyboard=false; chooseApp=false; error=null
+                task {
+                    app.sessions.closeFromPhone(session)
+                    withContext(Dispatchers.Main) {
+                        context.startActivity(Intent(context, MainActivity::class.java)
+                            .addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_SINGLE_TOP))
+                    }
+                }
+            })
         if(state.errorCode=="APP_MOVED_TO_PHONE") Card(Modifier.align(Alignment.Center).padding(16.dp)) {
             Text(localizedError(l,"APP_MOVED_TO_PHONE"),modifier=Modifier.padding(16.dp),style=MaterialTheme.typography.bodyMedium)
+        }
+        if(state.displayId != null && state.errorCode == "NO_RUNNING_APP" && !pip) Card(Modifier.align(Alignment.Center).padding(24.dp)) {
+            Column(Modifier.padding(24.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
+                Text(l.text("尚未打开应用", "No app is running", "尚未開啟應用程式"), style = MaterialTheme.typography.titleLarge)
+                Text(l.text("选择一个应用，在虚拟屏中开始使用。", "Choose an app to open on the virtual display.", "選擇一個應用程式，在虛擬螢幕中開始使用。"))
+                Button(onClick = { task {
+                    applications=app.sessions.discoverApplications(includeIcons=true).filter { it.exported && it.packageName!=app.packageName }
+                    withContext(Dispatchers.Main) { chooseApp=true }
+                } }) { Text(l.text("打开应用", "Open an app", "開啟應用程式")) }
+            }
         }
         if(error!=null && !pip) androidx.compose.material3.Card(Modifier.align(Alignment.BottomCenter).navigationBarsPadding().padding(20.dp).fillMaxWidth()) {
             Row(Modifier.padding(16.dp),verticalAlignment=Alignment.CenterVertically) { Text(localizedError(l,error!!),modifier=Modifier.weight(1f),style=MaterialTheme.typography.bodyMedium); Action(l.text("关闭","Dismiss","關閉")) { error=null } }
@@ -385,7 +465,7 @@ internal suspend fun phoneInput(app: VirtualScreenApplication,operation: Backend
 
 @OptIn(ExperimentalLayoutApi::class, ExperimentalMaterial3ExpressiveApi::class)
 @Composable private fun FloatingControls(state: SessionState,mcpRunning: Boolean,expanded: Boolean,onExpanded: (Boolean) -> Unit,purpose: String?,phase: String?,live: Boolean,pip: Boolean,
-    onSettings: () -> Unit,onKeyboard: () -> Unit,onApps: () -> Unit,onPip: () -> Unit) {
+    onSettings: () -> Unit,onKeyboard: () -> Unit,onApps: () -> Unit,onPip: () -> Unit,onEnd: () -> Unit) {
     val l=LocalLanguage.current; val context=LocalContext.current; val host=LocalView.current
     val prefs=remember { context.getSharedPreferences("viewer_controls",0) }
     var right by remember { mutableStateOf(prefs.getBoolean("right",true)) }; var fraction by remember { mutableFloatStateOf(prefs.getFloat("anchor_y",.22f)) }
@@ -405,7 +485,7 @@ internal suspend fun phoneInput(app: VirtualScreenApplication,operation: Backend
     BoxWithConstraints(Modifier.fillMaxSize().imePadding()) {
         val density=LocalDensity.current
         val w=with(density) { maxWidth.toPx() }; val h=with(density) { maxHeight.toPx() }
-        val targetControlWidth=if(pip) maxOf(0.dp,minOf(maxWidth-20.dp,300.dp)) else if(hidden) 44.dp else minOf(maxWidth-24.dp,284.dp)
+        val targetControlWidth=if(pip) maxOf(0.dp,minOf(maxWidth-20.dp,300.dp)) else if(hidden) 44.dp else minOf(maxWidth-24.dp,if(expanded) 320.dp else 284.dp)
         val animatedControlWidth by animateDpAsState(
             targetValue=targetControlWidth,
             animationSpec=spring(dampingRatio=.78f,stiffness=Spring.StiffnessMediumLow),
@@ -474,11 +554,25 @@ internal suspend fun phoneInput(app: VirtualScreenApplication,operation: Backend
                         enter=expandVertically(tween(160),expandFrom=Alignment.Top)+fadeIn(tween(100)),
                         exit=shrinkVertically(tween(140),shrinkTowards=Alignment.Top)+fadeOut(tween(90))) {
                         Column(Modifier.padding(top=10.dp),verticalArrangement=Arrangement.spacedBy(10.dp)) {
-                            Row(Modifier.fillMaxWidth(),horizontalArrangement=Arrangement.SpaceBetween) {
-                                FloatingAction(Icons.Default.Apps,l.text("应用","Apps","應用"),onApps)
-                                FloatingAction(Icons.Default.Edit,l.text("输入","Type","輸入"),onKeyboard)
-                                FloatingAction(Icons.Default.PictureInPicture,l.text("画中画","PiP","子母畫面"),onPip)
-                                FloatingAction(Icons.Default.Settings,l.text("设置","Settings","設定"),onSettings)
+                            val leadingShapes = ButtonGroupDefaults.connectedLeadingButtonShapes()
+                            val middleShapes = ButtonGroupDefaults.connectedMiddleButtonShapes()
+                            val trailingShapes = ButtonGroupDefaults.connectedTrailingButtonShapes()
+                            ButtonGroup(
+                                overflowIndicator = { ButtonGroupDefaults.OverflowIndicator(it) },
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.spacedBy(ButtonGroupDefaults.ConnectedSpaceBetween),
+                                verticalAlignment = Alignment.CenterVertically,
+                            ) {
+                                floatingAction(Icons.Default.Apps, l.text("应用", "Apps", "應用"),
+                                    IconButtonShapes(leadingShapes.shape, leadingShapes.pressedShape), onApps)
+                                floatingAction(Icons.Default.Edit, l.text("输入", "Type", "輸入"),
+                                    IconButtonShapes(middleShapes.shape, middleShapes.pressedShape), onKeyboard)
+                                floatingAction(Icons.Default.PictureInPicture, l.text("画中画", "PiP", "子母畫面"),
+                                    IconButtonShapes(middleShapes.shape, middleShapes.pressedShape), onPip)
+                                floatingAction(Icons.Default.Settings, l.text("设置", "Settings", "設定"),
+                                    IconButtonShapes(middleShapes.shape, middleShapes.pressedShape), onSettings)
+                                floatingAction(Icons.Default.StopCircle, l.text("结束", "End", "結束"),
+                                    IconButtonShapes(trailingShapes.shape, trailingShapes.pressedShape), onEnd)
                             }
                             if(!live) Text(l.text("兼容预览","Compatibility preview","相容預覽"),style=MaterialTheme.typography.labelLarge,color=MaterialTheme.colorScheme.onSurfaceVariant)
                         }
@@ -488,8 +582,35 @@ internal suspend fun phoneInput(app: VirtualScreenApplication,operation: Backend
         }
     }
 }
-@Composable private fun FloatingAction(icon: ImageVector,label: String,onClick: () -> Unit) {
-    Column(horizontalAlignment=Alignment.CenterHorizontally) { IconButton(onClick=onClick,modifier=Modifier.size(48.dp)) { Icon(icon,label,Modifier.size(22.dp)) }; Text(label,style=MaterialTheme.typography.labelMedium,color=MaterialTheme.colorScheme.onSurface) }
+@OptIn(ExperimentalMaterial3ExpressiveApi::class)
+private fun ButtonGroupScope.floatingAction(
+    icon: ImageVector,
+    label: String,
+    shapes: IconButtonShapes,
+    onClick: () -> Unit,
+) {
+    customItem(
+        buttonGroupContent = {
+            val interactionSource = remember { MutableInteractionSource() }
+            FilledTonalIconButton(
+                onClick = onClick,
+                modifier = Modifier.weight(1f).height(48.dp).widthIn(min = 48.dp)
+                    .animateWidth(interactionSource, 4.dp),
+                shapes = shapes,
+                interactionSource = interactionSource,
+            ) {
+                Icon(icon, label, Modifier.size(22.dp))
+            }
+        },
+        menuContent = { menuState ->
+            FilledTonalIconButton(
+                onClick = { menuState.dismiss(); onClick() },
+                modifier = Modifier.size(48.dp),
+            ) {
+                Icon(icon, label, Modifier.size(22.dp))
+            }
+        },
+    )
 }
 
 /** Matches ETA's quiet status dot and rotating arc during a device operation. */

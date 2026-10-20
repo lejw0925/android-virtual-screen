@@ -1,6 +1,7 @@
 package io.github.lejw0925.virtualscreen.core
 
 import android.content.Context
+import android.util.AtomicFile
 import io.github.lejw0925.virtualscreen.tunnel.TunnelConfiguration
 import java.io.File
 import java.time.Instant
@@ -63,6 +64,8 @@ class ActivityLog(
         data class Clear(val done: CompletableDeferred<Unit>) : Command
     }
     private val directory = File(context.noBackupFilesDir, "activity-log")
+    private val pendingCrash = AtomicFile(File(directory, "pending-crash.json"))
+    private val crashLock = Any()
     private val commands = Channel<Command>(1024)
     private val dropped = AtomicInteger()
     private val mutableEntries = MutableStateFlow<List<ActivityLogEntry>>(emptyList())
@@ -79,6 +82,12 @@ class ActivityLog(
                     if (file.isFile) file.useLines { lines -> lines.mapNotNull { runCatching { ActivityLogEntry.parse(it) }.getOrNull() }.toList() }
                     else emptyList()
                 }.takeLast(500)
+                synchronized(crashLock) {
+                    if (pendingCrash.baseFile.exists()) {
+                        val entry = sanitize(ActivityLogEntry.parse(pendingCrash.readFully().toString(Charsets.UTF_8)))
+                        if (append(entry)) pendingCrash.delete()
+                    }
+                }
             }.onFailure { mutableError.value = true }
             for (command in commands) {
                 val batch = mutableListOf(command)
@@ -95,7 +104,11 @@ class ActivityLog(
                         }
                         is Command.Flush -> item.done.complete(Unit)
                         is Command.Clear -> {
-                            runCatching { files().forEach { it.delete() } }.onFailure { mutableError.value = true }
+                            runCatching {
+                                files().forEach { check(!it.exists() || it.delete()) }
+                                synchronized(crashLock) { pendingCrash.delete() }
+                                mutableError.value = false
+                            }.onFailure { mutableError.value = true }
                             mutableEntries.value = emptyList()
                             item.done.complete(Unit)
                         }
@@ -106,11 +119,30 @@ class ActivityLog(
     }
 
     override fun record(entry: ActivityLogEntry) {
+        if (!commands.trySend(Command.Append(sanitize(entry))).isSuccess) dropped.incrementAndGet()
+    }
+
+    /** The process may terminate before the asynchronous writer can flush. */
+    fun persistCrash(entry: ActivityLogEntry) = synchronized(crashLock) {
+        runCatching {
+            directory.mkdirs()
+            val output = pendingCrash.startWrite()
+            try {
+                output.write(sanitize(entry).json().toString().toByteArray(Charsets.UTF_8))
+                pendingCrash.finishWrite(output)
+            } catch (failure: Throwable) {
+                pendingCrash.failWrite(output)
+                throw failure
+            }
+        }.onFailure { mutableError.value = true }
+        Unit
+    }
+
+    private fun sanitize(entry: ActivityLogEntry): ActivityLogEntry {
         fun clean(value: String?, max: Int) = value?.let { TunnelConfiguration.redact(it).replace('\n', ' ').replace('\r', ' ').take(max) }
-        val safe = entry.copy(category = clean(entry.category, 40)!!, operation = clean(entry.operation, 80)!!,
+        return entry.copy(category = clean(entry.category, 40)!!, operation = clean(entry.operation, 80)!!,
             status = clean(entry.status, 80)!!, peerIp = clean(entry.peerIp, 64), forwardedIp = clean(entry.forwardedIp, 64),
-            client = clean(entry.client, 100), detail = clean(entry.detail, 512))
-        if (!commands.trySend(Command.Append(safe)).isSuccess) dropped.incrementAndGet()
+            client = clean(entry.client, 100), detail = clean(entry.detail, if (entry.category == "runtime") 2048 else 512))
     }
 
     suspend fun flush() {
@@ -132,8 +164,8 @@ class ActivityLog(
 
     private fun files() = (0 until retainedFiles).map { File(directory, "events-$it.jsonl") }
 
-    private fun append(entry: ActivityLogEntry) {
-        runCatching {
+    private fun append(entry: ActivityLogEntry): Boolean {
+        val stored = runCatching {
             val line = entry.json().toString() + "\n"
             val current = files().first()
             if (current.length() + line.toByteArray().size > maxFileBytes) {
@@ -145,7 +177,8 @@ class ActivityLog(
             }
             current.appendText(line)
             mutableError.value = false
-        }.onFailure { mutableError.value = true }
+        }.onFailure { mutableError.value = true }.isSuccess
         mutableEntries.value = (mutableEntries.value + entry).takeLast(500)
+        return stored
     }
 }

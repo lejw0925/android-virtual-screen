@@ -7,10 +7,12 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.selection.selectable
 import androidx.compose.foundation.selection.toggleable
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
+import androidx.compose.material.icons.filled.Apps
+import androidx.compose.material.icons.filled.Settings
+import androidx.compose.material.icons.filled.ToggleOn
+import androidx.compose.material.icons.filled.Tune
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -28,8 +30,7 @@ internal fun ArrowPreference(
     modifier: Modifier = Modifier,
     summary: String? = null,
     enabled: Boolean = true,
-    icon: ImageVector? = null,
-    trailingIcon: ImageVector = Icons.AutoMirrored.Filled.KeyboardArrowRight,
+    icon: ImageVector = Icons.Default.Settings,
     onClick: () -> Unit,
 ) {
     PreferenceItem(
@@ -37,10 +38,8 @@ internal fun ArrowPreference(
         summary,
         enabled,
         modifier.clickable(enabled = enabled, role = Role.Button, onClick = onClick),
-        leading = icon?.let { { Icon(it, null, tint = MaterialTheme.colorScheme.primary) } },
-    ) {
-        Icon(trailingIcon, null, tint = MaterialTheme.colorScheme.onSurfaceVariant)
-    }
+        leading = { Icon(icon, null, tint = MaterialTheme.colorScheme.onSurfaceVariant) },
+    )
 }
 
 @Composable
@@ -51,11 +50,11 @@ internal fun SwitchPreference(
     modifier: Modifier = Modifier,
     summary: String? = null,
     enabled: Boolean = true,
-    icon: ImageVector? = null,
+    icon: ImageVector = Icons.Default.ToggleOn,
 ) {
     PreferenceItem(title, summary, enabled,
         modifier.toggleable(value = checked, enabled = enabled, role = Role.Switch, onValueChange = onCheckedChange),
-        leading = icon?.let { { Icon(it, null, tint = MaterialTheme.colorScheme.primary) } }) {
+        leading = { Icon(icon, null, tint = MaterialTheme.colorScheme.onSurfaceVariant) }) {
         Switch(checked = checked, onCheckedChange = null, enabled = enabled)
     }
 }
@@ -68,7 +67,7 @@ internal fun WindowDropdownPreference(
     onSelectedIndexChange: (Int) -> Unit,
     modifier: Modifier = Modifier,
     enabled: Boolean = true,
-    icon: ImageVector? = null,
+    icon: ImageVector = Icons.Default.Tune,
 ) {
     var showDialog by remember { mutableStateOf(false) }
     ArrowPreference(title, modifier, items.getOrNull(selectedIndex), enabled, icon = icon) { showDialog = true }
@@ -105,7 +104,8 @@ internal fun DropdownPreference(
     selectedIndex: Int,
     onSelectedIndexChange: (Int) -> Unit,
     modifier: Modifier = Modifier,
-) = WindowDropdownPreference(title, items, selectedIndex, onSelectedIndexChange, modifier)
+    icon: ImageVector = Icons.Default.Tune,
+) = WindowDropdownPreference(title, items, selectedIndex, onSelectedIndexChange, modifier, icon = icon)
 
 @Composable
 internal fun PreferenceGroup(
@@ -113,10 +113,9 @@ internal fun PreferenceGroup(
     modifier: Modifier = Modifier,
     content: @Composable ColumnScope.() -> Unit,
 ) {
-    Column(modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-        Column(Modifier.padding(horizontal = 16.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-            Text(title, style = MaterialTheme.typography.titleSmall, color = MaterialTheme.colorScheme.primary)
-        }
+    Column(modifier.fillMaxWidth()) {
+        Text(title, Modifier.padding(start = 16.dp, end = 16.dp, top = 8.dp, bottom = 4.dp),
+            style = MaterialTheme.typography.titleSmall, color = MaterialTheme.colorScheme.primary)
         Surface(
             shape = MaterialTheme.shapes.extraLarge,
             color = MaterialTheme.colorScheme.surfaceContainerLow,
@@ -128,27 +127,17 @@ internal fun PreferenceGroup(
 }
 
 @Composable
-internal fun StatusPill(
-    text: String,
-    positive: Boolean,
+internal fun StatusPreference(
+    title: String,
+    icon: ImageVector,
+    status: String,
+    tone: StatusTone,
     modifier: Modifier = Modifier,
+    summary: String? = null,
 ) {
-    val container = if (positive) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surfaceContainerHighest
-    val content = if (positive) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onSurfaceVariant
-    Surface(
-        modifier = modifier,
-        shape = MaterialTheme.shapes.large,
-        color = container,
-        contentColor = content,
-    ) {
-        Row(
-            Modifier.padding(horizontal = 12.dp, vertical = 7.dp),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(7.dp),
-        ) {
-            Surface(Modifier.size(7.dp), shape = androidx.compose.foundation.shape.CircleShape, color = content) {}
-            Text(text, style = MaterialTheme.typography.labelLarge)
-        }
+    PreferenceItem(title, summary, true, modifier,
+        leading = { Icon(icon, null, tint = MaterialTheme.colorScheme.onSurfaceVariant) }) {
+        StatusChip(status, tone)
     }
 }
 
@@ -163,9 +152,10 @@ internal fun AppIconPreference(
 ) {
     val bitmap = remember(icon) { icon?.toBitmap(width = 96, height = 96)?.asImageBitmap() }
     PreferenceItem(title, summary, enabled, modifier.clickable(enabled = enabled, role = Role.Button, onClick = onClick),
-        leading = { if(bitmap != null) Image(bitmap, contentDescription = null, modifier = Modifier.size(40.dp)) }) {
-        Icon(Icons.AutoMirrored.Filled.KeyboardArrowRight, null, tint = MaterialTheme.colorScheme.onSurfaceVariant)
-    }
+        leading = {
+            if (bitmap != null) Image(bitmap, contentDescription = null, modifier = Modifier.size(40.dp))
+            else Icon(Icons.Default.Apps, null, tint = MaterialTheme.colorScheme.onSurfaceVariant)
+        })
 }
 
 @Composable
@@ -175,7 +165,7 @@ private fun PreferenceItem(
     enabled: Boolean,
     modifier: Modifier,
     leading: (@Composable () -> Unit)? = null,
-    trailing: @Composable () -> Unit,
+    trailing: (@Composable () -> Unit)? = null,
 ) {
     val alpha = if (enabled) 1f else .38f
     ListItem(

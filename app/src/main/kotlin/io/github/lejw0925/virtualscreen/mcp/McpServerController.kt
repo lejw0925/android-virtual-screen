@@ -53,7 +53,10 @@ class McpServerController(context: Context,private val sessions: VirtualScreenSe
     private val mutableState = MutableStateFlow(McpServerState(token = tokenStore.token()))
     val flow = mutableState.asStateFlow()
     fun state() = flow.value
-    fun reportStartupError(code: String) { mutableState.value = state().copy(running=false,lastError=code) }
+    fun reportStartupError(code: String) {
+        mutableState.value = state().copy(running=false,lastError=code)
+        log.runtime("mcp_listener", "error", code)
+    }
     private var server: EmbeddedServer<CIOApplicationEngine,CIOApplicationEngine.Configuration>? = null
     private var engineJob: Job? = null
     private val engineEpoch = java.util.concurrent.atomic.AtomicLong()
@@ -67,14 +70,18 @@ class McpServerController(context: Context,private val sessions: VirtualScreenSe
             require(port in 1..65535) { "INVALID_PORT" }
             allowedOrigins = origins
             val host = if(lan) "0.0.0.0" else "127.0.0.1"
+            log.runtime("mcp_listener", "starting", "host=$host; port=$port")
             // CIO starts its listener asynchronously. Reject an already occupied
             // endpoint before launch and await the actual bound connectors below.
             java.net.ServerSocket().use { it.bind(java.net.InetSocketAddress(host,port)) }
             val expected = engineEpoch.incrementAndGet()
             val parent = SupervisorJob().also { engineJob = it }
             val rootConfig = serverConfig {
-                parentCoroutineContext = parent + Dispatchers.IO + CoroutineExceptionHandler { _, _ ->
-                    if(engineEpoch.get() == expected) mutableState.value = state().copy(running = false,lastError = "MCP_PORT_OR_ENGINE_FAILED")
+                parentCoroutineContext = parent + Dispatchers.IO + CoroutineExceptionHandler { _, failure ->
+                    if(engineEpoch.get() == expected) {
+                        mutableState.value = state().copy(running = false,lastError = "MCP_PORT_OR_ENGINE_FAILED")
+                        log.failure("mcp_engine", failure)
+                    }
                 }
                 module { routing {
                     get("/") {
@@ -106,6 +113,7 @@ class McpServerController(context: Context,private val sessions: VirtualScreenSe
             engine.start(wait = false)
             runBlocking { withTimeout(5000) { engine.engine.resolvedConnectors() } }
             mutableState.value = McpServerState(true,host,port,tokenStore.token())
+            log.runtime("mcp_listener", "started", "host=$host; port=$port")
             CoroutineScope(parent + Dispatchers.IO).launch {
                 while(isActive) {
                     delay(CLEANUP_INTERVAL_MILLIS)
@@ -118,9 +126,11 @@ class McpServerController(context: Context,private val sessions: VirtualScreenSe
             runCatching { server?.stop(0,500) }; server = null; engineJob?.cancel(); engineJob = null
             val occupied = generateSequence(failure) { it.cause }.any { it is java.net.BindException }
             mutableState.value = state().copy(running = false,lastError = if(occupied) "MCP_PORT_IN_USE" else "MCP_START_FAILED")
+            log.failure("mcp_start", failure)
         }
     }
     @Synchronized fun stop() {
+        val wasRunning = server != null || state().running
         engineEpoch.incrementAndGet()
         synchronized(clientLock) {
             mutableState.update { it.copy(running=false) }
@@ -130,6 +140,7 @@ class McpServerController(context: Context,private val sessions: VirtualScreenSe
         engineJob?.cancel(); engineJob = null
         mutableState.value = state().copy(running = false,sessionCount = 0,clients = emptyList())
         approvals.clear()
+        if (wasRunning) log.runtime("mcp_listener", "stopped")
     }
     @Synchronized fun rotateToken(): String {
         clients.keys.toList().forEach(::disconnectSession)

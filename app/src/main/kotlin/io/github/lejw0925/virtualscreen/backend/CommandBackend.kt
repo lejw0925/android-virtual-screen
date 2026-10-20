@@ -65,7 +65,7 @@ abstract class CommandBackend(protected val context: Context) : VirtualScreenBac
 
     override suspend fun nodes(handle: VirtualScreenHandle, observationId: String): Result<NodeSnapshot> = result {
         check(active?.id == handle.id) { "STALE_VIRTUAL_SCREEN" }
-        val service = ScreenAccessibilityService.current ?: error("ACCESSIBILITY_NODES_UNAVAILABLE")
+        val service = ScreenAccessibilityService.current ?: error("ACCESSIBILITY_NOT_ENABLED")
         service.snapshot(handle.displayId, observationId)
     }
 

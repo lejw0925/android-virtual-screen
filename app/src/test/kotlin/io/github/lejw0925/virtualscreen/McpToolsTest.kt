@@ -17,6 +17,88 @@ import org.robolectric.annotation.Config
 
 @RunWith(RobolectricTestRunner::class) @Config(sdk=[34],application=Application::class)
 class McpToolsTest {
+    @Test fun observingAnEmptyDisplayReturnsLaunchableAppsForEveryMode() = runBlocking {
+        val context = RuntimeEnvironment.getApplication()
+        val launcher = android.content.Intent(android.content.Intent.ACTION_MAIN).addCategory(android.content.Intent.CATEGORY_LAUNCHER)
+        val fixture = android.content.pm.ResolveInfo().apply {
+            nonLocalizedLabel = "Fixture"
+            activityInfo = android.content.pm.ActivityInfo().apply {
+                packageName = "test.fixture"
+                name = "test.fixture.Main"
+                exported = true
+                applicationInfo = android.content.pm.ApplicationInfo().apply { packageName = "test.fixture" }
+            }
+        }
+        org.robolectric.Shadows.shadowOf(context.packageManager).addResolveInfoForIntent(launcher, fixture)
+        val root = FakeBackend(BackendKind.ROOT).apply {
+            inspectionFailure = "NO_RUNNING_APP"
+            observationFailure = "NO_RUNNING_APP"
+        }
+        val sessions = VirtualScreenSessionManager(context, root, FakeBackend(BackendKind.SHIZUKU))
+        val lease = (sessions.acquireLease("agent") as LeaseDecision.Granted).lease
+        val registry = McpToolRegistry(sessions)
+        sessions.create(lease.owner, lease.token)
+
+        for (mode in listOf("tree", "both", "screenshot")) {
+            val response = registry.call("observe", JSONObject().put("lease_token", lease.token)
+                .put("purpose", "Inspect the empty display").put("mode", mode), lease.owner)
+            val result = response.getJSONObject("structuredContent")
+            assertTrue(response.getBoolean("isError"))
+            assertEquals("NO_RUNNING_APP", result.getString("code"))
+            assertFalse(result.getBoolean("application_running"))
+            assertTrue(result.getBoolean("requires_launch"))
+            assertFalse(result.getBoolean("requires_display"))
+            assertEquals(0, result.getJSONArray("nodes").length())
+            assertEquals("test.fixture/test.fixture.Main", result.getJSONArray("applications").getJSONObject(0).getString("component"))
+            assertTrue(result.getString("message").contains("No app"))
+        }
+        assertEquals(0, root.inputs)
+        assertNull(sessions.state.value.observationId)
+    }
+
+    @Test fun absentDisplayReportsLaunchRecoveryButInvalidLeaseCannotReadApplicationList() = runBlocking {
+        val sessions = VirtualScreenSessionManager(RuntimeEnvironment.getApplication(), FakeBackend(BackendKind.ROOT), FakeBackend(BackendKind.SHIZUKU))
+        val lease = (sessions.acquireLease("agent") as LeaseDecision.Granted).lease
+        val registry = McpToolRegistry(sessions)
+        val args = JSONObject().put("lease_token", lease.token).put("purpose", "Inspect before opening an app")
+        val empty = registry.call("observe", args, lease.owner).getJSONObject("structuredContent")
+        assertEquals("NO_RUNNING_APP", empty.getString("code"))
+        assertTrue(empty.getBoolean("requires_display"))
+        assertEquals("create_screen", empty.getJSONArray("recovery_tools").getString(0))
+
+        args.put("lease_token", "invalid")
+        val denied = registry.call("observe", args, lease.owner).getJSONObject("structuredContent")
+        assertEquals("LEASE_REQUIRED", denied.getString("code"))
+        assertFalse(denied.has("applications"))
+    }
+
+    @Test fun pendingFrameIsNotMisreportedAsAnAbsentApp() = runBlocking {
+        val root = FakeBackend(BackendKind.ROOT).apply { observationFailure = "DISPLAY_FRAME_PENDING" }
+        val sessions = VirtualScreenSessionManager(RuntimeEnvironment.getApplication(), root, FakeBackend(BackendKind.SHIZUKU))
+        val lease = (sessions.acquireLease("agent") as LeaseDecision.Granted).lease
+        sessions.create(lease.owner, lease.token)
+        val result = McpToolRegistry(sessions).call("observe", JSONObject().put("lease_token", lease.token)
+            .put("mode", "screenshot").put("purpose", "Wait for the app frame"), lease.owner).getJSONObject("structuredContent")
+        assertEquals("DISPLAY_FRAME_PENDING", result.getString("code"))
+        assertFalse(result.has("applications"))
+    }
+
+    @Test fun observesNodesAfterTheApplicationWindowSettlesWithoutReplayingInput() = runBlocking {
+        val root = FakeBackend(BackendKind.ROOT).apply { nodeFailure = "NODE_WINDOW_NOT_READY" }
+        val sessions = VirtualScreenSessionManager(RuntimeEnvironment.getApplication(), root, FakeBackend(BackendKind.SHIZUKU))
+        val lease = (sessions.acquireLease("agent") as LeaseDecision.Granted).lease
+        sessions.create(lease.owner, lease.token)
+        val ready = launch { delay(50); root.nodeFailure = null }
+        val result = McpToolRegistry(sessions).call("observe", JSONObject().put("lease_token", lease.token)
+            .put("purpose", "Read the app window after launch"), lease.owner).getJSONObject("structuredContent")
+        ready.join()
+        assertTrue(result.getBoolean("ok"))
+        assertEquals("fixture", result.getString("package"))
+        assertEquals(1, root.inspections)
+        assertEquals(0, root.frames)
+        assertEquals(0, root.inputs)
+    }
+
     @Test fun controlAndTaskMigrationErrorsExplainRecoveryWithoutReplayingInput() {
         val lease=McpToolRegistry.encode(OperationEnvelope.failure("LEASE_REQUIRED")).getJSONObject("structuredContent")
         assertTrue(lease.getBoolean("requires_control"))
@@ -125,10 +207,68 @@ class McpToolsTest {
         assertFalse(result.getBoolean("requires_observation"))
         val next=result.getString("observation_id")
         assertNotEquals(initial,next)
-        assertEquals(2,root.frames)
+        assertEquals(1,root.frames)
+        assertEquals(1,root.inspections)
         args.put("observation_id",next)
         assertTrue(registry.call("tap_at",args,"test").getJSONObject("structuredContent").getBoolean("ok"))
         assertEquals(2,root.inputs)
+        assertEquals(2,root.inspections)
+        sessions.shutdown()
+    }
+
+    @Test fun observeDefaultsToCompactTreeAndPreservesLegacyImageModes() = runBlocking {
+        val root=FakeBackend(BackendKind.ROOT).apply {
+            testNodes=listOf(NodeInfo("button",text="Open",clickable=true,windowId=7,packageName="fixture"))
+        }
+        val sessions=VirtualScreenSessionManager(RuntimeEnvironment.getApplication(),root,FakeBackend(BackendKind.SHIZUKU))
+        val registry=McpToolRegistry(sessions)
+        val lease=(sessions.acquireLease("test") as LeaseDecision.Granted).lease
+        sessions.create("test",lease.token)
+        val props=registry.tools.first { it.name=="observe" }.schema.getJSONObject("properties")
+        assertEquals("tree",props.getJSONObject("mode").getString("default"))
+        assertEquals("compact",props.getJSONObject("format").getString("default"))
+
+        fun args()=JSONObject().put("purpose","Inspect the virtual screen").put("lease_token",lease.token)
+        val tree=registry.call("observe",args(),"test").getJSONObject("structuredContent")
+        assertEquals("compact",tree.getString("format"))
+        assertEquals(7,tree.getInt("display_id"))
+        assertEquals(1,tree.getInt("returned_node_count"))
+        assertEquals(0,root.frames)
+        assertEquals(1,root.inspections)
+
+        val screenshot=registry.call("observe",args().put("include_nodes",false),"test").getJSONObject("structuredContent")
+        assertFalse(screenshot.has("nodes"))
+        assertEquals(1,root.frames)
+
+        val both=registry.call("observe",args().put("include_nodes",true),"test").getJSONObject("structuredContent")
+        assertTrue(both.has("nodes"))
+        assertEquals(2,root.frames)
+        assertEquals("ARGUMENT_NOT_APPLICABLE",registry.call("observe",args().put("mode","tree").put("include_nodes",true),"test")
+            .getJSONObject("structuredContent").getString("code"))
+
+        root.nodeFailure="ACCESSIBILITY_NODES_UNAVAILABLE"
+        assertEquals("ACCESSIBILITY_NODES_UNAVAILABLE",registry.call("observe",args(),"test").getJSONObject("structuredContent").getString("code"))
+        assertEquals(2,root.frames)
+        val bothWithoutNodes=registry.call("observe",args().put("mode","both"),"test").getJSONObject("structuredContent")
+        assertEquals("ACCESSIBILITY_NODES_UNAVAILABLE",bothWithoutNodes.getString("nodes_error"))
+        assertEquals(3,root.frames)
+        sessions.shutdown()
+    }
+
+    @Test fun waitDelayReturnsCompactTreeWithoutCapturingAnImage() = runBlocking {
+        val root=FakeBackend(BackendKind.ROOT).apply { testNodes=listOf(NodeInfo("readable",text="Ready")) }
+        val sessions=VirtualScreenSessionManager(RuntimeEnvironment.getApplication(),root,FakeBackend(BackendKind.SHIZUKU))
+        val registry=McpToolRegistry(sessions)
+        val lease=(sessions.acquireLease("test") as LeaseDecision.Granted).lease
+        sessions.create("test",lease.token)
+
+        val result=registry.call("wait",JSONObject().put("purpose","Wait for the fixture state")
+            .put("lease_token",lease.token).put("condition","delay").put("timeout_ms",0),"test").getJSONObject("structuredContent")
+        assertTrue(result.getBoolean("condition_matched"))
+        assertEquals("compact",result.getString("format"))
+        assertEquals(1,result.getInt("returned_node_count"))
+        assertEquals(0,root.frames)
+        assertEquals(1,root.inspections)
         sessions.shutdown()
     }
     @Test fun launchReturnsFreshObservationByDefaultAndCanOptOut() = runBlocking {
@@ -143,6 +283,8 @@ class McpToolsTest {
         assertEquals("available",result.getString("observation_status"))
         assertFalse(result.getBoolean("requires_observation"))
         assertTrue(result.has("observation_id"))
+        assertEquals(0,root.frames)
+        assertEquals(1,root.inspections)
         launch.put("observe_after","none")
         val optedOut=registry.call("launch_app",launch,"test").getJSONObject("structuredContent")
         assertFalse(optedOut.has("observation_status"))
@@ -162,6 +304,8 @@ class McpToolsTest {
         assertFalse(result.getBoolean("requires_observation"))
         assertTrue(result.has("observation_id"))
         assertEquals(1,root.closed)
+        assertEquals(0,root.frames)
+        assertEquals(1,root.inspections)
         sessions.shutdown()
     }
     @Test fun malformedSwipeAndMissingCoordinatesPreserveObservation() = runBlocking {

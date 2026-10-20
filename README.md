@@ -4,7 +4,7 @@
   <p><strong>Agent 的独立 Android 屏幕，手机主屏继续由你使用。</strong></p>
   <p>简体中文 · <a href="README.en.md">English</a></p>
   <p>
-    <a href="https://github.com/lejw0925/android-virtual-screen/releases/tag/v0.1.0-beta"><img src="https://img.shields.io/badge/Beta-0.1.0-yellow" alt="Beta 0.1.0" /></a>
+    <a href="https://github.com/lejw0925/android-virtual-screen/releases/tag/v0.1.0"><img src="https://img.shields.io/badge/Release-0.1.0-2D6846" alt="Release 0.1.0" /></a>
     <a href="https://github.com/lejw0925/android-virtual-screen/actions/workflows/build.yml"><img src="https://github.com/lejw0925/android-virtual-screen/actions/workflows/build.yml/badge.svg" alt="Build" /></a>
     <img src="https://img.shields.io/badge/Android-13%2B-3DDC84" alt="Android 13+" />
     <a href="LICENSE"><img src="https://img.shields.io/badge/license-PolyForm_Noncommercial-blue" alt="PolyForm Noncommercial" /></a>
@@ -14,14 +14,14 @@
 虚拟屏是一款 Android 应用，为 AI Agent 建立独立虚拟显示，并在手机上运行经过认证的 MCP 服务。Agent 可以在虚拟屏中发现、启动和操作应用；你可以继续使用手机主屏，并随时查看、接管或停止操作。
 
 <p align="center">
-  <img src="docs/images/material3-home.png" width="240" alt="首页服务状态" />
-  <img src="docs/images/material3-connections-large.png" width="240" alt="连接卡片" />
-  <img src="docs/images/material3-settings.png" width="240" alt="权限和后端设置" />
+  <img src="docs/images/material3-settings.png" width="240" alt="手机实机权限与后端页面" />
+  <img src="docs/images/material3-connections-large.png" width="240" alt="手机实机 MCP 连接设置" />
+  <img src="docs/images/material3-home.png" width="240" alt="虚拟屏首页" />
 </p>
 
-## Beta 0.1.0
+## Release 0.1.0
 
-从 [GitHub Releases](https://github.com/lejw0925/android-virtual-screen/releases/tag/v0.1.0-beta) 下载 `virtual-screen-0.1.0-beta.apk` 和 `SHA256SUMS`。安装包要求 Android 13（API 33）或更新版本；需要可用的 Root `su` 或已启动并授权的 Shizuku 服务。Beta 版本适合测试，设备兼容性和后台策略可能因 ROM 而异。
+从 [GitHub Releases](https://github.com/lejw0925/android-virtual-screen/releases/tag/v0.1.0) 下载 `virtual-screen-0.1.0.apk` 和 `SHA256SUMS`。安装包要求 Android 13（API 33）或更新版本；需要可用的 Root `su` 或已启动并授权的 Shizuku 服务。设备兼容性和后台策略可能因 ROM 而异。
 
 ## 功能
 
@@ -34,7 +34,7 @@
 
 ## 快速开始
 
-1. 安装 [Beta 0.1.0 APK](https://github.com/lejw0925/android-virtual-screen/releases/tag/v0.1.0-beta)，并在手机上安装可用的 Root 管理器或 Shizuku。使用 Shizuku 时，先启动其服务。
+1. 安装 [0.1.0 APK](https://github.com/lejw0925/android-virtual-screen/releases/tag/v0.1.0)，并在手机上安装可用的 Root 管理器或 Shizuku。使用 Shizuku 时，先启动其服务。
 2. 打开虚拟屏，在「权限与后端」选择 Root 或 Shizuku 并完成授权。启用系统无障碍服务后，可使用节点定位和 Unicode 文本编辑；允许通知以接收操作审批和接管入口；允许画中画以自动显示预览。
 3. 开启 MCP。USB 调试连接可在电脑运行：
 
@@ -160,7 +160,7 @@ flowchart TB
 
 Actions 对 `main`、Pull Request 和手动运行执行 JVM 测试、Lint、Debug / unsigned Release、夹具和 instrumentation APK 构建。推送匹配的 `vX.Y.Z` 或 `vX.Y.Z-beta[.N]` 标签会验证、签名并发布 APK 与 `SHA256SUMS`；Beta 自动标记为 GitHub 预发布版本。签名资料只保存在仓库 Secrets。原生 frpc / cloudflared 的固定来源、校验和及构建方法见 [构建与发布](docs/BUILD.md)。
 
-最新修复与验证汇总见 [变更记录](CHANGELOG.md)。Root 在 Android 17 / HyperOS 4 真机上完成 19/19 工具检测，见 [Android 17 与首页验证](docs/ANDROID17_FIX_VALIDATION.md)；Shizuku 的 Android 15 模拟器结果见 [Beta 后端对照](docs/BACKEND_EMULATOR_VALIDATION.md)。Cloudflare 的持续健康检查与后台 200 秒设备测试见 [1033 验证](docs/TUNNEL_1033_FIX_VALIDATION.md)，厂商后台冻结、应用级「无限制」配置及充电熄屏测试见 [后台断连验证](docs/TUNNEL_BACKGROUND_VALIDATION.md)。断电深度 Doze 和所有 ROM 组合尚未覆盖；历史结果见 [首页适配记录](docs/MCP_HOME_VALIDATION.md) 与 [发行验证](docs/RELEASE_VALIDATION.md)。
+最新修复与验证汇总见 [变更记录](CHANGELOG.md) 和 [0.1.0 实机验证](docs/RELEASE_VALIDATION_0.1.0.md)。Root 在 Android 17 / HyperOS 4 真机上的历史 19/19 工具检测见 [Android 17 与首页验证](docs/ANDROID17_FIX_VALIDATION.md)；Shizuku 的 Android 15 模拟器结果见 [Beta 后端对照](docs/BACKEND_EMULATOR_VALIDATION.md)。Cloudflare 的持续健康检查与后台 200 秒设备测试见 [1033 验证](docs/TUNNEL_1033_FIX_VALIDATION.md)，厂商后台冻结、应用级「无限制」配置及充电熄屏测试见 [后台断连验证](docs/TUNNEL_BACKGROUND_VALIDATION.md)。断电深度 Doze 和所有 ROM 组合尚未覆盖；历史结果见 [首页适配记录](docs/MCP_HOME_VALIDATION.md) 与 [发行验证](docs/RELEASE_VALIDATION.md)。
 
 | 文档 | 内容 |
 | --- | --- |
