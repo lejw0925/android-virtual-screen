@@ -177,6 +177,7 @@ private fun pageTitle(l: UiLanguage,page: SettingsPage)=when(page) {
 private fun BackendPreferences(app: VirtualScreenApplication, task: (suspend () -> Unit) -> Unit, busy: Boolean) {
     val l = LocalLanguage.current
     val state by app.sessions.state.collectAsState()
+    val settings by app.settings.flow.collectAsState()
     var confirmProbe by remember { mutableStateOf(false) }
     var probing by remember { mutableStateOf(false) }
     var probeProgress by remember(state.backend) { mutableIntStateOf(0) }
@@ -186,7 +187,7 @@ private fun BackendPreferences(app: VirtualScreenApplication, task: (suspend () 
     Section(l.text("授权", "Authorization", "授權")) {
         WindowDropdownPreference(
             title = l.text("权限后端", "Backend", "權限後端"),
-            items = listOf("Root", "Shizuku"),
+            items = listOf("Root", "Shizuku / Stellar"),
             selectedIndex = state.backend.ordinal,
             enabled = !busy,
             icon = Icons.Default.Security,
@@ -197,9 +198,15 @@ private fun BackendPreferences(app: VirtualScreenApplication, task: (suspend () 
                 app.sessions.ensureAccessibility()
             } },
         )
-        ArrowPreference(
+        SwitchPreference(
             title = l.text("画中画预览", "Picture-in-picture preview", "子母畫面預覽"),
             summary = l.text("预览虚拟屏画面悬浮窗", "Preview the virtual display in a floating window", "預覽虛擬螢幕畫面浮動視窗"),
+            checked = settings.pipEnabled,
+            icon = Icons.Default.PictureInPictureAlt,
+            onCheckedChange = { value -> app.settings.update { it.copy(pipEnabled = value) } },
+        )
+        ArrowPreference(
+            title = l.text("系统画中画设置", "System PiP settings", "系統子母畫面設定"),
             icon = Icons.Default.PictureInPictureAlt,
             onClick = {
                 val intent = Intent("android.settings.PICTURE_IN_PICTURE_SETTINGS", android.net.Uri.parse("package:${app.packageName}"))
@@ -371,6 +378,7 @@ private fun capabilityLabel(l: UiLanguage,c: CapabilityStatus)=when(c) {
         ArrowPreference(title=l.text("分辨率与 DPI","Resolution and DPI","解析度與 DPI"),summary=app.settings.configForViewer().let { "${it.width} × ${it.height} · ${it.density} dpi" },onClick={ edit=true })
         WindowDropdownPreference(items=listOf("0°","90°","180°","270°"),selectedIndex=settings.config.rotation,title=l.text("初始旋转","Initial rotation","初始旋轉"),onSelectedIndexChange={ index -> app.settings.update { it.copy(config=it.config.copy(rotation=index)) } })
         SwitchPreference(checked=settings.restoreApp,onCheckedChange={ value -> app.settings.update { it.copy(restoreApp=value) } },title=l.text("恢复上次应用","Restore last app","恢復上次應用程式"))
+        SwitchPreference(checked=settings.autoApproveRestart,onCheckedChange={ value -> app.settings.update { it.copy(autoApproveRestart=value) } },title=l.text("自动审批重启应用","Auto-approve app restarts","自動核准重新啟動應用程式"),summary=l.text("远程客户端请求重启虚拟屏中的应用时自动批准，不再发送审批通知","Approve remote requests to restart apps on the virtual display without an approval notification","遠端用戶端請求重新啟動虛擬螢幕中的應用程式時自動核准，不再傳送審批通知"))
     }
     if(state.displayId!=null) Section(l.text("控制","Control","控制")) {
         ArrowPreference(title=l.text("应用新的显示参数","Apply new display settings","套用新的顯示參數"),onClick={ restart=true })

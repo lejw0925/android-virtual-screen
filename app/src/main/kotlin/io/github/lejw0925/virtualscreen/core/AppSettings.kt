@@ -9,12 +9,13 @@ import io.github.lejw0925.virtualscreen.backend.VirtualScreenConfig
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
 
-data class UserSettings(val backend: BackendKind = BackendKind.ROOT,val config: VirtualScreenConfig = VirtualScreenConfig(),val theme: String = "MonetSystem",val language: String = "system",val restoreApp: Boolean = true,val lastComponent: String = "",val lan: Boolean = false,val fitViewer: Boolean = true,val matchHostDensity: Boolean = true)
+data class UserSettings(val backend: BackendKind = BackendKind.ROOT,val config: VirtualScreenConfig = VirtualScreenConfig(),val theme: String = "MonetSystem",val language: String = "system",val restoreApp: Boolean = true,val lastComponent: String = "",val lan: Boolean = false,val fitViewer: Boolean = true,val matchHostDensity: Boolean = true,val pipEnabled: Boolean = true,val autoApproveRestart: Boolean = false)
 class AppSettings(private val context: Context) {
     private val prefs = context.getSharedPreferences("user_settings",Context.MODE_PRIVATE)
     private val mutable = MutableStateFlow(runCatching { UserSettings(BackendKind.valueOf(prefs.getString("backend","ROOT")!!),
         VirtualScreenConfig(prefs.getInt("width",720),prefs.getInt("height",1600),prefs.getInt("density",320),prefs.getInt("rotation",0),prefs.getBoolean("off",false),prefs.getInt("idle",20)),
-        prefs.getString("theme","MonetSystem")!!,prefs.getString("language","system")!!,prefs.getBoolean("restore",true),prefs.getString("last","")!!,prefs.getBoolean("lan",false),prefs.getBoolean("fitViewer",true),prefs.getBoolean("matchHostDensity",true)) }.getOrDefault(UserSettings()))
+        prefs.getString("theme","MonetSystem")!!,prefs.getString("language","system")!!,prefs.getBoolean("restore",true),prefs.getString("last","")!!,prefs.getBoolean("lan",false),prefs.getBoolean("fitViewer",true),prefs.getBoolean("matchHostDensity",true),
+        prefs.getBoolean("pipEnabled",true),prefs.getBoolean("autoApproveRestart",false)) }.getOrDefault(UserSettings()))
     val flow = mutable.asStateFlow()
     private val guideState = MutableStateFlow(prefs.getBoolean("guideCompleted",false))
     val guideCompleted = guideState.asStateFlow()
@@ -43,7 +44,8 @@ class AppSettings(private val context: Context) {
     fun update(block: (UserSettings) -> UserSettings) {
         val s = block(mutable.value)
         prefs.edit().putString("backend",s.backend.name).putInt("width",s.config.width).putInt("height",s.config.height).putInt("density",s.config.density).putInt("rotation",s.config.rotation)
-            .putBoolean("off",s.config.allowScreenOff).putInt("idle",s.config.idleTimeoutMinutes).putString("theme",s.theme).putString("language",s.language).putBoolean("restore",s.restoreApp).putString("last",s.lastComponent).putBoolean("lan",s.lan).putBoolean("fitViewer",s.fitViewer).putBoolean("matchHostDensity",s.matchHostDensity).apply()
+            .putBoolean("off",s.config.allowScreenOff).putInt("idle",s.config.idleTimeoutMinutes).putString("theme",s.theme).putString("language",s.language).putBoolean("restore",s.restoreApp).putString("last",s.lastComponent).putBoolean("lan",s.lan).putBoolean("fitViewer",s.fitViewer).putBoolean("matchHostDensity",s.matchHostDensity)
+            .putBoolean("pipEnabled",s.pipEnabled).putBoolean("autoApproveRestart",s.autoApproveRestart).apply()
         mutable.value = s
     }
 }

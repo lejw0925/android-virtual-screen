@@ -181,7 +181,7 @@ open class MainActivity : ComponentActivity() {
     }
     override fun onUserLeaveHint() {
         super.onUserLeaveHint()
-        if(approvalTarget == null && !previewDismissed && !pip && !launchingPreview && !openingSettings && app.sessions.state.value.displayId!=null) {
+        if(approvalTarget == null && !previewDismissed && !pip && !launchingPreview && !openingSettings && app.settings.flow.value.pipEnabled && app.sessions.state.value.displayId!=null) {
             enterPreviewPictureInPicture()
         }
     }
@@ -216,12 +216,12 @@ open class MainActivity : ComponentActivity() {
         val state=app.sessions.state.value
         val ratio=(state.frame?.let { it.width.toFloat()/it.height } ?: state.config.width.toFloat()/state.config.height).coerceIn(0.42f,2.38f)
         return PictureInPictureParams.Builder().setAspectRatio(Rational((ratio*1000).roundToInt(),1000))
-            .setSourceRectHint(android.graphics.Rect(0,0,window.decorView.width,window.decorView.height)).setAutoEnterEnabled(approvalTarget == null && state.displayId!=null && !openingSettings && !previewDismissed).setSeamlessResizeEnabled(true).build()
+            .setSourceRectHint(android.graphics.Rect(0,0,window.decorView.width,window.decorView.height)).setAutoEnterEnabled(approvalTarget == null && app.settings.flow.value.pipEnabled && state.displayId!=null && !openingSettings && !previewDismissed).setSeamlessResizeEnabled(true).build()
     }
     fun enterPreviewPictureInPicture(): Boolean = requestPreviewPictureInPicture()
     private fun requestPreviewPictureInPicture(): Boolean {
         if(isFinishing || pip) return pip
-        if(app.sessions.state.value.displayId==null) {
+        if(app.sessions.state.value.displayId==null || !app.settings.flow.value.pipEnabled) {
             revealPreviewWindow()
             return false
         }
@@ -406,7 +406,7 @@ internal suspend fun phoneInput(app: VirtualScreenApplication,operation: Backend
                 error = (server.lastError ?: state.errorCode)?.let { localizedError(l, it) },
             )
         }
-        if(state.displayId!=null) FloatingControls(state,server.running,expanded,{ expanded=it },tool?.purpose,tool?.phase,live,pip,
+        if(state.displayId!=null) FloatingControls(state,server.running,expanded,{ expanded=it },tool?.purpose,tool?.phase,live,pip,settings.pipEnabled,
             onSettings=onSettings,onKeyboard={ expanded=false; keyboard=true },onApps={ task { applications=app.sessions.discoverApplications(includeIcons=true).filter { it.exported && it.packageName!=app.packageName }; chooseApp=true }; expanded=false },
             onPip={ expanded=false; onPip() }, onEnd={
                 val session = state.sessionId ?: return@FloatingControls
@@ -464,7 +464,7 @@ internal suspend fun phoneInput(app: VirtualScreenApplication,operation: Backend
 }
 
 @OptIn(ExperimentalLayoutApi::class, ExperimentalMaterial3ExpressiveApi::class)
-@Composable private fun FloatingControls(state: SessionState,mcpRunning: Boolean,expanded: Boolean,onExpanded: (Boolean) -> Unit,purpose: String?,phase: String?,live: Boolean,pip: Boolean,
+@Composable private fun FloatingControls(state: SessionState,mcpRunning: Boolean,expanded: Boolean,onExpanded: (Boolean) -> Unit,purpose: String?,phase: String?,live: Boolean,pip: Boolean,pipEnabled: Boolean,
     onSettings: () -> Unit,onKeyboard: () -> Unit,onApps: () -> Unit,onPip: () -> Unit,onEnd: () -> Unit) {
     val l=LocalLanguage.current; val context=LocalContext.current; val host=LocalView.current
     val prefs=remember { context.getSharedPreferences("viewer_controls",0) }
@@ -567,7 +567,7 @@ internal suspend fun phoneInput(app: VirtualScreenApplication,operation: Backend
                                     IconButtonShapes(leadingShapes.shape, leadingShapes.pressedShape), onApps)
                                 floatingAction(Icons.Default.Edit, l.text("输入", "Type", "輸入"),
                                     IconButtonShapes(middleShapes.shape, middleShapes.pressedShape), onKeyboard)
-                                floatingAction(Icons.Default.PictureInPicture, l.text("画中画", "PiP", "子母畫面"),
+                                if(pipEnabled) floatingAction(Icons.Default.PictureInPicture, l.text("画中画", "PiP", "子母畫面"),
                                     IconButtonShapes(middleShapes.shape, middleShapes.pressedShape), onPip)
                                 floatingAction(Icons.Default.Settings, l.text("设置", "Settings", "設定"),
                                     IconButtonShapes(middleShapes.shape, middleShapes.pressedShape), onSettings)

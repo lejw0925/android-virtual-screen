@@ -88,6 +88,7 @@ import androidx.compose.material.icons.automirrored.filled.ArrowForward
             onSelectedIndexChange = { index ->
                 if(mode != modes[index]) {
                     mode = modes[index]
+                    app.tunnelWanted = TunnelMode.OFF
                     runTask { app.tunnels.stop() }
                 }
             },
@@ -134,7 +135,7 @@ import androidx.compose.material.icons.automirrored.filled.ArrowForward
                     (tunnel.running || loggingIn || !server.running || configurationReady),
             ) {
                 when {
-                    tunnel.running || loggingIn -> runTask { app.tunnels.stop() }
+                    tunnel.running || loggingIn -> { app.tunnelWanted = TunnelMode.OFF; runTask { app.tunnels.stop() } }
                     !server.running -> toggleMcp(true)
                     else -> {
                         val selectedMode = mode
@@ -142,6 +143,7 @@ import androidx.compose.material.icons.automirrored.filled.ArrowForward
                         val cfConfig = if(selectedMode == TunnelMode.CLOUDFLARE_NAMED)
                             CloudflareConfig(if(useToken) cfToken.takeIf(String::isNotBlank) else null,
                                 cfHost, tunnelId.takeIf(String::isNotBlank)) else null
+                        app.tunnelWanted = selectedMode
                         runTask { app.tunnels.start(selectedMode, frpcConfig, cfConfig) }
                     }
                 }

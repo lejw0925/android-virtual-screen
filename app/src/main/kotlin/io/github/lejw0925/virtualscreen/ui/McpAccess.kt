@@ -31,14 +31,13 @@ private enum class McpPermission { BACKEND, NOTIFICATIONS, PREVIEW, BACKGROUND }
 private fun missingMcpPermissions(app: VirtualScreenApplication): List<McpPermission> = buildList {
     val authorized = when(app.settings.flow.value.backend) {
         BackendKind.ROOT -> app.getSharedPreferences("settings",0).getBoolean("rootGranted",false)
-        BackendKind.SHIZUKU -> runCatching { rikka.shizuku.Shizuku.pingBinder() &&
-            rikka.shizuku.Shizuku.checkSelfPermission() == PackageManager.PERMISSION_GRANTED }.getOrDefault(false)
+        BackendKind.SHIZUKU -> io.github.lejw0925.virtualscreen.backend.ShizukuBackend.isPrivilegeReady(app)
     }
     if(!authorized) add(McpPermission.BACKEND)
     if(!app.getSystemService(NotificationManager::class.java).areNotificationsEnabled()) add(McpPermission.NOTIFICATIONS)
     val pip = app.getSystemService(AppOpsManager::class.java).checkOpNoThrow(AppOpsManager.OPSTR_PICTURE_IN_PICTURE,
         android.os.Process.myUid(),app.packageName)
-    if(pip != AppOpsManager.MODE_ALLOWED && pip != AppOpsManager.MODE_DEFAULT) add(McpPermission.PREVIEW)
+    if(app.settings.flow.value.pipEnabled && pip != AppOpsManager.MODE_ALLOWED && pip != AppOpsManager.MODE_DEFAULT) add(McpPermission.PREVIEW)
     if(!app.getSystemService(PowerManager::class.java).isIgnoringBatteryOptimizations(app.packageName)) add(McpPermission.BACKGROUND)
 }
 
@@ -75,7 +74,7 @@ private fun missingMcpPermissions(app: VirtualScreenApplication): List<McpPermis
                 )
                 Column(Modifier.padding(vertical=8.dp)) {
                     missing.forEach { permission -> ArrowPreference(title=when(permission) {
-                        McpPermission.BACKEND -> l.text("授权 Root 或 Shizuku","Authorize Root or Shizuku","授權 Root 或 Shizuku")
+                        McpPermission.BACKEND -> l.text("授权 Root / Shizuku / Stellar","Authorize Root / Shizuku / Stellar","授權 Root / Shizuku / Stellar")
                         McpPermission.NOTIFICATIONS -> l.text("允许通知","Allow notifications","允許通知")
                         McpPermission.PREVIEW -> l.text("允许画中画","Allow picture-in-picture","允許子母畫面")
                         McpPermission.BACKGROUND -> l.text("允许后台运行","Allow background operation","允許背景執行")

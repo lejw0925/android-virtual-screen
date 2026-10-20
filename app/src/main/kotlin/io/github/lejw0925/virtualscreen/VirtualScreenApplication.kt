@@ -12,6 +12,7 @@ import io.github.lejw0925.virtualscreen.core.runtime
 import io.github.lejw0925.virtualscreen.core.VirtualScreenSessionManager
 import io.github.lejw0925.virtualscreen.mcp.McpServerController
 import io.github.lejw0925.virtualscreen.tunnel.TunnelManager
+import io.github.lejw0925.virtualscreen.tunnel.TunnelMode
 import kotlinx.coroutines.*
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
@@ -35,6 +36,10 @@ class VirtualScreenApplication : Application() {
         finally { mutableRuntimeTasks.update { it - 1 } }
     }
     val mcpWanted: Boolean get() = getSharedPreferences("runtime",MODE_PRIVATE).getBoolean("mcpEnabled",false)
+    /** Tunnel mode the user last connected with; restored whenever MCP starts. Stops initiated by MCP shutdown keep it. */
+    var tunnelWanted: TunnelMode
+        get() = getSharedPreferences("runtime",MODE_PRIVATE).getString("tunnelMode",null)?.let { runCatching { TunnelMode.valueOf(it) }.getOrNull() } ?: TunnelMode.OFF
+        set(mode) { getSharedPreferences("runtime",MODE_PRIVATE).edit().putString("tunnelMode",mode.name).apply() }
     private fun rememberMcp(enabled: Boolean) { getSharedPreferences("runtime",MODE_PRIVATE).edit().putBoolean("mcpEnabled",enabled).commit() }
     fun setMcpEnabled(enabled: Boolean) {
         activityLog.runtime("mcp_switch", if (enabled) "enable_requested" else "disable_requested")
@@ -67,6 +72,12 @@ class VirtualScreenApplication : Application() {
                     }
                     mcp.start(settings.flow.value.lan).getOrThrow()
                     sessions.clearInactiveDisplayError()
+                    val wantedTunnel = tunnelWanted
+                    if(wantedTunnel != TunnelMode.OFF && !tunnels.state().running) {
+                        val (frpc, cloudflare) = tunnels.loadProfile()
+                        runCatching { tunnels.start(wantedTunnel, frpc, cloudflare) }
+                            .onFailure { activityLog.failure("tunnel_restore", it) }
+                    }
                 }
             } catch(c: CancellationException) { throw c }
               catch(e: Exception) { activityLog.failure("mcp_restore", e); rememberMcp(false); mcp.reportStartupError(e.code()) }
@@ -103,7 +114,8 @@ class VirtualScreenApplication : Application() {
         RuntimeDiagnostics(this, activityLog).install()
         org.lsposed.hiddenapibypass.HiddenApiBypass.addHiddenApiExemptions("L")
         settings = io.github.lejw0925.virtualscreen.core.AppSettings(this)
-        sessions = VirtualScreenSessionManager(this,configuredDisplay={ settings.configForViewer() }, log=activityLog)
+        sessions = VirtualScreenSessionManager(this,configuredDisplay={ settings.configForViewer() }, log=activityLog,
+            autoApproveRestart={ settings.flow.value.autoApproveRestart })
         mcp = McpServerController(this, sessions, log=activityLog)
         tunnels = TunnelManager(this, log=activityLog)
         rikka.shizuku.Shizuku.addRequestPermissionResultListener { requestCode, result ->

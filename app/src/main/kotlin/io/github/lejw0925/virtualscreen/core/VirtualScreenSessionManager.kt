@@ -52,6 +52,7 @@ class VirtualScreenSessionManager(
     private val configuredDisplay: (() -> VirtualScreenConfig)? = null,
     val restartApprovals: AppRestartApprovalManager = AppRestartApprovalManager(),
     private val log: ActivityLogger = ActivityLogger.NONE,
+    private val autoApproveRestart: () -> Boolean = { false },
 ) {
     companion object {
         const val PHONE_CLIENT = "phone"
@@ -323,6 +324,7 @@ class VirtualScreenSessionManager(
         requireLease(owner, token)
         if (!launchMutex.tryLock()) return OperationEnvelope.failure("APP_LAUNCH_BUSY", state.value.sessionId)
         var ticket: AppRestartApprovalManager.Ticket? = null
+        var autoApproved = false
         try {
             var expected = 0L
             var target: VirtualScreenHandle? = null
@@ -334,23 +336,29 @@ class VirtualScreenSessionManager(
                 verify(owner, token, expected)
                 invalidateObservation()
                 if (result.code == "APP_RESTART_CONFIRMATION_REQUIRED") {
-                    val appName = runCatching {
-                        val activity = context.packageManager.getActivityInfo(ComponentName.unflattenFromString(component)!!, 0)
-                        activity.loadLabel(context.packageManager).toString()
-                    }.getOrDefault(component.substringBefore('/'))
-                    // Synchronize registration with phone takeover/lease changes.
-                    synchronized(this@VirtualScreenSessionManager) {
-                        verify(owner, token, expected)
-                        ticket = restartApprovals.request(owner,
-                            clientName.ifBlank { context.getString(io.github.lejw0925.virtualscreen.R.string.app_name) }, appName,
-                            purpose.ifBlank { context.getString(io.github.lejw0925.virtualscreen.R.string.app_restart_purpose, appName) })
+                    if (autoApproveRestart()) {
+                        autoApproved = true
+                        log.runtime("app_restart", "auto_approved", component)
+                    } else {
+                        val appName = runCatching {
+                            val activity = context.packageManager.getActivityInfo(ComponentName.unflattenFromString(component)!!, 0)
+                            activity.loadLabel(context.packageManager).toString()
+                        }.getOrDefault(component.substringBefore('/'))
+                        // Synchronize registration with phone takeover/lease changes.
+                        synchronized(this@VirtualScreenSessionManager) {
+                            verify(owner, token, expected)
+                            ticket = restartApprovals.request(owner,
+                                clientName.ifBlank { context.getString(io.github.lejw0925.virtualscreen.R.string.app_name) }, appName,
+                                purpose.ifBlank { context.getString(io.github.lejw0925.virtualscreen.R.string.app_restart_purpose, appName) })
+                        }
                     }
                 }
                 result.toEnvelope(state.value.sessionId)
             }
-            val pending = ticket ?: return initial
+            val pending = ticket
+            if (pending == null && !autoApproved) return initial
             // Release the backend mutex while the notification is awaiting a decision.
-            val decision = restartApprovals.await(pending)
+            val decision = if (pending != null) restartApprovals.await(pending) else "APPROVED"
             if (decision != "APPROVED") return OperationEnvelope.failure(decision, state.value.sessionId, "requires_observation" to true)
             return mutex.withLock {
                 verify(owner, token, expected)
