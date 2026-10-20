@@ -4,7 +4,7 @@
   <p><strong>Agent 的独立 Android 屏幕，手机主屏继续由你使用。</strong></p>
   <p>简体中文 · <a href="README.en.md">English</a></p>
   <p>
-    <a href="https://github.com/lejw0925/android-virtual-screen/releases/tag/v0.1.0"><img src="https://img.shields.io/badge/Release-0.1.0-2D6846" alt="Release 0.1.0" /></a>
+    <a href="https://github.com/lejw0925/android-virtual-screen/releases/tag/v0.1.1"><img src="https://img.shields.io/badge/Release-0.1.1-2D6846" alt="Release 0.1.1" /></a>
     <a href="https://github.com/lejw0925/android-virtual-screen/actions/workflows/build.yml"><img src="https://github.com/lejw0925/android-virtual-screen/actions/workflows/build.yml/badge.svg" alt="Build" /></a>
     <img src="https://img.shields.io/badge/Android-13%2B-3DDC84" alt="Android 13+" />
     <a href="LICENSE"><img src="https://img.shields.io/badge/license-PolyForm_Noncommercial-blue" alt="PolyForm Noncommercial" /></a>
@@ -14,28 +14,29 @@
 虚拟屏是一款 Android 应用，为 AI Agent 建立独立虚拟显示，并在手机上运行经过认证的 MCP 服务。Agent 可以在虚拟屏中发现、启动和操作应用；你可以继续使用手机主屏，并随时查看、接管或停止操作。
 
 <p align="center">
-  <img src="docs/images/material3-settings.png" width="240" alt="手机实机权限与后端页面" />
-  <img src="docs/images/material3-connections-large.png" width="240" alt="手机实机 MCP 连接设置" />
-  <img src="docs/images/material3-home.png" width="240" alt="虚拟屏首页" />
+  <img src="docs/images/pip-preview-20261020.jpg" width="210" alt="画中画预览：手机主屏保持可用" />
+  <img src="docs/images/settings-backend-20261020.png" width="210" alt="权限与后端页面" />
+  <img src="docs/images/display-control-20261020.png" width="210" alt="显示与控制页面" />
+  <img src="docs/images/mcp-connection-20261020.png" width="210" alt="MCP 连接设置" />
 </p>
 
-## Release 0.1.0
+## Release 0.1.1
 
-从 [GitHub Releases](https://github.com/lejw0925/android-virtual-screen/releases/tag/v0.1.0) 下载 `virtual-screen-0.1.0.apk` 和 `SHA256SUMS`。安装包要求 Android 13（API 33）或更新版本；需要可用的 Root `su` 或已启动并授权的 Shizuku 服务。设备兼容性和后台策略可能因 ROM 而异。
+从 [GitHub Releases](https://github.com/lejw0925/android-virtual-screen/releases/tag/v0.1.1) 下载 `virtual-screen-0.1.1.apk` 和 `SHA256SUMS`。安装包要求 Android 13（API 33）或更新版本；需要可用的 Root `su` 或已启动并授权的 Shizuku / Stellar 服务。设备兼容性和后台策略可能因 ROM 而异。
 
 ## 功能
 
-- **独立虚拟显示**：Agent 的启动和输入只作用于本应用创建的显示；操作失败不会回退到手机主屏。跨屏冲突需要手机确认应用重启。
-- **随时查看和接管**：画中画显示远程进度；画中画是只读预览。展开应用内全屏预览或使用通知接管后可本地操作，接管会撤销远程控制租约。
+- **独立虚拟显示**：Agent 的启动和输入只作用于本应用创建的显示；操作失败不会回退到手机主屏。跨屏冲突默认需要手机确认应用重启，可在「显示与控制」改为自动审批。
+- **随时查看和接管**：画中画显示远程进度；画中画是只读预览，可在设置中完全关闭。展开应用内全屏预览或使用通知接管后可本地操作，接管会撤销远程控制租约。
 - **19 个 MCP 工具**：覆盖控制权、显示、应用、观察、输入和条件等待。树观察可以省略截图；新鲜观察 ID 和会话回执用于拒绝过期操作、查询不确定结果而不重放输入。
-- **Root 与 Shizuku**：两种权限后端共用虚拟显示引擎、MCP 协议和输入约束。
-- **多种连接方式**：回环地址、局域网、frpc 和 Cloudflare Tunnel。MCP 与隧道默认关闭；凭据保存在应用私有加密存储中。
+- **Root 与 Shizuku / Stellar**：权限后端共用虚拟显示引擎、MCP 协议和输入约束；运行 Stellar 的设备自动改用其原生接口。
+- **多种连接方式**：回环地址、局域网、frpc 和 Cloudflare Tunnel。MCP 与隧道默认关闭；开启 MCP 时自动恢复上次连接的隧道；凭据保存在应用私有加密存储中。
 - **手机端设置**：简体中文、繁体中文和英文；深浅色、动态配色、首次设置引导和本地运行日志。
 
 ## 快速开始
 
-1. 安装 [0.1.0 APK](https://github.com/lejw0925/android-virtual-screen/releases/tag/v0.1.0)，并在手机上安装可用的 Root 管理器或 Shizuku。使用 Shizuku 时，先启动其服务。
-2. 打开虚拟屏，在「权限与后端」选择 Root 或 Shizuku 并完成授权。启用系统无障碍服务后，可使用节点定位和 Unicode 文本编辑；允许通知以接收操作审批和接管入口；允许画中画以自动显示预览。
+1. 安装 [0.1.1 APK](https://github.com/lejw0925/android-virtual-screen/releases/tag/v0.1.1)，并在手机上安装可用的 Root 管理器或 Shizuku / Stellar。使用 Shizuku 或 Stellar 时，先启动其服务。
+2. 打开虚拟屏，在「权限与后端」选择 Root 或 Shizuku / Stellar 并完成授权。启用系统无障碍服务后，可使用节点定位和 Unicode 文本编辑；允许通知以接收操作审批和接管入口；允许画中画以自动显示预览。
 3. 开启 MCP。USB 调试连接可在电脑运行：
 
    ```sh
@@ -69,7 +70,7 @@ flowchart LR
     owner[手机使用者]
     agent[AI Agent / MCP 客户端]
     subgraph app[Virtual Screen Android 应用]
-        authorize([选择并授权 Root / Shizuku])
+        authorize([选择并授权 Root / Shizuku / Stellar])
         configure([配置 MCP 与网络连接])
         approve([审批控制请求与应用重启])
         takeover([查看预览、接管或停止])
@@ -111,7 +112,7 @@ flowchart TB
             session[VirtualScreenSessionManager]
             backend[VirtualScreenBackend 接口]
             root[RootBackend / su 子进程]
-            shizuku[ShizukuBackend / UserService]
+            shizuku[ShizukuBackend / UserService 或 Stellar 原生接口]
             engine[共享 PrivilegedDisplayEngine]
             display[Android 虚拟显示与目标应用]
             access[无障碍节点服务]

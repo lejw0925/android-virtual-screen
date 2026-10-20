@@ -4,7 +4,7 @@
   <p><strong>A separate Android display for your agent. Your phone stays yours.</strong></p>
   <p><a href="README.md">简体中文</a> · English</p>
   <p>
-    <a href="https://github.com/lejw0925/android-virtual-screen/releases/tag/v0.1.0"><img src="https://img.shields.io/badge/Release-0.1.0-2D6846" alt="Release 0.1.0" /></a>
+    <a href="https://github.com/lejw0925/android-virtual-screen/releases/tag/v0.1.1"><img src="https://img.shields.io/badge/Release-0.1.1-2D6846" alt="Release 0.1.1" /></a>
     <a href="https://github.com/lejw0925/android-virtual-screen/actions/workflows/build.yml"><img src="https://github.com/lejw0925/android-virtual-screen/actions/workflows/build.yml/badge.svg" alt="Build" /></a>
     <img src="https://img.shields.io/badge/Android-13%2B-3DDC84" alt="Android 13+" />
     <a href="LICENSE"><img src="https://img.shields.io/badge/license-PolyForm_Noncommercial-blue" alt="PolyForm Noncommercial" /></a>
@@ -14,28 +14,29 @@
 Virtual Screen is an Android app that gives an AI agent an isolated virtual display and runs an authenticated MCP server on the phone. The agent can discover, launch, and operate apps on that display while you keep using the phone's main screen. You can view, take over, or stop an operation at any time.
 
 <p align="center">
-  <img src="docs/images/material3-settings.png" width="240" alt="On-device permissions and backend screen" />
-  <img src="docs/images/material3-connections-large.png" width="240" alt="On-device MCP connection settings" />
-  <img src="docs/images/material3-home.png" width="240" alt="Virtual Screen home" />
+  <img src="docs/images/pip-preview-20261020.jpg" width="210" alt="PiP preview: the phone stays usable" />
+  <img src="docs/images/settings-backend-20261020.png" width="210" alt="Permissions and backend screen" />
+  <img src="docs/images/display-control-20261020.png" width="210" alt="Display and control screen" />
+  <img src="docs/images/mcp-connection-20261020.png" width="210" alt="MCP connection settings" />
 </p>
 
-## Release 0.1.0
+## Release 0.1.1
 
-Download `virtual-screen-0.1.0.apk` and `SHA256SUMS` from [GitHub Releases](https://github.com/lejw0925/android-virtual-screen/releases/tag/v0.1.0). The app requires Android 13 (API 33) or later and either a working Root `su` or a running, authorized Shizuku service. Device compatibility and background behavior can vary by ROM.
+Download `virtual-screen-0.1.1.apk` and `SHA256SUMS` from [GitHub Releases](https://github.com/lejw0925/android-virtual-screen/releases/tag/v0.1.1). The app requires Android 13 (API 33) or later and either a working Root `su` or a running, authorized Shizuku / Stellar service. Device compatibility and background behavior can vary by ROM.
 
 ## Features
 
-- **Isolated virtual display.** Agent launches and input are scoped to a display created by this app. Failed operations never fall back to the phone's main screen. Cross-display conflicts require phone approval before an app is restarted.
-- **Visible progress and takeover.** PiP shows the remote display; PiP is read-only. Expand the app's full-screen preview or use the notification to take over locally, which revokes the remote control lease.
+- **Isolated virtual display.** Agent launches and input are scoped to a display created by this app. Failed operations never fall back to the phone's main screen. Cross-display conflicts require phone approval before an app is restarted, or can be auto-approved via a Display & control switch.
+- **Visible progress and takeover.** PiP shows the remote display; PiP is read-only and can be turned off entirely in settings. Expand the app's full-screen preview or use the notification to take over locally, which revokes the remote control lease.
 - **19 MCP tools.** Control, display, app, observation, input, and wait operations. Tree observations can skip screenshots; fresh observation IDs and session receipts reject stale operations and let clients check uncertain results without replaying input.
-- **Root and Shizuku.** Both privilege backends share the virtual-display engine, MCP protocol, and input constraints.
-- **Flexible connections.** Loopback, LAN, frpc, and Cloudflare Tunnel. MCP and tunnels start disabled; credentials are stored in the app's private encrypted storage.
+- **Root and Shizuku / Stellar.** Both privilege backends share the virtual-display engine, MCP protocol, and input constraints; devices running Stellar automatically use its native API.
+- **Flexible connections.** Loopback, LAN, frpc, and Cloudflare Tunnel. MCP and tunnels start disabled; starting MCP restores the previously connected tunnel; credentials are stored in the app's private encrypted storage.
 - **On-device settings.** English, Simplified Chinese, and Traditional Chinese; light and dark themes, dynamic color, onboarding, and local activity logs.
 
 ## Get Started
 
-1. Install the [0.1.0 APK](https://github.com/lejw0925/android-virtual-screen/releases/tag/v0.1.0) and install a compatible Root manager or Shizuku. If using Shizuku, start its service first.
-2. Open Virtual Screen, select Root or Shizuku under **Permissions and backend**, and grant access. Enable the app's accessibility service for node targeting and Unicode text editing. Allow notifications for approval and takeover actions, and PiP for automatic previews.
+1. Install the [0.1.1 APK](https://github.com/lejw0925/android-virtual-screen/releases/tag/v0.1.1) and install a compatible Root manager or Shizuku / Stellar. If using Shizuku or Stellar, start its service first.
+2. Open Virtual Screen, select Root or Shizuku / Stellar under **Permissions and backend**, and grant access. Enable the app's accessibility service for node targeting and Unicode text editing. Allow notifications for approval and takeover actions, and PiP for automatic previews.
 3. Enable MCP. For a USB debugging connection, run this on the computer:
 
    ```sh
@@ -69,7 +70,7 @@ flowchart LR
     owner[Phone owner]
     agent[AI agent / MCP client]
     subgraph app[Virtual Screen Android app]
-        authorize([Select and authorize Root / Shizuku])
+        authorize([Select and authorize Root / Shizuku / Stellar])
         configure([Configure MCP and network access])
         approve([Approve control requests and app restarts])
         takeover([View preview, take over, or stop])
@@ -111,7 +112,7 @@ flowchart TB
             session[VirtualScreenSessionManager]
             backend[VirtualScreenBackend interface]
             root[RootBackend / su process]
-            shizuku[ShizukuBackend / UserService]
+            shizuku[ShizukuBackend / UserService or Stellar native API]
             engine[Shared PrivilegedDisplayEngine]
             display[Android virtual display and target app]
             access[Accessibility node service]
