@@ -91,6 +91,7 @@ dependencies {
 
     // Settings keep their existing saved back stack and display lifecycle.
     implementation("androidx.compose.material3:material3:1.5.0-alpha29")
+    implementation("androidx.compose.material3:material3-window-size-class:1.5.0-alpha29")
     implementation("androidx.compose.material:material-icons-extended:1.7.6")
 
     testImplementation("junit:junit:4.13.2")

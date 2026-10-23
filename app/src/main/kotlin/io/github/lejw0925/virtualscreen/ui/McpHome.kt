@@ -48,7 +48,6 @@ import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.drawscope.withTransform
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.platform.LocalDensity
-import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.contentDescription
@@ -88,8 +87,6 @@ internal fun McpHome(
     val l = LocalLanguage.current
     val carousel = rememberCarouselState { 2 }
     val scope = rememberCoroutineScope()
-    val scrollBehavior = TopAppBarDefaults.exitUntilCollapsedScrollBehavior()
-    val progress = rememberMcpProgressMotion(changing, server.running, wanted)
     val snap = MaterialTheme.motionScheme.defaultSpatialSpec<Float>()
     val titles = listOf(l.text("MCP 服务", "MCP server", "MCP 服務"), l.text("连接", "Connections", "連線"))
     val status = when {
@@ -98,43 +95,21 @@ internal fun McpHome(
         server.running -> l.text("运行中", "Running", "執行中")
         else -> l.text("已关闭", "Off", "已關閉")
     }
-    BoxWithConstraints(modifier.fillMaxSize().navigationBarsPadding()) {
-        val availableWidth = maxWidth.coerceAtMost(640.dp)
+    Box(modifier.fillMaxSize().navigationBarsPadding()) {
+        val contentWidth = currentContentWidth()
+        val availableWidth = contentWidth.cap(640.dp)
         Column(
-            Modifier.widthIn(max = 640.dp).fillMaxSize().align(Alignment.TopCenter)
-                .nestedScroll(scrollBehavior.nestedScrollConnection).padding(bottom = 8.dp),
+            Modifier.widthIn(max = availableWidth).fillMaxSize().align(Alignment.TopCenter)
+                .padding(bottom = 8.dp),
             verticalArrangement = Arrangement.spacedBy(8.dp),
         ) {
-            LargeFlexibleTopAppBar(
-                title = { Text(l.text("虚拟屏", "Virtual screen", "虛擬螢幕")) },
-                windowInsets = WindowInsets(0, 0, 0, 0),
-                colors = TopAppBarDefaults.topAppBarColors(containerColor = MaterialTheme.colorScheme.surface,
-                    scrolledContainerColor = MaterialTheme.colorScheme.surface),
-                scrollBehavior = scrollBehavior,
-                actions = {
-                    val backendStatus = if (backendReady) l.text("已激活", "Active", "已啟用")
-                        else l.text("未激活", "Inactive", "未啟用")
-                    AssistChip(
-                        onClick = onBackend,
-                        modifier = Modifier.height(48.dp).semantics { stateDescription = backendStatus },
-                        label = { Text(backend.wireName.replaceFirstChar(Char::uppercase)) },
-                        leadingIcon = { Icon(if (backendReady) Icons.Default.CheckCircle else Icons.Default.ErrorOutline,
-                            null, Modifier.size(AssistChipDefaults.IconSize)) },
-                        colors = AssistChipDefaults.assistChipColors(
-                            containerColor = if (backendReady) MaterialTheme.colorScheme.tertiaryContainer else MaterialTheme.colorScheme.errorContainer,
-                            labelColor = if (backendReady) MaterialTheme.colorScheme.onTertiaryContainer else MaterialTheme.colorScheme.onErrorContainer,
-                            leadingIconContentColor = if (backendReady) MaterialTheme.colorScheme.onTertiaryContainer else MaterialTheme.colorScheme.onErrorContainer),
-                        border = null,
-                    )
-                    FilledIconToggleButton(checked = accessibilityConnected, onCheckedChange = onAccessibility,
-                        modifier = Modifier.padding(start = 8.dp).size(48.dp),
-                        shapes = IconButtonDefaults.toggleableShapes()) {
-                        Icon(Icons.Default.AccessibilityNew, l.text("无障碍权限", "Accessibility permission", "無障礙權限"))
-                    }
-                    IconButton(onClick = onSettings, modifier = Modifier.size(48.dp)) {
-                        Icon(Icons.Default.Settings, l.text("设置", "Settings", "設定"))
-                    }
-                },
+            McpTopBar(
+                backend = backend,
+                backendReady = backendReady,
+                accessibilityConnected = accessibilityConnected,
+                onBackend = onBackend,
+                onAccessibility = onAccessibility,
+                onSettings = onSettings,
             )
             error?.let {
                 Surface(
@@ -164,8 +139,8 @@ internal fun McpHome(
                     folded * folded * (3f - 2f * folded)
                 }
                 Card(
-                    modifier = Modifier.fillMaxSize().maskClip(RoundedCornerShape(32.dp)),
-                    shape = RoundedCornerShape(32.dp),
+                    modifier = Modifier.fillMaxSize().maskClip(MaterialTheme.shapes.extraLargeIncreased),
+                    shape = MaterialTheme.shapes.extraLargeIncreased,
                     colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerLow),
                 ) {
                     Box(Modifier.fillMaxSize().drawWithContent {
@@ -180,7 +155,7 @@ internal fun McpHome(
                         renderEffect = if (radius > .1f) BlurEffect(radius, radius, TileMode.Clamp) else null
                     }) {
                         if (index == 0) {
-                            McpServiceCard(server.running, changing, status, titles[index], progress, onToggle)
+                            McpServiceCard(server.running, changing, status, titles[index], onToggle)
                         } else {
                             Column(
                                 Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(22.dp),
@@ -246,7 +221,75 @@ internal fun McpHome(
                 }
             }
         }
-        if (wanted) McpProgressExit(progress, Modifier.matchParentSize())
+    }
+}
+
+/** Backend status on the left, the two device-level actions on the right. */
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalMaterial3ExpressiveApi::class)
+@Composable
+private fun McpTopBar(
+    backend: BackendKind,
+    backendReady: Boolean,
+    accessibilityConnected: Boolean,
+    onBackend: () -> Unit,
+    onAccessibility: (Boolean) -> Unit,
+    onSettings: () -> Unit,
+) {
+    val l = LocalLanguage.current
+    val status = LocalStatusColors.current
+    val backendStatus = if (backendReady) l.text("已激活", "Active", "已啟用")
+        else l.text("未激活", "Inactive", "未啟用")
+    // A plain row instead of TopAppBar so the 20.dp side inset matches the carousel cards exactly.
+    Row(
+        Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 8.dp).heightIn(min = 48.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+    ) {
+        AssistChip(
+            onClick = onBackend,
+            modifier = Modifier.semantics { stateDescription = backendStatus },
+            label = {
+                Text(backend.wireName.replaceFirstChar(Char::uppercase),
+                    style = MaterialTheme.typography.labelLargeEmphasized)
+            },
+            leadingIcon = {
+                Icon(if (backendReady) Icons.Default.CheckCircle else Icons.Default.ErrorOutline,
+                    null, Modifier.size(AssistChipDefaults.IconSize))
+            },
+            colors = AssistChipDefaults.assistChipColors(
+                containerColor = if (backendReady) MaterialTheme.colorScheme.secondaryContainer else MaterialTheme.colorScheme.errorContainer,
+                labelColor = if (backendReady) MaterialTheme.colorScheme.onSecondaryContainer else MaterialTheme.colorScheme.onErrorContainer,
+                leadingIconContentColor = if (backendReady) MaterialTheme.colorScheme.onSecondaryContainer else MaterialTheme.colorScheme.onErrorContainer,
+            ),
+            border = null,
+        )
+        Spacer(Modifier.weight(1f))
+        // Both actions share one tonal container so neither reads as the primary action;
+        // accessibility shows its state through the icon tint instead of a filled surface.
+        FilledTonalIconToggleButton(
+            checked = accessibilityConnected,
+            onCheckedChange = onAccessibility,
+            modifier = Modifier.size(48.dp),
+            colors = IconButtonDefaults.filledTonalIconToggleButtonColors(
+                containerColor = MaterialTheme.colorScheme.surfaceContainerHighest,
+                contentColor = MaterialTheme.colorScheme.onSurfaceVariant,
+                checkedContainerColor = MaterialTheme.colorScheme.secondaryContainer,
+                checkedContentColor = MaterialTheme.colorScheme.onSecondaryContainer,
+            ),
+        ) {
+            Icon(Icons.Default.AccessibilityNew,
+                l.text("无障碍权限", "Accessibility permission", "無障礙權限"))
+        }
+        FilledTonalIconButton(
+            onClick = onSettings,
+            modifier = Modifier.size(48.dp),
+            colors = IconButtonDefaults.filledTonalIconButtonColors(
+                containerColor = MaterialTheme.colorScheme.surfaceContainerHighest,
+                contentColor = MaterialTheme.colorScheme.onSurfaceVariant,
+            ),
+        ) {
+            Icon(Icons.Default.Settings, l.text("设置", "Settings", "設定"))
+        }
     }
 }
 
@@ -256,24 +299,19 @@ private fun McpServiceCard(
     changing: Boolean,
     status: String,
     title: String,
-    progress: McpProgressMotion,
     onToggle: (Boolean) -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    BoxWithConstraints(modifier.fillMaxSize()) {
-        val contentHeight = maxHeight.coerceAtLeast(340.dp)
-        Column(
-            Modifier.fillMaxSize().verticalScroll(rememberScrollState()).height(contentHeight).padding(22.dp),
-            verticalArrangement = Arrangement.spacedBy(12.dp),
-        ) {
-            Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                Text(title, Modifier.weight(1f), style = MaterialTheme.typography.titleLarge)
-                StatusChip(status, if (running) StatusTone.Positive else StatusTone.Neutral)
-            }
-            ScreenPowerScene(running, changing, status, onToggle, Modifier.fillMaxWidth().weight(1f))
-            McpProgressBar(progress, changing, Modifier.fillMaxWidth().height(6.dp))
-            McpServiceButton(running, changing, status, onToggle, Modifier.fillMaxWidth())
+    Column(
+        modifier.fillMaxSize().padding(22.dp),
+        verticalArrangement = Arrangement.spacedBy(12.dp),
+    ) {
+        Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+            Text(title, Modifier.weight(1f), style = MaterialTheme.typography.titleLarge)
+            StatusChip(status, if (running) StatusTone.Positive else StatusTone.Neutral)
         }
+        ScreenPowerScene(running, changing, status, onToggle, Modifier.fillMaxWidth().weight(1f))
+        McpServiceButton(running, changing, status, onToggle, Modifier.fillMaxWidth())
     }
 }
 
@@ -288,11 +326,11 @@ private fun McpServiceButton(
 ) {
     val l = LocalLanguage.current
     val containerColor by animateColorAsState(
-        if (running) MaterialTheme.colorScheme.errorContainer else MaterialTheme.colorScheme.primary,
+        if (running) MaterialTheme.colorScheme.secondaryContainer else MaterialTheme.colorScheme.primary,
         MaterialTheme.motionScheme.defaultEffectsSpec(), label = "MCP button color",
     )
     val contentColor by animateColorAsState(
-        if (running) MaterialTheme.colorScheme.onErrorContainer else MaterialTheme.colorScheme.onPrimary,
+        if (running) MaterialTheme.colorScheme.onSecondaryContainer else MaterialTheme.colorScheme.onPrimary,
         MaterialTheme.motionScheme.defaultEffectsSpec(), label = "MCP button content",
     )
     Button(

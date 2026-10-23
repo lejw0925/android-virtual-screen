@@ -22,6 +22,7 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.input.nestedscroll.nestedScroll
+import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -91,17 +92,22 @@ private enum class SettingsPage { HOME,BACKEND,DISPLAY,MCP,TUNNEL,APPEARANCE,BAC
     fun go(page: SettingsPage) { forward=true; stack=stack+page }
     fun back() { if(stack.size>1) { forward=false; stack=stack.dropLast(1) } else onExit() }
     BackHandler { back() }
+    val motion = MaterialTheme.motionScheme
+    val enterSpec = motion.defaultSpatialSpec<IntOffset>()
+    val enterFade = motion.defaultEffectsSpec<Float>()
+    val exitSpec = motion.fastSpatialSpec<IntOffset>()
+    val exitFade = motion.fastEffectsSpec<Float>()
     AnimatedContent(targetState=stack.last(),modifier=Modifier.fillMaxSize().background(background),transitionSpec={
         val direction=if(forward) 1 else -1
-        (slideInHorizontally(tween(260)) { it*direction/4 }+fadeIn(tween(220))) togetherWith
-            (slideOutHorizontally(tween(240)) { -it*direction/6 }+fadeOut(tween(180)))
+        (slideInHorizontally(enterSpec) { it*direction/4 }+fadeIn(enterFade)) togetherWith
+            (slideOutHorizontally(exitSpec) { -it*direction/6 }+fadeOut(exitFade))
     },label="settings navigation") { page ->
         val scroll=TopAppBarDefaults.enterAlwaysScrollBehavior()
         Scaffold(modifier=Modifier.nestedScroll(scroll.nestedScrollConnection),containerColor=MaterialTheme.colorScheme.surface,topBar={ TopAppBar(title={ Text(pageTitle(l,page),color=MaterialTheme.colorScheme.onSurface) },colors=TopAppBarDefaults.topAppBarColors(containerColor=MaterialTheme.colorScheme.surface,scrolledContainerColor=MaterialTheme.colorScheme.surfaceContainer),scrollBehavior=scroll,
             navigationIcon={ IconButton(onClick={ back() },modifier=Modifier.size(48.dp)) { Icon(Icons.AutoMirrored.Filled.ArrowBack,l.text("返回","Back","返回"),modifier=Modifier.size(24.dp),tint=MaterialTheme.colorScheme.onSurface) } }) }) { padding ->
             Box(Modifier.fillMaxSize().padding(padding).imePadding().verticalScroll(rememberScrollState())) {
                 Column(
-                    Modifier.widthIn(max = 720.dp).fillMaxWidth().align(Alignment.TopCenter).padding(horizontal=16.dp).padding(top=12.dp,bottom=32.dp),
+                    Modifier.widthIn(max = currentContentWidth().cap(720.dp)).fillMaxWidth().align(Alignment.TopCenter).padding(horizontal=16.dp).padding(top=12.dp,bottom=32.dp),
                     verticalArrangement=Arrangement.spacedBy(24.dp),
                 ) {
                     if(busy && page != SettingsPage.BACKEND && page != SettingsPage.TUNNEL) {
@@ -252,7 +258,7 @@ private fun BackendPreferences(app: VirtualScreenApplication, task: (suspend () 
                     modifier = Modifier.fillMaxWidth(),
                     color = when {
                         report == null -> MaterialTheme.colorScheme.onSurfaceVariant
-                        report.passedTools == report.totalTools -> MaterialTheme.colorScheme.tertiary
+                        report.passedTools == report.totalTools -> LocalStatusColors.current.success
                         else -> MaterialTheme.colorScheme.error
                     },
                     trackColor = MaterialTheme.colorScheme.surfaceContainerHighest,
@@ -383,13 +389,13 @@ private fun capabilityLabel(l: UiLanguage,c: CapabilityStatus)=when(c) {
     if(state.displayId!=null) Section(l.text("控制","Control","控制")) {
         ArrowPreference(title=l.text("应用新的显示参数","Apply new display settings","套用新的顯示參數"),onClick={ restart=true })
     }
-    if(edit) Dialog(onDismissRequest={ edit=false }) { Card(shape=RoundedCornerShape(28.dp)) { Column(Modifier.padding(24.dp),verticalArrangement=Arrangement.spacedBy(16.dp)) {
+    if(edit) AppDialog(onDismissRequest={ edit=false }) {
         val effective=app.settings.configForViewer()
         var width by remember { mutableStateOf(effective.width.toString()) }; var height by remember { mutableStateOf(effective.height.toString()) }; var dpi by remember { mutableStateOf(effective.density.toString()) }
         Text(l.text("显示参数","Display settings","顯示參數"),style=MaterialTheme.typography.headlineSmall,color=MaterialTheme.colorScheme.onSurface)
         Field(l.text("宽度","Width","寬度"),width) { width=it }; if(!settings.fitViewer) Field(l.text("高度","Height","高度"),height) { height=it }; Field("DPI",dpi) { dpi=it }
-        Button(onClick={ task { val c=settings.config.copy(width=width.toInt(),height=height.toInt(),density=dpi.toInt()); app.settings.update { it.copy(config=c,matchHostDensity=false) }; withContext(Dispatchers.Main) { edit=false } } },shape=RoundedCornerShape(12.dp)) { Text(l.text("保存","Save","儲存")) }
-    } } }
+        Button(onClick={ task { val c=settings.config.copy(width=width.toInt(),height=height.toInt(),density=dpi.toInt()); app.settings.update { it.copy(config=c,matchHostDensity=false) }; withContext(Dispatchers.Main) { edit=false } } }) { Text(l.text("保存","Save","儲存")) }
+    }
     if(restart) Confirm(l.text("重建虚拟屏","Recreate virtual screen","重建虛擬螢幕"),l.text("将结束当前显示会话并使远程观察失效。","This ends the current display session and invalidates remote observations.","將結束目前顯示工作階段並使遠端觀察失效。"),onDismiss={ restart=false }) { restart=false; task {
         phoneControl(app) { lease ->
             val result=app.sessions.configure(lease.owner,lease.token,app.settings.configForViewer()); check(result.ok) { result.code ?: "CREATE_FAILED" }
@@ -484,12 +490,11 @@ private fun capabilityLabel(l: UiLanguage,c: CapabilityStatus)=when(c) {
 }
 @Composable private fun Confirm(title: String,message: String,onDismiss: () -> Unit,onConfirm: () -> Unit) {
     val l=LocalLanguage.current
-    Dialog(onDismissRequest=onDismiss) { Card(shape=RoundedCornerShape(28.dp)) { Column(Modifier.padding(24.dp),verticalArrangement=Arrangement.spacedBy(16.dp)) {
-        Text(title,style=MaterialTheme.typography.headlineSmall,color=MaterialTheme.colorScheme.onSurface)
-        Text(message,color=MaterialTheme.colorScheme.onSurfaceVariant,style=MaterialTheme.typography.bodyMedium)
-        Row(Modifier.fillMaxWidth(),horizontalArrangement=Arrangement.spacedBy(8.dp,Alignment.End)) {
-            TextButton(onClick=onDismiss,shape=RoundedCornerShape(12.dp)) { Text(l.text("取消","Cancel","取消")) }
-            Button(onClick=onConfirm,shape=RoundedCornerShape(12.dp)) { Text(l.text("确认","Confirm","確認")) }
-        }
-    } } }
+    AlertDialog(
+        onDismissRequest=onDismiss,
+        title={ Text(title) },
+        text={ Text(message) },
+        confirmButton={ Button(onClick=onConfirm) { Text(l.text("确认","Confirm","確認")) } },
+        dismissButton={ TextButton(onClick=onDismiss) { Text(l.text("取消","Cancel","取消")) } },
+    )
 }

@@ -18,8 +18,8 @@ import androidx.compose.material3.MaterialTheme
 
 /** Two independent screens and a small agent spark, drawn at native resolution. */
 @Composable internal fun ScreenMark(modifier: Modifier = Modifier,enabled: Boolean = false) {
-    val light by animateFloatAsState(if(enabled) 1f else 0f,tween(450),label="MCP screen light")
-    val accent=androidx.compose.ui.graphics.lerp(MaterialTheme.colorScheme.onSurfaceVariant,Color.White,light)
+    val light by animateFloatAsState(if(enabled) 1f else 0f,MaterialTheme.motionScheme.defaultEffectsSpec(),label="MCP screen light")
+    val accent=androidx.compose.ui.graphics.lerp(MaterialTheme.colorScheme.onSurfaceVariant,MaterialTheme.colorScheme.onSurface,light)
     val lightTheme=MaterialTheme.colorScheme.background.luminance()>.5f
     val panelOn=if(lightTheme) MaterialTheme.colorScheme.onSurfaceVariant else MaterialTheme.colorScheme.surface
     val panel=androidx.compose.ui.graphics.lerp(MaterialTheme.colorScheme.surfaceVariant,panelOn,light)

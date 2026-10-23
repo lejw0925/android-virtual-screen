@@ -1,5 +1,26 @@
 # 变更记录
 
+## 未发布
+
+### 界面
+
+- **首页结构**：移除大标题与页面级滚动，只保留卡片内部滚动；后端状态移到左上角，无障碍与设置合并为同一色调的图标按钮，边距与卡片对齐。
+- **运行日志**：改为按条卡片展示，严重级别以右下角低透明度图标水印区分，类别、状态与客户端字段用只读 chip 呈现，chip 图标按内容选择；切换筛选时列表回到顶部且不再溢出到卡片外。
+- **开启服务进度**：移除服务开关的波浪进度条。
+
+### Material 3 规范
+
+- 新增 `StatusColors`，把成功/警告语义色从 `ColorScheme.tertiary` 拆出，修复警告日志显示为绿色的问题。
+- 新增 `AppDialog`，6 处手写 `Dialog + Card` 改用 `BasicAlertDialog`，恢复平台宽度约束、返回键与输入法避让。
+- 形状改用 `MaterialTheme.shapes` token，动效改用 `motionScheme`，触摸目标补足 48dp，并移除 `surfaceContainerLow` 重映射以恢复色调层级。
+- 接入窗口尺寸类别，按 Compact/Medium/Expanded/Large 约束正文宽度。
+
+### 验证
+
+- JVM 单元测试 146 项、Android Lint、调试构建通过。
+- 修复 `SessionManagerTest` 中的时序不稳定断言（租约续期导致过期时间相差 1ms）。
+- 模拟器（Android 14，Shizuku 后端）前台验证首页布局、日志卡片与筛选切换、浅色/深色模式及 200% 字号。
+
 ## 0.1.1 · 2026-10-20
 
 ### 新增与修复

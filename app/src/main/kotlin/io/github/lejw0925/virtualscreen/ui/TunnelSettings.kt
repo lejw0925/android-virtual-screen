@@ -115,7 +115,7 @@ import androidx.compose.material.icons.automirrored.filled.ArrowForward
                     modifier = Modifier.fillMaxWidth().height(8.dp),
                     color = when {
                         error != null -> MaterialTheme.colorScheme.error
-                        progressComplete -> MaterialTheme.colorScheme.tertiary
+                        progressComplete -> LocalStatusColors.current.success
                         else -> MaterialTheme.colorScheme.primary
                     },
                     trackColor = MaterialTheme.colorScheme.surfaceContainerHighest,
@@ -342,15 +342,11 @@ private class FrpcForm(config: FrpcConfig?) {
 
 @Composable private fun TunnelDialog(title: String, onDismiss: () -> Unit, content: @Composable ColumnScope.() -> Unit) {
     val l = LocalLanguage.current
-    Dialog(onDismissRequest = onDismiss) {
-        Card(Modifier.fillMaxWidth(), shape = MaterialTheme.shapes.extraLarge) {
-            Column(Modifier.heightIn(max = 640.dp).padding(24.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
-                Text(title, style = MaterialTheme.typography.headlineSmall, color = MaterialTheme.colorScheme.onSurface)
-                Column(Modifier.weight(1f, fill = false).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(12.dp), content = content)
-                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
-                    TextButton(onClick = onDismiss, shape = RoundedCornerShape(12.dp)) { Text(l.text("完成","Done","完成")) }
-                }
-            }
+    AppDialog(onDismissRequest = onDismiss) {
+        Text(title, style = MaterialTheme.typography.headlineSmall, color = MaterialTheme.colorScheme.onSurface)
+        Column(Modifier.weight(1f, fill = false).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(12.dp), content = content)
+        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
+            TextButton(onClick = onDismiss) { Text(l.text("完成","Done","完成")) }
         }
     }
 }

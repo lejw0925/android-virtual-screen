@@ -283,21 +283,12 @@ open class MainActivity : ComponentActivity() {
         useDarkTheme -> darkColorScheme()
         else -> lightColorScheme()
     }
-    // Permission success stays green, including with pink dynamic tertiary palettes.
-    val cardColorScheme = baseColorScheme.copy(
-        surfaceContainerLow = baseColorScheme.surfaceContainerHigh,
-    )
-    val colorScheme = if (useDarkTheme) cardColorScheme.copy(
-        tertiary = Color(0xFF9FD4AF), onTertiary = Color(0xFF07391F),
-        tertiaryContainer = Color(0xFF225135), onTertiaryContainer = Color(0xFFBAF0C9),
-    ) else cardColorScheme.copy(
-        tertiary = Color(0xFF2D6846), onTertiary = Color.White,
-        tertiaryContainer = Color(0xFFBAF0C9), onTertiaryContainer = Color(0xFF00210F),
-    )
+    val colorScheme = baseColorScheme
+    val statusColors = if (useDarkTheme) DarkStatusColors else LightStatusColors
     val locale=androidx.compose.ui.platform.LocalConfiguration.current.locales[0]
     val l=when(settings.language) { "zh-Hans" -> UiLanguage.ZH_HANS; "zh-Hant" -> UiLanguage.ZH_HANT; "en" -> UiLanguage.EN; else -> uiLanguage(locale) }
     MaterialExpressiveTheme(colorScheme=colorScheme, motionScheme=MotionScheme.expressive()) {
-        CompositionLocalProvider(LocalLanguage provides l, LocalContentColor provides colorScheme.onSurface) {
+        CompositionLocalProvider(LocalLanguage provides l, LocalStatusColors provides statusColors, LocalContentColor provides colorScheme.onSurface) {
             Box(Modifier.fillMaxSize()) {
                 content()
                 if (accessibilityFeedback) AccessibilitySnackbar(app, Modifier.align(Alignment.BottomCenter))
@@ -442,25 +433,25 @@ internal suspend fun phoneInput(app: VirtualScreenApplication,operation: Backend
             check(result.ok) { result.code ?: "LAUNCH_FAILED" }; app.settings.update { it.copy(lastComponent=item.component) }
         }
     } }
-    if(keyboard) Dialog(onDismissRequest={ keyboard=false }) { Card(shape=RoundedCornerShape(28.dp)) { Column(Modifier.padding(24.dp).imePadding(),verticalArrangement=Arrangement.spacedBy(16.dp)) {
+    if(keyboard) AppDialog(onDismissRequest={ keyboard=false }) {
         var draft by remember { mutableStateOf("") }; var replace by remember { mutableStateOf(false) }
         Text(l.text("输入文字","Type text","輸入文字"),style=MaterialTheme.typography.headlineSmall,color=MaterialTheme.colorScheme.onSurface)
         Field(l.text("文字","Text","文字"),draft,multiline=true) { draft=it }
         SwitchPreference(checked=replace,onCheckedChange={ replace=it },title=l.text("替换全部","Replace all","取代全部"))
-        Button(onClick={ localInput(BackendOperation.Text(draft,replace)); keyboard=false },enabled=draft.isNotEmpty() || replace,shape=RoundedCornerShape(12.dp)) { Text(l.text("发送到虚拟屏","Send to virtual screen","傳送到虛擬螢幕")) }
-    } } }
+        Button(onClick={ localInput(BackendOperation.Text(draft,replace)); keyboard=false },enabled=draft.isNotEmpty() || replace) { Text(l.text("发送到虚拟屏","Send to virtual screen","傳送到虛擬螢幕")) }
+    }
 }
 
 @Composable private fun AppPicker(apps: List<DiscoveredApplication>,onDismiss: () -> Unit,onChoose: (DiscoveredApplication) -> Unit) {
     val l=LocalLanguage.current
-    Dialog(onDismissRequest=onDismiss) { Card(shape=RoundedCornerShape(28.dp)) { Column(Modifier.padding(24.dp),verticalArrangement=Arrangement.spacedBy(16.dp)) {
+    AppDialog(onDismissRequest=onDismiss) {
         var query by remember { mutableStateOf("") }
         Text(l.text("打开应用","Open an app","開啟應用程式"),style=MaterialTheme.typography.headlineSmall,color=MaterialTheme.colorScheme.onSurface)
         Field(l.text("搜索应用","Search apps","搜尋應用程式"),query) { query=it }
         LazyColumn(Modifier.heightIn(max=420.dp)) { items(apps.filter { it.label.contains(query,true) || it.packageName.contains(query,true) },key={ it.component }) { item ->
             AppIconPreference(title=item.label,icon=item.icon,summary=item.packageName,onClick={ onChoose(item) })
         } }
-    } } }
+    }
 }
 
 @OptIn(ExperimentalLayoutApi::class, ExperimentalMaterial3ExpressiveApi::class)
@@ -519,40 +510,46 @@ internal suspend fun phoneInput(app: VirtualScreenApplication,operation: Backend
                         Text(
                             pipPurpose,
                             modifier=Modifier.weight(1f).basicMarquee(iterations=Int.MAX_VALUE,repeatDelayMillis=700),
-                            style=MaterialTheme.typography.labelSmall.copy(fontSize=10.sp),
+                            style=MaterialTheme.typography.labelSmall,
                             maxLines=1,
                             softWrap=false,
                             color=MaterialTheme.colorScheme.onSurface
                         )
                     }
                 }
-            } else AnimatedContent(
+            } else {
+                val motion = MaterialTheme.motionScheme
+                val foldSpatial = motion.defaultSpatialSpec<Float>()
+                val foldEffects = motion.defaultEffectsSpec<Float>()
+                val unfoldSpatial = motion.fastSpatialSpec<Float>()
+                val unfoldEffects = motion.fastEffectsSpec<Float>()
+                AnimatedContent(
                 targetState=hidden,
                 transitionSpec={
-                    (fadeIn(tween(150))+scaleIn(initialScale=.88f,animationSpec=spring(dampingRatio=.78f,stiffness=Spring.StiffnessMedium)))
-                        .togetherWith(fadeOut(tween(90))+scaleOut(targetScale=.88f,animationSpec=spring(dampingRatio=.82f,stiffness=Spring.StiffnessMedium)))
+                    (fadeIn(foldEffects)+scaleIn(initialScale=.88f,animationSpec=foldSpatial))
+                        .togetherWith(fadeOut(unfoldEffects)+scaleOut(targetScale=.88f,animationSpec=unfoldSpatial))
                 },
                 label="floating control fold"
             ) { folded ->
-                if(folded) Box(Modifier.then(dragModifier).size(44.dp)) {
+                if(folded) Box(Modifier.then(dragModifier).size(48.dp)) {
                     FilledTonalIconButton(
                         onClick={ hidden=false },
-                        shapes=IconButtonShapes(RoundedCornerShape(18.dp),RoundedCornerShape(14.dp)),
+                        shapes=IconButtonShapes(MaterialTheme.shapes.large,MaterialTheme.shapes.medium),
                         modifier=Modifier.fillMaxSize().semantics { contentDescription=status }
                     ) {
                         StatusIndicator(running,accent,Modifier.size(22.dp))
                     }
-                } else androidx.compose.material3.Card(Modifier.padding(horizontal=8.dp).shadow(8.dp,RoundedCornerShape(20.dp)),shape=RoundedCornerShape(20.dp)) { Column(Modifier.padding(horizontal=12.dp,vertical=6.dp)) {
+                } else androidx.compose.material3.Card(Modifier.padding(horizontal=8.dp).shadow(8.dp,MaterialTheme.shapes.largeIncreased),shape=MaterialTheme.shapes.largeIncreased) { Column(Modifier.padding(horizontal=12.dp,vertical=6.dp)) {
                     Row(Modifier.fillMaxWidth().then(dragModifier),verticalAlignment=Alignment.CenterVertically) {
                         StatusIndicator(running,accent,Modifier.size(16.dp))
                         Spacer(Modifier.width(8.dp))
                         Text(if(!expanded && running && !purpose.isNullOrBlank()) purpose else status,modifier=Modifier.weight(1f),style=MaterialTheme.typography.bodyMedium,maxLines=if(expanded) 1 else 2,overflow=TextOverflow.Ellipsis,color=MaterialTheme.colorScheme.onSurface)
-                        IconButton(onClick={ onExpanded(!expanded) },modifier=Modifier.size(36.dp)) { Icon(Icons.AutoMirrored.Filled.ArrowForward,if(expanded) l.text("折叠操作","Collapse actions","摺疊操作") else l.text("展开操作","Expand actions","展開操作"),Modifier.size(18.dp).graphicsLayer { rotationZ=if(expanded) -90f else 90f }) }
+                        IconButton(onClick={ onExpanded(!expanded) },modifier=Modifier.size(48.dp)) { Icon(Icons.AutoMirrored.Filled.ArrowForward,if(expanded) l.text("折叠操作","Collapse actions","摺疊操作") else l.text("展开操作","Expand actions","展開操作"),Modifier.size(18.dp).graphicsLayer { rotationZ=if(expanded) -90f else 90f }) }
                     }
                     purpose?.takeIf { expanded && it.isNotBlank() && phase=="running" }?.let { Text(it,modifier=Modifier.padding(top=4.dp),style=MaterialTheme.typography.bodyMedium,maxLines=3,overflow=TextOverflow.Ellipsis,color=MaterialTheme.colorScheme.onSurface) }
                     AnimatedVisibility(expanded,
-                        enter=expandVertically(tween(160),expandFrom=Alignment.Top)+fadeIn(tween(100)),
-                        exit=shrinkVertically(tween(140),shrinkTowards=Alignment.Top)+fadeOut(tween(90))) {
+                        enter=expandVertically(MaterialTheme.motionScheme.defaultSpatialSpec(),expandFrom=Alignment.Top)+fadeIn(MaterialTheme.motionScheme.defaultEffectsSpec()),
+                        exit=shrinkVertically(MaterialTheme.motionScheme.fastSpatialSpec(),shrinkTowards=Alignment.Top)+fadeOut(MaterialTheme.motionScheme.fastEffectsSpec())) {
                         Column(Modifier.padding(top=10.dp),verticalArrangement=Arrangement.spacedBy(10.dp)) {
                             val leadingShapes = ButtonGroupDefaults.connectedLeadingButtonShapes()
                             val middleShapes = ButtonGroupDefaults.connectedMiddleButtonShapes()
@@ -578,7 +575,7 @@ internal suspend fun phoneInput(app: VirtualScreenApplication,operation: Backend
                         }
                     }
                 } }
-            }
+            } }
         }
     }
 }

@@ -169,7 +169,7 @@ internal fun AccessibilitySnackbar(app: VirtualScreenApplication, modifier: Modi
         snackbar = { data ->
             Snackbar(
                 snackbarData = data,
-                shape = RoundedCornerShape(16.dp),
+                shape = MaterialTheme.shapes.large,
                 containerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
                 contentColor = MaterialTheme.colorScheme.onSurface,
                 actionColor = MaterialTheme.colorScheme.primary,

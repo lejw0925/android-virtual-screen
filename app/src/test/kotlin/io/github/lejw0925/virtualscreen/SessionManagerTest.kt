@@ -102,7 +102,11 @@ class SessionManagerTest {
         manager.beginPhoneSession("viewer")
         val gesture=manager.beginPhoneGesture()
         manager.finishPhoneControl(gesture.token)
-        assertEquals(gesture,manager.leaseStatus())
+        // leaseStatus() renews the lease, so only the identity and generation are stable here.
+        val retained=manager.leaseStatus()
+        assertEquals(gesture.owner,retained?.owner)
+        assertEquals(gesture.token,retained?.token)
+        assertEquals(gesture.generation,retained?.generation)
         manager.endPhoneSession("viewer")
         assertNull(manager.leaseStatus())
     }

@@ -60,52 +60,42 @@ private fun missingMcpPermissions(app: VirtualScreenApplication): List<McpPermis
         onDismiss = { showBackgroundNotice = false },
         onOpenSettings = { openBackgroundSettings(app) },
     )
-    if(missing.isNotEmpty()) Dialog(onDismissRequest={ missing=emptyList() }) {
-        Card(
-            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-            modifier = Modifier.fillMaxWidth(),
-            shape = RoundedCornerShape(28.dp)
+    if(missing.isNotEmpty()) AppDialog(onDismissRequest={ missing=emptyList() }) {
+        Text(
+            text = l.text("开启 MCP 前需要授权","Permissions needed for MCP","開啟 MCP 前需要授權"),
+            style = MaterialTheme.typography.headlineSmall,
+            color = MaterialTheme.colorScheme.onSurface
+        )
+        Column(Modifier.padding(vertical=8.dp)) {
+            missing.forEach { permission -> ArrowPreference(title=when(permission) {
+                McpPermission.BACKEND -> l.text("授权 Root / Shizuku / Stellar","Authorize Root / Shizuku / Stellar","授權 Root / Shizuku / Stellar")
+                McpPermission.NOTIFICATIONS -> l.text("允许通知","Allow notifications","允許通知")
+                McpPermission.PREVIEW -> l.text("允许画中画","Allow picture-in-picture","允許子母畫面")
+                McpPermission.BACKGROUND -> l.text("允许后台运行","Allow background operation","允許背景執行")
+            },onClick={
+                val intent = when(permission) {
+                    McpPermission.BACKEND -> Intent(app,SettingsActivity::class.java).putExtra("page","BACKEND")
+                    McpPermission.NOTIFICATIONS -> { notifications(); null }
+                    McpPermission.PREVIEW -> Intent("android.settings.PICTURE_IN_PICTURE_SETTINGS",Uri.parse("package:${app.packageName}"))
+                    McpPermission.BACKGROUND -> { openBackgroundSettings(app); null }
+                }
+                intent?.let {
+                    val target=if(it.resolveActivity(app.packageManager)!=null) it else Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS,Uri.parse("package:${app.packageName}"))
+                    app.startActivity(target.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
+                }
+            }) }
+        }
+        Button(
+            onClick={ enable() },
+            modifier=Modifier.fillMaxWidth(),
         ) {
-            Column(Modifier.verticalScroll(rememberScrollState()).padding(24.dp),verticalArrangement=Arrangement.spacedBy(16.dp)) {
-                Text(
-                    text = l.text("开启 MCP 前需要授权","Permissions needed for MCP","開啟 MCP 前需要授權"),
-                    style = MaterialTheme.typography.headlineSmall,
-                    color = MaterialTheme.colorScheme.onSurface
-                )
-                Column(Modifier.padding(vertical=8.dp)) {
-                    missing.forEach { permission -> ArrowPreference(title=when(permission) {
-                        McpPermission.BACKEND -> l.text("授权 Root / Shizuku / Stellar","Authorize Root / Shizuku / Stellar","授權 Root / Shizuku / Stellar")
-                        McpPermission.NOTIFICATIONS -> l.text("允许通知","Allow notifications","允許通知")
-                        McpPermission.PREVIEW -> l.text("允许画中画","Allow picture-in-picture","允許子母畫面")
-                        McpPermission.BACKGROUND -> l.text("允许后台运行","Allow background operation","允許背景執行")
-                    },onClick={
-                        val intent = when(permission) {
-                            McpPermission.BACKEND -> Intent(app,SettingsActivity::class.java).putExtra("page","BACKEND")
-                            McpPermission.NOTIFICATIONS -> { notifications(); null }
-                            McpPermission.PREVIEW -> Intent("android.settings.PICTURE_IN_PICTURE_SETTINGS",Uri.parse("package:${app.packageName}"))
-                            McpPermission.BACKGROUND -> { openBackgroundSettings(app); null }
-                        }
-                        intent?.let {
-                            val target=if(it.resolveActivity(app.packageManager)!=null) it else Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS,Uri.parse("package:${app.packageName}"))
-                            app.startActivity(target.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
-                        }
-                    }) }
-                }
-                Button(
-                    onClick={ enable() },
-                    modifier=Modifier.fillMaxWidth(),
-                    shape = RoundedCornerShape(16.dp)
-                ) {
-                    Text(l.text("重新检查并开启","Check again and enable","重新檢查並開啟"))
-                }
-                TextButton(
-                    onClick={ missing=emptyList() },
-                    modifier=Modifier.fillMaxWidth(),
-                    shape = RoundedCornerShape(12.dp)
-                ) {
-                    Text(l.text("稍后","Later","稍後"))
-                }
-            }
+            Text(l.text("重新检查并开启","Check again and enable","重新檢查並開啟"))
+        }
+        TextButton(
+            onClick={ missing=emptyList() },
+            modifier=Modifier.fillMaxWidth(),
+        ) {
+            Text(l.text("稍后","Later","稍後"))
         }
     }
     return { enabled ->

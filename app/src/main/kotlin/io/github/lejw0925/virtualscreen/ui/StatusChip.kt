@@ -24,6 +24,7 @@ import androidx.compose.ui.graphics.StrokeJoin
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.drawscope.scale
 import androidx.compose.ui.graphics.lerp
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.text
 import androidx.compose.ui.text.AnnotatedString
@@ -31,18 +32,23 @@ import androidx.compose.ui.unit.dp
 
 internal enum class StatusTone { Positive, Neutral, Negative }
 
-/** A standard selected InputChip presented as a read-only status, without a false tap target. */
+/**
+ * A standard selected InputChip presented as a read-only status, without a false tap target.
+ * Pass [icon] when the chip describes a concrete state so the glyph matches the label instead of
+ * falling back to the generic question/check mark.
+ */
 @OptIn(ExperimentalMaterial3ExpressiveApi::class)
 @Composable
-internal fun StatusChip(text: String, tone: StatusTone, modifier: Modifier = Modifier) {
+internal fun StatusChip(text: String, tone: StatusTone, modifier: Modifier = Modifier, icon: ImageVector? = null) {
     val colors = MaterialTheme.colorScheme
+    val status = LocalStatusColors.current
     val container = when (tone) {
-        StatusTone.Positive -> colors.tertiaryContainer
+        StatusTone.Positive -> status.successContainer
         StatusTone.Neutral -> colors.surfaceContainerHighest
         StatusTone.Negative -> colors.errorContainer
     }
     val content = when (tone) {
-        StatusTone.Positive -> colors.onTertiaryContainer
+        StatusTone.Positive -> status.onSuccessContainer
         StatusTone.Neutral -> colors.onSurfaceVariant
         StatusTone.Negative -> colors.onErrorContainer
     }
@@ -58,17 +64,21 @@ internal fun StatusChip(text: String, tone: StatusTone, modifier: Modifier = Mod
             enabled = false,
             modifier = modifier.clearAndSetSemantics { this.text = AnnotatedString(text) },
             label = { Text(text, style = MaterialTheme.typography.labelLarge) },
-            leadingIcon = {
-                AnimatedContent(
-                    targetState = tone,
-                    transitionSpec = {
-                        (scaleIn(motion.defaultSpatialSpec(), initialScale = .6f) + fadeIn(motion.fastEffectsSpec())) togetherWith
-                            (scaleOut(motion.fastSpatialSpec(), targetScale = .75f) + fadeOut(motion.fastEffectsSpec()))
-                    },
-                    label = "status icon",
-                ) { target ->
-                    if (target == StatusTone.Negative) Icon(Icons.Default.Error, null, Modifier.size(18.dp))
-                    else QuestionCheckIcon(morph, content, container, Modifier.size(18.dp))
+            leadingIcon = if (icon != null) {
+                { Icon(icon, null, Modifier.size(18.dp)) }
+            } else {
+                {
+                    AnimatedContent(
+                        targetState = tone,
+                        transitionSpec = {
+                            (scaleIn(motion.defaultSpatialSpec(), initialScale = .6f) + fadeIn(motion.fastEffectsSpec())) togetherWith
+                                (scaleOut(motion.fastSpatialSpec(), targetScale = .75f) + fadeOut(motion.fastEffectsSpec()))
+                        },
+                        label = "status icon",
+                    ) { target ->
+                        if (target == StatusTone.Negative) Icon(Icons.Default.Error, null, Modifier.size(18.dp))
+                        else QuestionCheckIcon(morph, content, container, Modifier.size(18.dp))
+                    }
                 }
             },
             border = null,
