@@ -4,7 +4,7 @@
   <p><strong>A separate Android display for your agent. Your phone stays yours.</strong></p>
   <p><a href="README.md">简体中文</a> · English</p>
   <p>
-    <a href="https://github.com/lejw0925/android-virtual-screen/releases/tag/v0.1.1"><img src="https://img.shields.io/badge/Release-0.1.1-2D6846" alt="Release 0.1.1" /></a>
+    <a href="https://github.com/lejw0925/android-virtual-screen/releases/tag/v0.2.0"><img src="https://img.shields.io/badge/Release-0.2.0-2D6846" alt="Release 0.2.0" /></a>
     <a href="https://github.com/lejw0925/android-virtual-screen/actions/workflows/build.yml"><img src="https://github.com/lejw0925/android-virtual-screen/actions/workflows/build.yml/badge.svg" alt="Build" /></a>
     <img src="https://img.shields.io/badge/Android-13%2B-3DDC84" alt="Android 13+" />
     <a href="LICENSE"><img src="https://img.shields.io/badge/license-PolyForm_Noncommercial-blue" alt="PolyForm Noncommercial" /></a>
@@ -20,9 +20,9 @@ Virtual Screen is an Android app that gives an AI agent an isolated virtual disp
   <img src="docs/images/mcp-connection-20261020.png" width="210" alt="MCP connection settings" />
 </p>
 
-## Release 0.1.1
+## Release 0.2.0
 
-Download `virtual-screen-0.1.1.apk` and `SHA256SUMS` from [GitHub Releases](https://github.com/lejw0925/android-virtual-screen/releases/tag/v0.1.1). The app requires Android 13 (API 33) or later and either a working Root `su` or a running, authorized Shizuku / Stellar service. Device compatibility and background behavior can vary by ROM.
+Download the APK for your architecture plus `SHA256SUMS` from [GitHub Releases](https://github.com/lejw0925/android-virtual-screen/releases/tag/v0.2.0): `virtual-screen-0.2.0-arm64-v8a.apk`, `virtual-screen-0.2.0-armeabi-v7a.apk`, `virtual-screen-0.2.0-x86_64.apk` (emulators), or `virtual-screen-0.2.0-universal.apk` when the architecture is unknown. The app requires Android 13 (API 33) or later and either a working Root `su` or a running, authorized Shizuku / Stellar service. Device compatibility and background behavior can vary by ROM.
 
 ## Features
 
@@ -35,7 +35,7 @@ Download `virtual-screen-0.1.1.apk` and `SHA256SUMS` from [GitHub Releases](http
 
 ## Get Started
 
-1. Install the [0.1.1 APK](https://github.com/lejw0925/android-virtual-screen/releases/tag/v0.1.1) and install a compatible Root manager or Shizuku / Stellar. If using Shizuku or Stellar, start its service first.
+1. Install the [0.2.0 APK](https://github.com/lejw0925/android-virtual-screen/releases/tag/v0.2.0) and install a compatible Root manager or Shizuku / Stellar. If using Shizuku or Stellar, start its service first.
 2. Open Virtual Screen, select Root or Shizuku / Stellar under **Permissions and backend**, and grant access. Enable the app's accessibility service for node targeting and Unicode text editing. Allow notifications for approval and takeover actions, and PiP for automatic previews.
 3. Enable MCP. For a USB debugging connection, run this on the computer:
 

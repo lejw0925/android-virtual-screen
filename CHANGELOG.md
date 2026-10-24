@@ -1,6 +1,12 @@
 # 变更记录
 
-## 未发布
+## 0.2.0 · 2026-10-24
+
+### 包体
+
+- **Release 开启 R8 与资源压缩**：裁掉未使用的依赖代码（主要是整套 Material 图标），universal release 从 98.8 MB 降到 51.3 MB。
+- **按 ABI 拆包**：隧道二进制占包体主要部分，改为每个架构单独出包并保留 universal 包；单架构包约 20 MB。
+- 隧道二进制无法改为运行时下载：Android 10 起 `targetSdk ≥ 29` 禁止执行应用可写目录中的文件，二进制必须由系统解压到 `nativeLibraryDir`。
 
 ### 界面
 
@@ -14,12 +20,6 @@
 - 新增 `AppDialog`，6 处手写 `Dialog + Card` 改用 `BasicAlertDialog`，恢复平台宽度约束、返回键与输入法避让。
 - 形状改用 `MaterialTheme.shapes` token，动效改用 `motionScheme`，触摸目标补足 48dp，并移除 `surfaceContainerLow` 重映射以恢复色调层级。
 - 接入窗口尺寸类别，按 Compact/Medium/Expanded/Large 约束正文宽度。
-
-### 构建
-
-- **代码压缩**：Release 开启 R8 与资源压缩。未使用的依赖（主要是整套 Material 图标）被裁掉，release 从 98.8 MB 降到 51.3 MB。
-- **按 ABI 拆包**：隧道二进制占包体主要部分，改为每个架构单独出包（arm64 / armeabi-v7a / x86_64），并保留 universal 包。单架构包约 20 MB。
-- 说明：Android 10 起 `targetSdk ≥ 29` 禁止执行应用可写目录中的文件，隧道二进制无法改为运行时下载，必须由系统解压到 `nativeLibraryDir`。已用同进程对照验证：`nativeLibraryDir` 可执行，应用私有目录返回 `EACCES`。
 
 ### 验证
 

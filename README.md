@@ -4,7 +4,7 @@
   <p><strong>Agent 的独立 Android 屏幕，手机主屏继续由你使用。</strong></p>
   <p>简体中文 · <a href="README.en.md">English</a></p>
   <p>
-    <a href="https://github.com/lejw0925/android-virtual-screen/releases/tag/v0.1.1"><img src="https://img.shields.io/badge/Release-0.1.1-2D6846" alt="Release 0.1.1" /></a>
+    <a href="https://github.com/lejw0925/android-virtual-screen/releases/tag/v0.2.0"><img src="https://img.shields.io/badge/Release-0.2.0-2D6846" alt="Release 0.2.0" /></a>
     <a href="https://github.com/lejw0925/android-virtual-screen/actions/workflows/build.yml"><img src="https://github.com/lejw0925/android-virtual-screen/actions/workflows/build.yml/badge.svg" alt="Build" /></a>
     <img src="https://img.shields.io/badge/Android-13%2B-3DDC84" alt="Android 13+" />
     <a href="LICENSE"><img src="https://img.shields.io/badge/license-PolyForm_Noncommercial-blue" alt="PolyForm Noncommercial" /></a>
@@ -20,9 +20,9 @@
   <img src="docs/images/mcp-connection-20261020.png" width="210" alt="MCP 连接设置" />
 </p>
 
-## Release 0.1.1
+## Release 0.2.0
 
-从 [GitHub Releases](https://github.com/lejw0925/android-virtual-screen/releases/tag/v0.1.1) 下载 `virtual-screen-0.1.1.apk` 和 `SHA256SUMS`。安装包要求 Android 13（API 33）或更新版本；需要可用的 Root `su` 或已启动并授权的 Shizuku / Stellar 服务。设备兼容性和后台策略可能因 ROM 而异。
+从 [GitHub Releases](https://github.com/lejw0925/android-virtual-screen/releases/tag/v0.2.0) 下载对应架构的安装包和 `SHA256SUMS`：`virtual-screen-0.2.0-arm64-v8a.apk`、`virtual-screen-0.2.0-armeabi-v7a.apk`、`virtual-screen-0.2.0-x86_64.apk`（模拟器），不确定架构时用 `virtual-screen-0.2.0-universal.apk`。安装包要求 Android 13（API 33）或更新版本；需要可用的 Root `su` 或已启动并授权的 Shizuku / Stellar 服务。设备兼容性和后台策略可能因 ROM 而异。
 
 ## 功能
 
@@ -35,7 +35,7 @@
 
 ## 快速开始
 
-1. 安装 [0.1.1 APK](https://github.com/lejw0925/android-virtual-screen/releases/tag/v0.1.1)，并在手机上安装可用的 Root 管理器或 Shizuku / Stellar。使用 Shizuku 或 Stellar 时，先启动其服务。
+1. 安装 [0.2.0 APK](https://github.com/lejw0925/android-virtual-screen/releases/tag/v0.2.0)，并在手机上安装可用的 Root 管理器或 Shizuku / Stellar。使用 Shizuku 或 Stellar 时，先启动其服务。
 2. 打开虚拟屏，在「权限与后端」选择 Root 或 Shizuku / Stellar 并完成授权。启用系统无障碍服务后，可使用节点定位和 Unicode 文本编辑；允许通知以接收操作审批和接管入口；允许画中画以自动显示预览。
 3. 开启 MCP。USB 调试连接可在电脑运行：
 
