@@ -205,11 +205,19 @@ class McpSessionCleanupTest {
             assertEquals(200, response.status)
             val session = response.session!!
             if (complete) assertEquals(202, request("notifications/initialized", session, notification = true).status)
+            awaitQuiescent()
             return session
         }
 
         fun tool(session: String, name: String, arguments: JSONObject = JSONObject()) = request("tools/call", session,
             JSONObject().put("name", name).put("arguments", JSONObject(arguments.toString()).put("purpose", "Verify session cleanup")))
+            .also { awaitQuiescent() }
+
+        /** The response can reach the client before the server decrements its in-flight counter. */
+        fun awaitQuiescent(timeoutMillis: Long = 5_000) {
+            val deadline = System.currentTimeMillis() + timeoutMillis
+            while (server.activeCallCount() != 0 && System.currentTimeMillis() < deadline) Thread.sleep(5)
+        }
 
         override fun close() {
             server.stop()

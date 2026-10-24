@@ -165,6 +165,13 @@ class McpServerController(context: Context,private val sessions: VirtualScreenSe
             client.activeCalls == 0 && client.id != controller && now - client.lastActivityMillis >= timeout
         }.forEach { disconnectSession(it.id) }
     }
+
+    /**
+     * In-flight tool calls across sessions. [finishCall] runs after the response is written, so a
+     * client can observe completion slightly before the counter drops; tests wait on this instead
+     * of assuming the bookkeeping already ran.
+     */
+    internal fun activeCallCount(): Int = synchronized(clientLock) { clients.values.sumOf { it.activeCalls } }
     private fun createClient(name: String,version: String,peerIp: String,forwardedIp: String?): ClientSession? = synchronized(clientLock) {
         recycleIdleSessions()
         if(!state().running || clients.size >= MAX_CLIENTS) return@synchronized null
