@@ -23,7 +23,11 @@ export PATH="$JAVA_HOME/bin:$PATH"
 ./gradlew :app:testDebugUnitTest :app:lintDebug :app:assembleDebug :app:assembleRelease
 ```
 
-产物：`app/build/outputs/apk/debug/app-debug.apk`、`app/build/outputs/apk/release/app-release-unsigned.apk`。本地交付副本可放在被 Git 忽略的 `dist/`。正式 APK 与 `SHA256SUMS` 由版本标签触发的 Actions 发布到 GitHub Releases。
+产物：debug 为按 ABI 拆分的 `app/build/outputs/apk/debug/app-<abi>-debug.apk` 与 `app-universal-debug.apk`；release 为 `app/build/outputs/apk/release/app-<abi>-release-unsigned.apk` 与 `app-universal-release-unsigned.apk`（`<abi>` 为 `arm64-v8a`、`armeabi-v7a`、`x86_64`）。隧道二进制由系统解压到 `nativeLibraryDir`，单 ABI 包约 20 MB；universal 包含全部架构，约 51 MB。本地交付副本可放在被 Git 忽略的 `dist/`。正式 APK 与 `SHA256SUMS` 由版本标签触发的 Actions 发布到 GitHub Releases。
+
+### 代码压缩
+
+Release 构建开启 R8（`isMinifyEnabled`）与资源压缩（`isShrinkResources`）。keep 规则见 `app/proguard-rules.pro`；新增依赖若通过反射使用，需补规则。
 
 ## 原生程序
 

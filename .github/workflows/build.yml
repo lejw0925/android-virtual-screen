@@ -93,11 +93,16 @@ jobs:
           with open(os.environ['GITHUB_ENV'], 'a') as target:
               target.write('RELEASE_VERSION=' + version + '\n')
           PY
-          "$ANDROID_HOME/build-tools/37.0.0/zipalign" -P 16 -f 4 app/build/outputs/apk/release/app-release-unsigned.apk "$RUNNER_TEMP/aligned.apk"
-          "$ANDROID_HOME/build-tools/37.0.0/apksigner" sign --ks "$RUNNER_TEMP/release.jks" --ks-key-alias "$AVS_KEY_ALIAS" --ks-pass env:AVS_STORE_PASSWORD --key-pass env:AVS_KEY_PASSWORD --lineage "$RUNNER_TEMP/release.lineage" --rotation-min-sdk-version 33 --v1-signing-enabled false --v2-signing-enabled false --v3-signing-enabled true --v4-signing-enabled false --debuggable-apk-permitted false --out "dist/virtual-screen-${GITHUB_REF_NAME#v}.apk" "$RUNNER_TEMP/aligned.apk"
-          "$ANDROID_HOME/build-tools/37.0.0/apksigner" verify --verbose --print-certs "dist/virtual-screen-${GITHUB_REF_NAME#v}.apk"
+          BT="$ANDROID_HOME/build-tools/37.0.0"
+          for variant in arm64-v8a armeabi-v7a x86_64 universal; do
+            input="app/build/outputs/apk/release/app-${variant}-release-unsigned.apk"
+            output="dist/virtual-screen-${GITHUB_REF_NAME#v}-${variant}.apk"
+            "$BT/zipalign" -P 16 -f 4 "$input" "$RUNNER_TEMP/aligned-${variant}.apk"
+            "$BT/apksigner" sign --ks "$RUNNER_TEMP/release.jks" --ks-key-alias "$AVS_KEY_ALIAS" --ks-pass env:AVS_STORE_PASSWORD --key-pass env:AVS_KEY_PASSWORD --lineage "$RUNNER_TEMP/release.lineage" --rotation-min-sdk-version 33 --v1-signing-enabled false --v2-signing-enabled false --v3-signing-enabled true --v4-signing-enabled false --debuggable-apk-permitted false --out "$output" "$RUNNER_TEMP/aligned-${variant}.apk"
+            "$BT/apksigner" verify --verbose --print-certs "$output"
+          done
           cd dist
-          sha256sum "virtual-screen-${GITHUB_REF_NAME#v}.apk" > SHA256SUMS
+          sha256sum *.apk > SHA256SUMS
       - name: Publish release
         env:
           GH_TOKEN: ${{ github.token }}
@@ -106,7 +111,7 @@ jobs:
           if [[ "$RELEASE_VERSION" == *-* ]]; then
             release_flags+=(--prerelease)
           fi
-          gh release create "$GITHUB_REF_NAME" "dist/virtual-screen-$RELEASE_VERSION.apk" dist/SHA256SUMS --verify-tag --title "Virtual Screen $RELEASE_VERSION" --notes-file "docs/RELEASE_NOTES_$RELEASE_VERSION.md" "${release_flags[@]}"
+          gh release create "$GITHUB_REF_NAME" dist/*.apk dist/SHA256SUMS --verify-tag --title "Virtual Screen $RELEASE_VERSION" --notes-file "docs/RELEASE_NOTES_$RELEASE_VERSION.md" "${release_flags[@]}"
       - name: Remove signing material
         if: always()
-        run: rm -f "$RUNNER_TEMP/release.jks" "$RUNNER_TEMP/release.lineage" "$RUNNER_TEMP/aligned.apk"
+        run: rm -f "$RUNNER_TEMP/release.jks" "$RUNNER_TEMP/release.lineage" "$RUNNER_TEMP"/aligned*.apk

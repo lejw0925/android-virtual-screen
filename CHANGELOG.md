@@ -15,11 +15,18 @@
 - 形状改用 `MaterialTheme.shapes` token，动效改用 `motionScheme`，触摸目标补足 48dp，并移除 `surfaceContainerLow` 重映射以恢复色调层级。
 - 接入窗口尺寸类别，按 Compact/Medium/Expanded/Large 约束正文宽度。
 
+### 构建
+
+- **代码压缩**：Release 开启 R8 与资源压缩。未使用的依赖（主要是整套 Material 图标）被裁掉，release 从 98.8 MB 降到 51.3 MB。
+- **按 ABI 拆包**：隧道二进制占包体主要部分，改为每个架构单独出包（arm64 / armeabi-v7a / x86_64），并保留 universal 包。单架构包约 20 MB。
+- 说明：Android 10 起 `targetSdk ≥ 29` 禁止执行应用可写目录中的文件，隧道二进制无法改为运行时下载，必须由系统解压到 `nativeLibraryDir`。已用同进程对照验证：`nativeLibraryDir` 可执行，应用私有目录返回 `EACCES`。
+
 ### 验证
 
-- JVM 单元测试 146 项、Android Lint、调试构建通过。
+- JVM 单元测试 146 项、Android Lint、调试与正式版构建通过。
 - 修复 `SessionManagerTest` 中的时序不稳定断言（租约续期导致过期时间相差 1ms）。
 - 模拟器（Android 14，Shizuku 后端）前台验证首页布局、日志卡片与筛选切换、浅色/深色模式及 200% 字号。
+- Release（R8）装机验证：19/19 后端检测通过，Cloudflare 快速隧道连通并 `PUBLIC_ORIGIN_VERIFIED`。
 
 ## 0.1.1 · 2026-10-20
 

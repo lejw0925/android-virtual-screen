@@ -11,11 +11,11 @@
 
 Use JDK 25 and Android SDK 37; the minimum device version is Android 13. Configure the SDK in `local.properties` or `ANDROID_HOME`.
 
-- `./gradlew :app:assembleDebug` — build `app/build/outputs/apk/debug/app-debug.apk`.
+- `./gradlew :app:assembleDebug` — build per-ABI debug APKs (`app/build/outputs/apk/debug/app-<abi>-debug.apk`) plus the universal `app-universal-debug.apk`.
 - `./gradlew :app:installDebug` — install on a connected device.
 - `./gradlew :app:testDebugUnitTest :app:lintDebug` — run JVM tests and Android Lint.
 - `./gradlew :device-fixture:assembleDebug :app:assembleDebugAndroidTest` — build the fixture and instrumentation APKs.
-- `./gradlew :app:assembleRelease` — build release; unsigned unless signing is configured.
+- `./gradlew :app:assembleRelease` — build signed-or-unsigned release APKs; per ABI plus a universal one.
 - `./scripts/build-tunnels.sh` — rebuild bundled frpc/cloudflared; requires NDK 28.2.13676358 and Go 1.25.6. See `docs/BUILD.md`.
 
 ## Coding Style & Naming Conventions

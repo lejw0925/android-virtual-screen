@@ -39,11 +39,23 @@ android {
         }
         release {
             if (!releaseKeystore.isNullOrBlank()) signingConfig = signingConfigs.getByName("production")
-            isMinifyEnabled = false
+            isMinifyEnabled = true
+            isShrinkResources = true
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro",
             )
+        }
+    }
+
+    // The bundled tunnel binaries dominate the APK, so ship one APK per ABI; each device only
+    // installs the libraries it can execute. A universal APK stays available for direct sideloads.
+    splits {
+        abi {
+            isEnable = true
+            reset()
+            include("arm64-v8a", "armeabi-v7a", "x86_64")
+            isUniversalApk = true
         }
     }
 
