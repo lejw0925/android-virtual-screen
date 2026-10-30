@@ -200,8 +200,12 @@ internal class PrivilegedDisplayEngine : AutoCloseable {
             target.className == io.github.lejw0925.virtualscreen.ui.BackendProbeActivity::class.java.name
         require(target.packageName != request.optString("ownerPackage") || diagnostic) { "APP_NOT_LAUNCHABLE" }
         require(info.enabled && info.exported) { "APP_NOT_LAUNCHABLE" }
-        val resizeMode = ActivityInfo::class.java.getField("resizeMode").getInt(info)
-        require(ActivityInfo::class.java.getDeclaredMethod("isResizeableMode", Int::class.javaPrimitiveType).invoke(null, resizeMode) == true) { "DISPLAY_APP_UNSUPPORTED" }
+        // Non-resizeable activities still launch on a secondary display; the window
+        // manager letterboxes them at their own size. Only report the flag.
+        val resizeable = runCatching {
+            val resizeMode = ActivityInfo::class.java.getField("resizeMode").getInt(info)
+            ActivityInfo::class.java.getDeclaredMethod("isResizeableMode", Int::class.javaPrimitiveType).invoke(null, resizeMode) == true
+        }.getOrDefault(true)
         fun matchesTarget(task: ActivityManager.RunningTaskInfo): Boolean = if (diagnostic) {
             task.baseActivity == target || task.topActivity == target
         } else task.baseActivity?.packageName == target.packageName || task.topActivity?.packageName == target.packageName
@@ -221,10 +225,14 @@ internal class PrivilegedDisplayEngine : AutoCloseable {
             if (uri.isNotBlank()) listOf("-a", "android.intent.action.VIEW", "-d", uri) else emptyList())
         check("Error:" !in output && "Activity not started" !in output) { "DISPLAY_LAUNCH_REJECTED" }
         val tasks = runningTasks().filter(::matchesTarget)
-        check(tasks.isNotEmpty() && tasks.all { taskDisplay(it) == displayId }) { "DISPLAY_LAUNCH_MISMATCH" }
+        // Some ROMs refuse to host a non-resizeable activity on a secondary display;
+        // they put it on the phone screen instead. Keep a distinct error for that case.
+        check(tasks.isNotEmpty() && tasks.all { taskDisplay(it) == displayId }) {
+            if (!resizeable) "DISPLAY_APP_UNSUPPORTED" else "DISPLAY_LAUNCH_MISMATCH"
+        }
         hostedTasks.addAll(tasks.map { it.taskId })
         rotation?.apply(info.screenOrientation)
-        return geometry().put("ok", true).put("component", target.flattenToString()).put("restarted", elsewhere)
+        return geometry().put("ok", true).put("component", target.flattenToString()).put("restarted", elsewhere).put("resizeable", resizeable)
     }
 
     private fun setRotation(rotation: Int) {
