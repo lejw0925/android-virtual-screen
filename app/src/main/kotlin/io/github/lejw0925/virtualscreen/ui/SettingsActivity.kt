@@ -5,12 +5,14 @@ import android.app.LocaleManager
 import android.content.Intent
 import android.os.Bundle
 import android.os.LocaleList
+import android.os.PowerManager
 import android.provider.Settings
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.lifecycle.compose.LifecycleResumeEffect
 import androidx.compose.animation.*
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
@@ -412,10 +414,16 @@ private fun capabilityLabel(l: UiLanguage,c: CapabilityStatus)=when(c) {
     val toggleMcp=rememberMcpToggle(app,notifications)
     val alwaysAllow by app.mcp.approvals.alwaysAllow.collectAsState()
     var rotate by remember { mutableStateOf(false) }
+    var backgroundUnrestricted by remember { mutableStateOf(app.getSystemService(PowerManager::class.java).isIgnoringBatteryOptimizations(app.packageName)) }
+    LifecycleResumeEffect(Unit) {
+        backgroundUnrestricted = app.getSystemService(PowerManager::class.java).isIgnoringBatteryOptimizations(app.packageName)
+        onPauseOrDispose { }
+    }
     Section(l.text("服务","Server","服務")) {
         SwitchPreference(checked=server.running,onCheckedChange=toggleMcp,title=l.text("MCP 服务","MCP server","MCP 服務"),summary=if(server.running) l.text("已就绪 · ${server.sessionCount} 个客户端","Ready · ${server.sessionCount} clients","已就緒 · ${server.sessionCount} 個用戶端") else l.text("已关闭","Off","已關閉"))
         if(alwaysAllow) ArrowPreference(title=l.text("撤销始终允许接管","Revoke always-allow control","撤銷始終允許接管"),onClick={ app.mcp.approvals.setAlwaysAllow(false) })
         SwitchPreference(checked=settings.lan,onCheckedChange={ value -> task { app.settings.update { it.copy(lan=value) }; if(server.running) { app.tunnels.stop(); app.mcp.stop(); app.mcp.start(value).getOrThrow() } } },title=l.text("局域网访问","LAN access","區域網路存取"))
+        ArrowPreference(title=l.text("后台运行（可选）","Background operation (optional)","背景執行（選用）"),summary=if(backgroundUnrestricted) l.text("已允许","Allowed","已允許") else l.text("未允许 · 可能被系统中断","Not allowed · may be interrupted","未允許 · 可能被系統中斷"),onClick={ openBackgroundSettings(app) })
     }
     Section(l.text("客户端配置","Client configuration","用戶端設定")) {
         ArrowPreference(title=l.text("复制客户端配置","Copy client configuration","複製用戶端設定"),onClick={ copy(app,app.mcp.clientConfiguration(endpoint)) })
