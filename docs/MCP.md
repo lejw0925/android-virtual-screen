@@ -125,7 +125,7 @@ MCP-Protocol-Version: 2025-06-18
 
 `full` 返回系统提供且预算内采集到的全部节点，包括结构节点、不可见节点和原始父子关系；它不绕过系统隐藏节点或隐私处理。节点保留完整类名、资源 ID、bounds、逐节点 `package`、`window_id`、`hint_text`、`state_description`、`long_clickable`、`focusable`、支持动作 `actions` 及原始 `action_list`。两种格式都有 `display_id` 和 `windows`；每个窗口含 ID、display ID、类型、包名、标题、layer、focused、active。顶层 `package` 保持排序后首个根节点的包名语义。
 
-密码节点的 `text` 与 `state_description` 始终隐藏。`node_count` 表示本次实际采集数量，不表示系统树总量；`returned_node_count` 是本次格式输出数量。安全上限为 5000 节点、深度 100、每节点 1000 个子项；触发上限会返回 `truncated=true`、`truncation_reasons` 和采用的三个 limit 字段。未截断的 full 必须满足两个计数相等。
+密码节点的 `text` 与 `state_description` 始终隐藏。`node_count` 表示本次实际采集数量，不表示系统树总量；`returned_node_count` 是本次格式输出数量。采集上限为 5000 节点、深度 100、每节点 1000 个子项，单次采集时间预算为 1500 毫秒；格式化输出最多返回 2000 节点。触发任一上限会返回 `truncated=true`、`truncation_reasons`（可能包含 `node_limit`、`depth_limit`、`child_limit`、`time_limit`、`output_limit`）以及采用的 limit 字段。未截断的 full 必须满足两个计数相等。
 
 节点 ID 只属于该观察；新的观察替换旧缓存。`node_action` 要求 `node_id` 与 `selector` 二选一；后者支持 `resource_id/text/description/class` 的精确 AND 匹配。只能唯一匹配一项，不能默认选择第一项。多结果返回 `AMBIGUOUS_NODE`，无结果返回 `NODE_NOT_FOUND`；截断树的 selector 操作也拒绝。执行前仍会刷新并验证目标显示与签名。
 

@@ -136,6 +136,23 @@ class NodeTreeFormatterTest {
         assertFalse(byId.getValue("password-child").containsKey("text"))
     }
 
+    @Test fun outputIsCappedAtTwoThousandNodes() {
+        val nodes = (0 until NodeTreeFormatter.MAX_OUTPUT_NODES + 5).map {
+            NodeInfo("node-$it", text = "text $it", windowId = 7)
+        }
+        val result = NodeTreeFormatter.values(
+            NodeSnapshot(observationId = "observation", displayId = 7, packageName = "fixture", nodes = nodes),
+            "full",
+        )
+        val output = result["nodes"] as List<*>
+
+        assertEquals(NodeTreeFormatter.MAX_OUTPUT_NODES, output.size)
+        assertEquals(NodeTreeFormatter.MAX_OUTPUT_NODES, result["returned_node_count"])
+        assertEquals(true, result["truncated"])
+        assertTrue("output_limit" in (result["truncation_reasons"] as List<*>))
+        assertEquals(NodeTreeFormatter.MAX_OUTPUT_NODES, result["output_limit"])
+    }
+
     private fun snapshot(vararg nodes: NodeInfo) = NodeSnapshot(
         observationId = "observation",
         displayId = 7,

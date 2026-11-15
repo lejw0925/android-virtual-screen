@@ -75,6 +75,7 @@ data class NodeSnapshot(
     val nodeLimit: Int = 5000,
     val depthLimit: Int = 100,
     val childLimit: Int = 1000,
+    val timeBudgetMs: Int = 1500,
 )
 
 data class WindowSnapshot(

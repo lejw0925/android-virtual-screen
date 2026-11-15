@@ -70,10 +70,12 @@ class ScreenAccessibilityServiceTest {
 
         assertEquals(5000, snapshot.nodes.size)
         assertTrue(snapshot.truncated)
-        assertEquals(listOf("node_limit"), snapshot.truncationReasons)
+        assertTrue("node_limit" in snapshot.truncationReasons)
+        assertTrue(snapshot.truncationReasons.all { it in setOf("node_limit", "time_limit") })
         assertEquals(5000, snapshot.nodeLimit)
         assertEquals(100, snapshot.depthLimit)
         assertEquals(1000, snapshot.childLimit)
+        assertTrue(snapshot.timeBudgetMs > 0)
         service.onDestroy()
     }
 

@@ -6,6 +6,7 @@ import io.github.lejw0925.virtualscreen.backend.NodeSnapshot
 
 /** Formats one collected tree without changing the source used by selectors. */
 internal object NodeTreeFormatter {
+    const val MAX_OUTPUT_NODES = 2000
     private val actionNames = linkedMapOf(
         AccessibilityNodeInfo.ACTION_CLICK to "click",
         AccessibilityNodeInfo.ACTION_LONG_CLICK to "long_click",
@@ -18,13 +19,17 @@ internal object NodeTreeFormatter {
     fun values(snapshot: NodeSnapshot, format: String): Map<String, Any?> {
         require(format == "compact" || format == "full")
         val compact = format == "compact"
-        val included = if (compact) snapshot.nodes.filter(::isUseful) else snapshot.nodes
+        val matched = if (compact) snapshot.nodes.filter(::isUseful) else snapshot.nodes
+        val outputLimited = matched.size > MAX_OUTPUT_NODES
+        val included = if (outputLimited) matched.take(MAX_OUTPUT_NODES) else matched
         val retainedIds = included.mapTo(HashSet()) { it.id }
         val nodesById = snapshot.nodes.associateBy { it.id }
         val labels = if (compact) deriveLabels(snapshot.nodes) else emptyMap()
         val nodeValues = included.map { node ->
             if (compact) compactNode(node, retainedIds, nodesById, labels[node.id]) else fullNode(node)
         }
+        val reasons = if (outputLimited) snapshot.truncationReasons + "output_limit"
+            else snapshot.truncationReasons
         return linkedMapOf(
             "display_id" to snapshot.displayId,
             "windows" to snapshot.windows.map(::windowValue),
@@ -32,12 +37,14 @@ internal object NodeTreeFormatter {
             "package" to snapshot.packageName,
             "node_count" to snapshot.nodes.size,
             "returned_node_count" to included.size,
-            "truncated" to snapshot.truncated,
-            "truncation_reasons" to snapshot.truncationReasons,
+            "truncated" to (snapshot.truncated || outputLimited),
+            "truncation_reasons" to reasons.distinct(),
             "format" to format,
             "node_limit" to snapshot.nodeLimit,
             "depth_limit" to snapshot.depthLimit,
             "child_limit" to snapshot.childLimit,
+            "time_budget_ms" to snapshot.timeBudgetMs,
+            "output_limit" to MAX_OUTPUT_NODES,
         )
     }
 

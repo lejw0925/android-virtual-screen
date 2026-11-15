@@ -2,6 +2,7 @@ package io.github.lejw0925.virtualscreen.core
 
 import android.accessibilityservice.AccessibilityService
 import android.os.Bundle
+import android.os.SystemClock
 import android.graphics.Rect
 import android.view.accessibility.AccessibilityEvent
 import android.view.accessibility.AccessibilityNodeInfo
@@ -48,6 +49,8 @@ class ScreenAccessibilityService : AccessibilityService() {
     suspend fun snapshot(displayId: Int, observationId: String): NodeSnapshot = withContext(Dispatchers.Main) {
         require(displayId > 0) { "INVALID_DISPLAY" }
         clear()
+        val startedAt = SystemClock.elapsedRealtime()
+        fun budgetExceeded() = SystemClock.elapsedRealtime() - startedAt >= SNAPSHOT_TIME_BUDGET_MS
         val job = currentCoroutineContext()
         val windows = getWindowsOnAllDisplays().get(displayId).orEmpty()
             .filter { it.displayId == displayId }
@@ -74,6 +77,10 @@ class ScreenAccessibilityService : AccessibilityService() {
                 job.ensureActive()
                 if (result.size >= NODE_LIMIT) {
                     truncationReasons += "node_limit"
+                    return
+                }
+                if (budgetExceeded()) {
+                    truncationReasons += "time_limit"
                     return
                 }
                 if (depth > DEPTH_LIMIT) {
@@ -125,7 +132,11 @@ class ScreenAccessibilityService : AccessibilityService() {
                     if (childCount > CHILD_LIMIT) truncationReasons += "child_limit"
                     for (index in 0 until childCount.coerceAtMost(CHILD_LIMIT)) {
                         job.ensureActive()
-                        if ("node_limit" in truncationReasons) break
+                        if ("node_limit" in truncationReasons || "time_limit" in truncationReasons) break
+                        if (budgetExceeded()) {
+                            truncationReasons += "time_limit"
+                            break
+                        }
                         if (result.size >= NODE_LIMIT) {
                             truncationReasons += "node_limit"
                             break
@@ -144,11 +155,16 @@ class ScreenAccessibilityService : AccessibilityService() {
                     truncationReasons += "node_limit"
                     break
                 }
+                if (budgetExceeded()) {
+                    truncationReasons += "time_limit"
+                    break
+                }
                 visit(entry.second, 1, null, entry.first)
             }
             val snapshot = NodeSnapshot(observationId, displayId, roots.first().second.packageName?.toString(), result,
                 truncated = truncationReasons.isNotEmpty(), truncationReasons = truncationReasons.toList(), windows = windowSnapshots,
-                nodeLimit = NODE_LIMIT, depthLimit = DEPTH_LIMIT, childLimit = CHILD_LIMIT)
+                nodeLimit = NODE_LIMIT, depthLimit = DEPTH_LIMIT, childLimit = CHILD_LIMIT,
+                timeBudgetMs = SNAPSHOT_TIME_BUDGET_MS.toInt())
             complete = true
             snapshot
         } finally {
@@ -214,6 +230,7 @@ class ScreenAccessibilityService : AccessibilityService() {
         private const val NODE_LIMIT = 5000
         private const val DEPTH_LIMIT = 100
         private const val CHILD_LIMIT = 1000
+        private const val SNAPSHOT_TIME_BUDGET_MS = 1_500L
         @Volatile var current: ScreenAccessibilityService? = null
             private set
         private val mutableConnected = kotlinx.coroutines.flow.MutableStateFlow(false)
