@@ -117,6 +117,7 @@ class VirtualScreenApplication : Application() {
         sessions = VirtualScreenSessionManager(this,configuredDisplay={ settings.configForViewer() }, log=activityLog,
             autoApproveRestart={ settings.flow.value.autoApproveRestart })
         mcp = McpServerController(this, sessions, log=activityLog)
+        runtimeScope.launch { runCatching { mcp.warmToken() }.onFailure { activityLog.failure("mcp_token", it) } }
         tunnels = TunnelManager(this, log=activityLog)
         rikka.shizuku.Shizuku.addRequestPermissionResultListener { requestCode, result ->
             if (requestCode == 8732) activityLog.runtime("shizuku_permission",

@@ -33,6 +33,11 @@ class ControlApprovalManager(
         saveAlwaysAllow(allowed)
     }
 
+    /** Restores persisted consent after the token fingerprint is loaded off the main thread. */
+    @Synchronized internal fun restoreAlwaysAllow(allowed: Boolean) {
+        mutableAlwaysAllow.value = allowed
+    }
+
     @Synchronized fun request(owner: String, clientName: String, purpose: String): OperationEnvelope {
         refresh()
         val decision = sessions.acquireLease(owner)

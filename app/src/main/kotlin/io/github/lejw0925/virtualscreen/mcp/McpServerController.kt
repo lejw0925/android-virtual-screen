@@ -44,15 +44,30 @@ class McpServerController(context: Context,private val sessions: VirtualScreenSe
     }
     private val tokenStore = BearerTokenStore(context)
     private val approvalPrefs = context.getSharedPreferences("control_approvals",Context.MODE_PRIVATE)
-    private fun tokenFingerprint() = MessageDigest.getInstance("SHA-256").digest(tokenStore.token().toByteArray()).joinToString("") { "%02x".format(it) }
-    val approvals = ControlApprovalManager(sessions,approvalPrefs.getString("token",null)==tokenFingerprint(),saveAlwaysAllow = { allowed ->
-        approvalPrefs.edit().putString("token",if(allowed) tokenFingerprint() else null).apply()
+    private fun tokenFingerprint(token: String) = MessageDigest.getInstance("SHA-256")
+        .digest(token.toByteArray()).joinToString("") { "%02x".format(it) }
+    val approvals = ControlApprovalManager(sessions,initiallyAlwaysAllow=false,saveAlwaysAllow = { allowed ->
+        approvalPrefs.edit().putString("token",if(allowed) tokenFingerprint(state().token) else null).apply()
     })
     private val registry = McpToolRegistry(sessions,approvals,{ owner -> clients[owner]?.name ?: "MCP client" })
     val activity get() = registry.activity
-    private val mutableState = MutableStateFlow(McpServerState(token = tokenStore.token()))
+    private val mutableState = MutableStateFlow(McpServerState())
     val flow = mutableState.asStateFlow()
     fun state() = flow.value
+
+    /**
+     * Loads the Android Keystore token away from the main thread. The application warms this at
+     * startup, while [start] repeats it as a fallback so server startup always has the token.
+     */
+    suspend fun warmToken(): String = loadTokenState()
+
+    private suspend fun loadTokenState(): String = withContext(Dispatchers.IO) {
+        val token = tokenStore.token()
+        val stored = approvalPrefs.getString("token", null)
+        approvals.restoreAlwaysAllow(stored != null && stored == tokenFingerprint(token))
+        mutableState.update { it.copy(token = token) }
+        token
+    }
     fun reportStartupError(code: String) {
         mutableState.value = state().copy(running=false,lastError=code)
         log.runtime("mcp_listener", "error", code)
@@ -68,6 +83,7 @@ class McpServerController(context: Context,private val sessions: VirtualScreenSe
         if (server != null) stop()
         return runCatching {
             require(port in 1..65535) { "INVALID_PORT" }
+            val token = runBlocking { loadTokenState() }
             allowedOrigins = origins
             val host = if(lan) "0.0.0.0" else "127.0.0.1"
             log.runtime("mcp_listener", "starting", "host=$host; port=$port")
@@ -112,7 +128,7 @@ class McpServerController(context: Context,private val sessions: VirtualScreenSe
             server = engine
             engine.start(wait = false)
             runBlocking { withTimeout(5000) { engine.engine.resolvedConnectors() } }
-            mutableState.value = McpServerState(true,host,port,tokenStore.token())
+            mutableState.value = McpServerState(true,host,port,token)
             log.runtime("mcp_listener", "started", "host=$host; port=$port")
             CoroutineScope(parent + Dispatchers.IO).launch {
                 while(isActive) {

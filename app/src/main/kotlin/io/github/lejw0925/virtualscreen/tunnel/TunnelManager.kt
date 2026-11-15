@@ -29,7 +29,7 @@ data class CloudflareTunnel(val id: String,val name: String)
 class TunnelManager(context: Context,private val mcpPort: Int = 8732,private val log: ActivityLogger = ActivityLogger.NONE) {
     private val app = context.applicationContext
     private val vault = CredentialVault(app)
-    private val directory = File(app.noBackupFilesDir,"tunnel-runtime").apply { mkdirs() }
+    private val directory = File(app.noBackupFilesDir,"tunnel-runtime")
     private val certificate = File(directory,".cloudflared/cert.pem")
     private val scope = CoroutineScope(SupervisorJob()+Dispatchers.IO+CoroutineExceptionHandler { _, failure ->
         mutableState.value = state().copy(running=false,phase="error",publicAddress=null,errorCode="TUNNEL_PROCESS_IO_FAILED")
@@ -67,7 +67,6 @@ class TunnelManager(context: Context,private val mcpPort: Int = 8732,private val
         }
         override fun onAvailable(network: Network) { if(state().running) appendLog("NETWORK_AVAILABLE") }
     }
-    init { directory.listFiles()?.forEach { it.deleteRecursively() } }
     private fun watchNetwork() {
         if(!watchingNetwork) runCatching { connectivity.registerDefaultNetworkCallback(networkCallback); watchingNetwork=true }
     }
@@ -87,6 +86,7 @@ class TunnelManager(context: Context,private val mcpPort: Int = 8732,private val
 
     suspend fun start(mode: TunnelMode,frpc: FrpcConfig? = null,cloudflare: CloudflareConfig? = null): TunnelState = withContext(Dispatchers.IO) { mutex.withLock {
         stop()
+        resetRuntimeDirectory()
         if(mode == TunnelMode.OFF) return@withLock state()
         try {
             val command: List<String>
@@ -253,6 +253,7 @@ class TunnelManager(context: Context,private val mcpPort: Int = 8732,private val
 
     suspend fun login(): TunnelState = withContext(Dispatchers.IO) { mutex.withLock {
         stop()
+        resetRuntimeDirectory()
         if(hasCertificate()) { mutableState.value = state().copy(phase="credentials_ready",certificateReady=true); return@withLock state() }
         mutableState.value = TunnelState(TunnelMode.CLOUDFLARE_NAMED,phase="login",logs=state().logs)
         val expected = ++epoch
@@ -328,6 +329,7 @@ class TunnelManager(context: Context,private val mcpPort: Int = 8732,private val
     }
     private suspend fun <T> management(block: suspend () -> T): T = withContext(Dispatchers.IO) { mutex.withLock {
         check(!state().running && child == null) { "STOP_TUNNEL_BEFORE_CONFIGURATION" }
+        resetRuntimeDirectory()
         val cert = vault.get("origin-cert") ?: error("CLOUDFLARE_LOGIN_REQUIRED")
         privateFile(".cloudflared/cert.pem",cert)
         val expected=epoch
@@ -372,6 +374,10 @@ class TunnelManager(context: Context,private val mcpPort: Int = 8732,private val
         val data = JSONObject(Base64.decode(block,Base64.DEFAULT).toString(Charsets.UTF_8))
         require(data.optString("apiToken").isNotBlank() && data.optString("zoneID").isNotBlank()) { "INVALID_ORIGIN_CERTIFICATE" }
         return data
+    }
+    private fun resetRuntimeDirectory() {
+        directory.mkdirs()
+        directory.listFiles()?.forEach { runCatching { it.deleteRecursively() } }
     }
     private fun privateFile(name: String,text: String) = File(directory,name).apply { parentFile?.mkdirs(); writeText(text); setReadable(false,false); setWritable(false,false); setReadable(true,true); setWritable(true,true) }
     private fun binary(name: String) = File(app.applicationInfo.nativeLibraryDir,"lib$name.so").also { check(it.canExecute()) { "TUNNEL_BINARY_MISSING" } }
