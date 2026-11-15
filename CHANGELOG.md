@@ -1,5 +1,28 @@
 # 变更记录
 
+## 0.2.1 · 2026-11-15
+
+### 启动与后台
+
+- **启动期 IO**：MCP Token 的 Android Keystore 读取改为后台预热，服务器启动时兜底加载；隧道目录清理延迟到隧道实际启动、登录或管理时，避免 `Application.onCreate` 同步访问 Keystore/磁盘。
+- **Token 恢复**：Token 加载后恢复“始终允许接管”的持久化状态，避免构造期读 Keystore。
+
+### 节点树
+
+- 单次无障碍树采集增加 1500 ms 时间预算，超时返回 `time_limit`。
+- 格式化输出最多 2000 节点，超出返回 `output_limit`；结果新增 `time_budget_ms` 和 `output_limit` 字段。
+- 采集上限仍为 5000 节点、深度 100、每节点 1000 子项；`observe` 默认仍为 `tree + compact`。
+
+### 设置
+
+- 画中画预览开关和系统画中画设置入口从「权限与后端」移到「显示与控制」的「画中画」分组。
+
+### 验证
+
+- JVM 单元测试 147 项通过；Android Lint 0 error、69 warning；Debug 构建通过。
+- vivo V2419A / Android 15 / KernelSU Root：`DeviceBackendTest` 通过（6 tests，2 项 Shizuku 未安装跳过）；`DeviceToolProbeTest` 19/19 工具通过；测试后无残留虚拟屏。
+- Release 继续使用 R8、资源压缩和按 ABI 分包，由标签 Actions 构建并签名。
+
 ## 0.2.0 · 2026-10-24
 
 ### 包体

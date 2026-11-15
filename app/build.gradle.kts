@@ -17,8 +17,8 @@ android {
         applicationId = "io.github.lejw0925.virtualscreen"
         minSdk = 33
         targetSdk = 37
-        versionCode = 5
-        versionName = "0.2.0"
+        versionCode = 6
+        versionName = "0.2.1"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         ndk { abiFilters += setOf("arm64-v8a", "armeabi-v7a", "x86_64") }
     }
