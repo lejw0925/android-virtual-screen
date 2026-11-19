@@ -22,7 +22,7 @@ import org.json.JSONObject
 
 data class McpClientInfo(val id: String,val name: String,val initialized: Boolean)
 data class McpServerState(val running: Boolean = false,val host: String = "127.0.0.1",val port: Int = 8732,val token: String = "",val sessionCount: Int = 0,
-    val clients: List<McpClientInfo> = emptyList(),val lastError: String? = null)
+    val clients: List<McpClientInfo> = emptyList(),val lastError: String? = null,val network: McpNetwork = McpNetwork.LOCAL)
 private class ClientSession(val id: String,val name: String,val version: String,var lastActivityMillis: Long, val peerIp: String, val forwardedIp: String?) {
     @Volatile var initialized = false
     var activeCalls = 0
@@ -78,15 +78,15 @@ class McpServerController(context: Context,private val sessions: VirtualScreenSe
     private val clients = ConcurrentHashMap<String,ClientSession>()
     private val clientLock = Any()
     private var allowedOrigins: Set<String> = emptySet()
-    @Synchronized fun start(lan: Boolean = false,port: Int = DEFAULT_PORT,origins: Set<String> = emptySet()): Result<McpServerState> {
+    @Synchronized fun start(network: McpNetwork = McpNetwork.LOCAL,port: Int = DEFAULT_PORT,origins: Set<String> = emptySet()): Result<McpServerState> {
         if (server != null && state().running) return Result.success(state())
         if (server != null) stop()
         return runCatching {
             require(port in 1..65535) { "INVALID_PORT" }
             val token = runBlocking { loadTokenState() }
             allowedOrigins = origins
-            val host = if(lan) "0.0.0.0" else "127.0.0.1"
-            log.runtime("mcp_listener", "starting", "host=$host; port=$port")
+            val host = if(network == McpNetwork.LOCAL) "127.0.0.1" else "0.0.0.0"
+            log.runtime("mcp_listener", "starting", "host=$host; port=$port; network=$network")
             // CIO starts its listener asynchronously. Reject an already occupied
             // endpoint before launch and await the actual bound connectors below.
             java.net.ServerSocket().use { it.bind(java.net.InetSocketAddress(host,port)) }
@@ -99,7 +99,14 @@ class McpServerController(context: Context,private val sessions: VirtualScreenSe
                         log.failure("mcp_engine", failure)
                     }
                 }
-                module { routing {
+                module {
+                if(network == McpNetwork.TAILSCALE) intercept(ApplicationCallPipeline.Plugins) {
+                    if(!tailscaleAllows(call.request.local.remoteAddress,call.request.local.localAddress)) {
+                        logHttp(call,"network","not_tailnet")
+                        call.respond(HttpStatusCode.Forbidden); finish()
+                    }
+                }
+                routing {
                     get("/") {
                         call.response.header(HttpHeaders.CacheControl,"no-store")
                         call.response.header("Content-Security-Policy","default-src 'none'; style-src 'unsafe-inline'; frame-ancestors 'none'")
@@ -128,8 +135,8 @@ class McpServerController(context: Context,private val sessions: VirtualScreenSe
             server = engine
             engine.start(wait = false)
             runBlocking { withTimeout(5000) { engine.engine.resolvedConnectors() } }
-            mutableState.value = McpServerState(true,host,port,token)
-            log.runtime("mcp_listener", "started", "host=$host; port=$port")
+            mutableState.value = McpServerState(true,host,port,token,network=network)
+            log.runtime("mcp_listener", "started", "host=$host; port=$port; network=$network")
             CoroutineScope(parent + Dispatchers.IO).launch {
                 while(isActive) {
                     delay(CLEANUP_INTERVAL_MILLIS)

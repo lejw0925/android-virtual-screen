@@ -320,7 +320,7 @@ internal suspend fun phoneInput(app: VirtualScreenApplication,operation: Backend
     val l=LocalLanguage.current; val state by app.sessions.state.collectAsState(); val settings by app.settings.flow.collectAsState()
     val tool by app.mcp.activity.collectAsState(); val server by app.mcp.flow.collectAsState(); val scope=rememberCoroutineScope(); val lifecycle=LocalLifecycleOwner.current
     val tunnel by app.tunnels.flow.collectAsState()
-    val endpoint = remember(server.host, server.port, tunnel.publicAddress) { connectionAddress(server, tunnel) }
+    val endpoint = remember(server.host, server.port, server.network, tunnel.publicAddress) { connectionAddress(server, tunnel) }
     val mcpChanging by app.mcpChanging.collectAsState()
     val accessibilityConnected by ScreenAccessibilityService.connected.collectAsStateWithLifecycle()
     val context = LocalContext.current

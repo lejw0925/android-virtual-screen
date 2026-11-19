@@ -70,7 +70,7 @@ class VirtualScreenApplication : Application() {
                     check(capabilities.displayCreation != io.github.lejw0925.virtualscreen.backend.CapabilityStatus.REQUIRES_AUTHORIZATION) {
                         if(settings.flow.value.backend == io.github.lejw0925.virtualscreen.backend.BackendKind.ROOT) "ROOT_PERMISSION_REQUIRED" else "SHIZUKU_PERMISSION_REQUIRED"
                     }
-                    mcp.start(settings.flow.value.lan).getOrThrow()
+                    mcp.start(settings.flow.value.mcpNetwork).getOrThrow()
                     sessions.clearInactiveDisplayError()
                     val wantedTunnel = tunnelWanted
                     if(wantedTunnel != TunnelMode.OFF && !tunnels.state().running) {
