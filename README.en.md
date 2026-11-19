@@ -30,7 +30,7 @@ Download the APK for your architecture plus `SHA256SUMS` from [GitHub Releases](
 - **Visible progress and takeover.** PiP shows the remote display; PiP is read-only and can be turned off entirely in settings. Expand the app's full-screen preview or use the notification to take over locally, which revokes the remote control lease.
 - **19 MCP tools.** Control, display, app, observation, input, and wait operations. Tree observations can skip screenshots; fresh observation IDs and session receipts reject stale operations and let clients check uncertain results without replaying input.
 - **Root and Shizuku / Stellar.** Both privilege backends share the virtual-display engine, MCP protocol, and input constraints; devices running Stellar automatically use its native API.
-- **Flexible connections.** Loopback, LAN, frpc, and Cloudflare Tunnel. MCP and tunnels start disabled; starting MCP restores the previously connected tunnel; credentials are stored in the app's private encrypted storage.
+- **Flexible connections.** Loopback, LAN, Tailscale-only, frpc, and Cloudflare Tunnel. MCP and tunnels start disabled; starting MCP restores the previously connected tunnel; credentials are stored in the app's private encrypted storage.
 - **On-device settings.** English, Simplified Chinese, and Traditional Chinese; light and dark themes, dynamic color, onboarding, and local activity logs.
 
 ## Get Started
@@ -43,7 +43,7 @@ Download the APK for your architecture plus `SHA256SUMS` from [GitHub Releases](
    adb forward tcp:8732 tcp:8732
    ```
 
-   The default MCP endpoint is `http://127.0.0.1:8732/mcp`. Enable LAN access in settings for a computer on the same network, or configure frpc or Cloudflare Tunnel for public access.
+   The default MCP endpoint is `http://127.0.0.1:8732/mcp`. Set **Network access** to LAN for a computer on the same network, or Tailscale only to accept just tailnet peers (`100.64.0.0/10`, `fd7a:115c:a1e0::/48`) arriving over the Tailscale VPN plus on-device loopback, or configure frpc or Cloudflare Tunnel for public access.
 
 4. Put the phone-generated Bearer Token in your MCP client configuration:
 

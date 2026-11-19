@@ -25,7 +25,7 @@ import kotlinx.coroutines.*
     val state by app.sessions.state.collectAsState()
     val server by app.mcp.flow.collectAsState()
     val tunnel by app.tunnels.flow.collectAsState()
-    val endpoint = remember(server.host, server.port, tunnel.publicAddress) { connectionAddress(server, tunnel) }
+    val endpoint = remember(server.host, server.port, server.network, tunnel.publicAddress) { connectionAddress(server, tunnel) }
     val toggleMcp=rememberMcpToggle(app,notifications)
     var page by rememberSaveable { mutableIntStateOf(0) }
     var busy by remember { mutableStateOf(false) }
