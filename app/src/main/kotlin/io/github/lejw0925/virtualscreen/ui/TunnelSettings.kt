@@ -143,8 +143,8 @@ import androidx.compose.material.icons.automirrored.filled.ArrowForward
                         val cfConfig = if(selectedMode == TunnelMode.CLOUDFLARE_NAMED)
                             CloudflareConfig(if(useToken) cfToken.takeIf(String::isNotBlank) else null,
                                 cfHost, tunnelId.takeIf(String::isNotBlank)) else null
-                        app.tunnelWanted = selectedMode
-                        runTask { app.tunnels.start(selectedMode, frpcConfig, cfConfig) }
+                        val network = server.network
+                        runTask { app.connectTunnel(network, selectedMode, frpcConfig, cfConfig) }
                     }
                 }
             }

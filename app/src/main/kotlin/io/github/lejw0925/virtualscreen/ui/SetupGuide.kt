@@ -24,8 +24,6 @@ import kotlinx.coroutines.*
     val l=LocalLanguage.current
     val state by app.sessions.state.collectAsState()
     val server by app.mcp.flow.collectAsState()
-    val tunnel by app.tunnels.flow.collectAsState()
-    val endpoint = remember(server.host, server.port, server.network, tunnel.publicAddress) { connectionAddress(server, tunnel) }
     val toggleMcp=rememberMcpToggle(app,notifications)
     var page by rememberSaveable { mutableIntStateOf(0) }
     var busy by remember { mutableStateOf(false) }
@@ -71,7 +69,7 @@ import kotlinx.coroutines.*
             ArrowPreference(title=if(state.capabilities.usable) l.text("已授权","Authorized","已授權") else l.text("授权并检测","Authorize access","授權並檢測"),summary=state.backend.wireName.uppercase(),icon=Icons.Default.CheckCircle,onClick={ task { app.sessions.requestAuthorization() } })
         }
         if(page==1) ElevatedCard(Modifier.fillMaxWidth()) {
-            ArrowPreference(title=l.text("复制连接配置","Copy connection configuration","複製連線設定"),enabled=server.running,icon=Icons.Default.ContentCopy,onClick={ if(server.running) copy(app,app.mcp.clientConfiguration(endpoint)) })
+            ArrowPreference(title=l.text("复制连接配置","Copy connection configuration","複製連線設定"),enabled=server.running,icon=Icons.Default.ContentCopy,onClick={ if(server.running) copyMcpConnection(app, l) })
             if (server.running) {
                 StatusChip(l.text("MCP 已就绪", "MCP ready", "MCP 已就緒"), StatusTone.Positive, modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp))
             }

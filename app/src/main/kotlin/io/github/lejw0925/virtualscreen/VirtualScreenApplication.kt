@@ -10,7 +10,10 @@ import io.github.lejw0925.virtualscreen.core.RuntimeDiagnostics
 import io.github.lejw0925.virtualscreen.core.failure
 import io.github.lejw0925.virtualscreen.core.runtime
 import io.github.lejw0925.virtualscreen.core.VirtualScreenSessionManager
+import io.github.lejw0925.virtualscreen.mcp.McpNetwork
 import io.github.lejw0925.virtualscreen.mcp.McpServerController
+import io.github.lejw0925.virtualscreen.tunnel.CloudflareConfig
+import io.github.lejw0925.virtualscreen.tunnel.FrpcConfig
 import io.github.lejw0925.virtualscreen.tunnel.TunnelManager
 import io.github.lejw0925.virtualscreen.tunnel.TunnelMode
 import kotlinx.coroutines.*
@@ -36,7 +39,7 @@ class VirtualScreenApplication : Application() {
         finally { mutableRuntimeTasks.update { it - 1 } }
     }
     val mcpWanted: Boolean get() = getSharedPreferences("runtime",MODE_PRIVATE).getBoolean("mcpEnabled",false)
-    /** Tunnel mode the user last connected with; restored whenever MCP starts. Stops initiated by MCP shutdown keep it. */
+    /** Last explicitly connected tunnel; automatically restored only outside Tailscale mode. */
     var tunnelWanted: TunnelMode
         get() = getSharedPreferences("runtime",MODE_PRIVATE).getString("tunnelMode",null)?.let { runCatching { TunnelMode.valueOf(it) }.getOrNull() } ?: TunnelMode.OFF
         set(mode) { getSharedPreferences("runtime",MODE_PRIVATE).edit().putString("tunnelMode",mode.name).apply() }
@@ -55,6 +58,28 @@ class VirtualScreenApplication : Application() {
             }
         }
     }
+    suspend fun setMcpNetwork(network: McpNetwork) = runtimeMutex.withLock {
+        val previous = settings.flow.value.mcpNetwork
+        if (previous == network) return@withLock
+        if (previous == McpNetwork.TAILSCALE || network == McpNetwork.TAILSCALE) tunnelWanted = TunnelMode.OFF
+        settings.update { it.copy(mcpNetwork = network) }
+        val running = mcp.state().running
+        if (running || network == McpNetwork.TAILSCALE) tunnels.stop()
+        if (running) {
+            mcp.stop()
+            mcp.start(network).getOrThrow()
+        }
+    }
+
+    suspend fun connectTunnel(network: McpNetwork, mode: TunnelMode, frpc: FrpcConfig?, cloudflare: CloudflareConfig?) {
+        runtimeMutex.withLock {
+            val server = mcp.state()
+            check(server.running && server.network == network) { "MCP_NETWORK_CHANGED" }
+            if (network != McpNetwork.TAILSCALE) tunnelWanted = mode
+            tunnels.start(mode, frpc, cloudflare)
+        }
+    }
+
     /** Runs in the application scope so navigating away cannot cancel server startup. */
     @Synchronized fun restoreMcp() {
         if(!mcpWanted || startupJob?.isActive == true) return
@@ -70,8 +95,12 @@ class VirtualScreenApplication : Application() {
                     check(capabilities.displayCreation != io.github.lejw0925.virtualscreen.backend.CapabilityStatus.REQUIRES_AUTHORIZATION) {
                         if(settings.flow.value.backend == io.github.lejw0925.virtualscreen.backend.BackendKind.ROOT) "ROOT_PERMISSION_REQUIRED" else "SHIZUKU_PERMISSION_REQUIRED"
                     }
-                    mcp.start(settings.flow.value.mcpNetwork).getOrThrow()
+                    val server = mcp.start(settings.flow.value.mcpNetwork).getOrThrow()
                     sessions.clearInactiveDisplayError()
+                    if (server.network == McpNetwork.TAILSCALE) {
+                        if (tunnelWanted != TunnelMode.OFF) tunnelWanted = TunnelMode.OFF
+                        return@withLock
+                    }
                     val wantedTunnel = tunnelWanted
                     if(wantedTunnel != TunnelMode.OFF && !tunnels.state().running) {
                         val (frpc, cloudflare) = tunnels.loadProfile()

@@ -3,6 +3,8 @@ package io.github.lejw0925.virtualscreen.ui
 import android.content.ClipData
 import android.content.ClipboardManager
 import android.content.Context
+import android.widget.Toast
+import androidx.lifecycle.compose.LifecycleResumeEffect
 import androidx.compose.foundation.layout.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
@@ -43,16 +45,66 @@ internal fun copy(context: Context,text: String) {
     context.getSystemService(ClipboardManager::class.java).setPrimaryClip(clip)
     android.widget.Toast.makeText(context,context.getString(io.github.lejw0925.virtualscreen.R.string.clipboard_copied),android.widget.Toast.LENGTH_SHORT).show()
 }
-internal fun connectionAddress(server: McpServerState, tunnel: TunnelState): String =
-    tunnel.publicAddress?.replaceFirst("tcp://", "http://")
-        ?: (if (server.network != McpNetwork.LOCAL) lanAddresses(server.port, server.network).firstOrNull() else null)
+internal fun connectionAddress(
+    server: McpServerState,
+    tunnel: TunnelState,
+    addresses: (Int, McpNetwork) -> List<String> = ::lanAddresses,
+): String? {
+    if (server.network == McpNetwork.TAILSCALE) return addresses(server.port, server.network).firstOrNull()
+    return tunnel.publicAddress?.replaceFirst("tcp://", "http://")
+        ?: (if (server.network == McpNetwork.LAN) addresses(server.port, server.network).firstOrNull() else null)
         ?: "http://127.0.0.1:${server.port}/mcp"
+}
 
-internal fun connectionAddress(app: VirtualScreenApplication): String = connectionAddress(app.mcp.state(), app.tunnels.state())
+internal fun tailscaleAddressUnavailable(language: UiLanguage) = language.text(
+    "没有可用的 Tailscale 地址。", "No Tailscale address available.", "沒有可用的 Tailscale 位址。",
+)
+
+internal fun copyMcpConnection(
+    app: VirtualScreenApplication,
+    language: UiLanguage,
+    addressOnly: Boolean = false,
+    selectedAddress: String? = null,
+) {
+    val server = app.mcp.state()
+    val network = if (server.running) server.network else app.settings.flow.value.mcpNetwork
+    val endpoint = if (selectedAddress == null) {
+        connectionAddress(server.copy(network = network), app.tunnels.state())
+    } else {
+        lanAddresses(server.port, network).firstOrNull { it == selectedAddress }
+    }
+    if (endpoint == null) {
+        val message = if (network == McpNetwork.TAILSCALE) tailscaleAddressUnavailable(language) else
+            language.text("地址已不可用。", "Address no longer available.", "位址已不可用。")
+        Toast.makeText(app, message, Toast.LENGTH_SHORT).show()
+        return
+    }
+    copy(app, if (addressOnly) endpoint else app.mcp.clientConfiguration(endpoint))
+}
+
+@Composable internal fun rememberMcpAddresses(server: McpServerState): List<String> {
+    var addresses by remember(server.network, server.port, server.running) {
+        mutableStateOf(lanAddresses(server.port, server.network))
+    }
+    LifecycleResumeEffect(server.network, server.port) {
+        addresses = lanAddresses(server.port, server.network)
+        onPauseOrDispose { }
+    }
+    return addresses
+}
+
 internal fun lanAddresses(port: Int, network: McpNetwork): List<String> = runCatching {
-    java.net.NetworkInterface.getNetworkInterfaces().toList().filter { it.isUp && !it.isLoopback && (network != McpNetwork.TAILSCALE || isTailscaleInterface(it.name)) }.flatMap { it.inetAddresses.toList() }
-        .filterIsInstance<java.net.Inet4Address>().filter { !it.isLoopbackAddress && !it.isLinkLocalAddress && (network != McpNetwork.TAILSCALE || isTailscaleAddress(it)) }
-        .map { "http://${it.hostAddress}:$port/mcp" }.distinct()
+    if (network == McpNetwork.LOCAL) return emptyList()
+    java.net.NetworkInterface.getNetworkInterfaces().toList()
+        .filter { it.isUp && !it.isLoopback && (network != McpNetwork.TAILSCALE || isTailscaleInterface(it.name)) }
+        .flatMap { it.inetAddresses.toList() }
+        .filter { !it.isLoopbackAddress && !it.isLinkLocalAddress &&
+            if (network == McpNetwork.TAILSCALE) isTailscaleAddress(it) else it is java.net.Inet4Address }
+        .sortedBy { it !is java.net.Inet4Address }
+        .map { address ->
+            val host = address.hostAddress!!.substringBefore('%')
+            if (address is java.net.Inet6Address) "http://[$host]:$port/mcp" else "http://$host:$port/mcp"
+        }.distinct()
 }.getOrDefault(emptyList())
 
 internal fun tunnelLabel(l: UiLanguage,mode: TunnelMode)=when(mode) {

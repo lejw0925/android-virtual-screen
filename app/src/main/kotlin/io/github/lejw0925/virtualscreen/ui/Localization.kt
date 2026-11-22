@@ -45,6 +45,7 @@ fun localizedError(l: UiLanguage,code: String): String = when(code) {
     "SCREEN_OFF_UNAVAILABLE" -> l.text("当前设备不允许此时操作，请点亮并解锁手机。","The device cannot operate in this state. Wake and unlock the phone.","目前裝置不允許此時操作，請點亮並解鎖手機。")
     "WAIT_TIMEOUT" -> l.text("等待超时，已返回当前观察。","Wait timed out; the current observation is returned.","等待逾時，已傳回目前觀察。")
     "UI_INPUT_TIMEOUT", "INPUT_DISPATCH_UNCONFIRMED" -> l.text("操作结果未确认，请重新观察；不要直接重放。","The effect is unconfirmed. Observe again before deciding to repeat.","操作結果未確認，請重新觀察；不要直接重播。")
+    "MCP_NETWORK_CHANGED" -> l.text("MCP 网络已更改，请重试。","The MCP network changed. Try again.","MCP 網路已變更，請重試。")
     "MCP_PORT_IN_USE" -> l.text("MCP 端口已被占用，请停止占用服务后重试。","The MCP port is in use. Stop the conflicting service and retry.","MCP 連接埠已被佔用，請停止佔用服務後重試。")
     "DNS_RECORD_CONFLICT" -> l.text("DNS 记录已存在，请修改域名配置。","A DNS record already exists. Choose another hostname.","DNS 記錄已存在，請修改網域設定。")
     "INVALID_ARGUMENT", "MISSING_ARGUMENT", "UNKNOWN_ARGUMENT", "ARGUMENT_NOT_APPLICABLE" -> l.text("参数不完整或不适用于当前操作，请检查工具说明。","Arguments are missing, invalid or inapplicable. Check the tool schema.","參數不完整或不適用於目前操作，請檢查工具說明。")

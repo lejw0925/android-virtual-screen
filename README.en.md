@@ -30,7 +30,7 @@ Download the APK for your architecture plus `SHA256SUMS` from [GitHub Releases](
 - **Visible progress and takeover.** PiP shows the remote display; PiP is read-only and can be turned off entirely in settings. Expand the app's full-screen preview or use the notification to take over locally, which revokes the remote control lease.
 - **19 MCP tools.** Control, display, app, observation, input, and wait operations. Tree observations can skip screenshots; fresh observation IDs and session receipts reject stale operations and let clients check uncertain results without replaying input.
 - **Root and Shizuku / Stellar.** Both privilege backends share the virtual-display engine, MCP protocol, and input constraints; devices running Stellar automatically use its native API.
-- **Flexible connections.** Loopback, LAN, Tailscale-only, frpc, and Cloudflare Tunnel. MCP and tunnels start disabled; starting MCP restores the previously connected tunnel; credentials are stored in the app's private encrypted storage.
+- **Flexible connections.** Loopback, LAN, Tailscale-only, frpc, and Cloudflare Tunnel. MCP and tunnels start disabled; starting MCP restores the previously connected tunnel except in Tailscale-only mode; credentials are stored in the app's private encrypted storage.
 - **On-device settings.** English, Simplified Chinese, and Traditional Chinese; light and dark themes, dynamic color, onboarding, and local activity logs.
 
 ## Get Started

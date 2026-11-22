@@ -320,7 +320,9 @@ internal suspend fun phoneInput(app: VirtualScreenApplication,operation: Backend
     val l=LocalLanguage.current; val state by app.sessions.state.collectAsState(); val settings by app.settings.flow.collectAsState()
     val tool by app.mcp.activity.collectAsState(); val server by app.mcp.flow.collectAsState(); val scope=rememberCoroutineScope(); val lifecycle=LocalLifecycleOwner.current
     val tunnel by app.tunnels.flow.collectAsState()
-    val endpoint = remember(server.host, server.port, server.network, tunnel.publicAddress) { connectionAddress(server, tunnel) }
+    val connectionServer = if (server.running) server else server.copy(network = settings.mcpNetwork)
+    val addresses = rememberMcpAddresses(connectionServer)
+    val endpoint = connectionAddress(connectionServer, tunnel) { _, _ -> addresses }
     val mcpChanging by app.mcpChanging.collectAsState()
     val accessibilityConnected by ScreenAccessibilityService.connected.collectAsStateWithLifecycle()
     val context = LocalContext.current
@@ -377,7 +379,7 @@ internal suspend fun phoneInput(app: VirtualScreenApplication,operation: Backend
                 server = server,
                 changing = mcpChanging,
                 wanted = app.mcpWanted,
-                address = endpoint,
+                address = endpoint ?: tailscaleAddressUnavailable(l),
                 backend = state.backend,
                 backendReady = state.capabilities.details in setOf("SHIZUKU_READY", "ROOT_READY") ||
                     state.capabilities.displayCreation == CapabilityStatus.AVAILABLE,
@@ -392,8 +394,8 @@ internal suspend fun phoneInput(app: VirtualScreenApplication,operation: Backend
                     else ScreenAccessibilityService.current?.disableSelf()
                 },
                 onLogs = onLogs,
-                onCopy = { copy(app, app.mcp.clientConfiguration(endpoint)) },
-                onCopyAddress = { copy(app, endpoint) },
+                onCopy = { copyMcpConnection(app, l) },
+                onCopyAddress = { copyMcpConnection(app, l, addressOnly = true) },
                 error = (server.lastError ?: state.errorCode)?.let { localizedError(l, it) },
             )
         }

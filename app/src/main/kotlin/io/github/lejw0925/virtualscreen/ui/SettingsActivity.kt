@@ -411,8 +411,9 @@ private fun capabilityLabel(l: UiLanguage,c: CapabilityStatus)=when(c) {
     } }
 }
 @Composable private fun McpPreferences(app: VirtualScreenApplication,task: (suspend () -> Unit) -> Unit,notifications: () -> Unit) {
-    val l=LocalLanguage.current; val server by app.mcp.flow.collectAsState(); val settings by app.settings.flow.collectAsState(); val tunnel by app.tunnels.flow.collectAsState()
-    val endpoint = remember(server.host, server.port, server.network, tunnel.publicAddress) { connectionAddress(server, tunnel) }
+    val l=LocalLanguage.current; val server by app.mcp.flow.collectAsState(); val settings by app.settings.flow.collectAsState()
+    val network = if (server.running) server.network else settings.mcpNetwork
+    val addresses = rememberMcpAddresses(server.copy(network = network))
     val toggleMcp=rememberMcpToggle(app,notifications)
     val alwaysAllow by app.mcp.approvals.alwaysAllow.collectAsState()
     var rotate by remember { mutableStateOf(false) }
@@ -426,14 +427,21 @@ private fun capabilityLabel(l: UiLanguage,c: CapabilityStatus)=when(c) {
         if(alwaysAllow) ArrowPreference(title=l.text("撤销始终允许接管","Revoke always-allow control","撤銷始終允許接管"),onClick={ app.mcp.approvals.setAlwaysAllow(false) })
         val networks=McpNetwork.entries
         WindowDropdownPreference(items=listOf(l.text("仅本机","This device only","僅本機"),l.text("局域网","LAN","區域網路"),l.text("仅 Tailscale","Tailscale only","僅 Tailscale")),selectedIndex=networks.indexOf(settings.mcpNetwork),title=l.text("网络访问","Network access","網路存取"),
-            onSelectedIndexChange={ i -> val value=networks[i]; task { app.settings.update { it.copy(mcpNetwork=value) }; if(server.running) { app.tunnels.stop(); app.mcp.stop(); app.mcp.start(value).getOrThrow() } } })
+            onSelectedIndexChange={ i -> task { app.setMcpNetwork(networks[i]) } })
         ArrowPreference(title=l.text("后台运行（可选）","Background operation (optional)","背景執行（選用）"),summary=if(backgroundUnrestricted) l.text("已允许","Allowed","已允許") else l.text("未允许 · 可能被系统中断","Not allowed · may be interrupted","未允許 · 可能被系統中斷"),onClick={ openBackgroundSettings(app) })
     }
     Section(l.text("客户端配置","Client configuration","用戶端設定")) {
-        ArrowPreference(title=l.text("复制客户端配置","Copy client configuration","複製用戶端設定"),onClick={ copy(app,app.mcp.clientConfiguration(endpoint)) })
+        ArrowPreference(title=l.text("复制客户端配置","Copy client configuration","複製用戶端設定"),onClick={ copyMcpConnection(app, l) })
         ArrowPreference(title=l.text("复制 Token","Copy token","複製 Token"),summary="••••••••",onClick={ copy(app,server.token) })
         ArrowPreference(title=l.text("轮换 Token","Rotate token","輪換 Token"),onClick={ rotate=true })
-        if(server.network!=McpNetwork.LOCAL) lanAddresses(server.port,server.network).forEach { address -> ArrowPreference(title=if(server.network==McpNetwork.TAILSCALE) l.text("Tailscale 地址","Tailscale address","Tailscale 位址") else l.text("局域网地址","LAN address","區域網路位址"),summary=address,onClick={ copy(app,address) }) }
+        addresses.forEach { address ->
+            ArrowPreference(
+                title = if (network == McpNetwork.TAILSCALE) l.text("Tailscale 地址", "Tailscale address", "Tailscale 位址")
+                    else l.text("局域网地址", "LAN address", "區域網路位址"),
+                summary = address,
+                onClick = { copyMcpConnection(app, l, addressOnly = true, selectedAddress = address) },
+            )
+        }
     }
     if(server.clients.isNotEmpty()) Section(l.text("已连接客户端","Connected clients","已連線用戶端")) {
         server.clients.forEach { client -> ArrowPreference(title=client.name,onClick={ app.mcp.disconnectSession(client.id) }) }
